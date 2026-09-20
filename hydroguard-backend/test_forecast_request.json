@@ -1,0 +1,214 @@
+{
+  "readings": [
+    {
+      "timestamp": "2026-08-21T20:04:45Z",
+      "pH": 7.0,
+      "TDS": 300,
+      "turbidity": 1.0,
+      "temperature": 20.0
+    },
+    {
+      "timestamp": "2026-08-22T20:04:45Z",
+      "pH": 7.1,
+      "TDS": 310,
+      "turbidity": 1.2,
+      "temperature": 20.5
+    },
+    {
+      "timestamp": "2026-08-23T20:04:45Z",
+      "pH": 7.2,
+      "TDS": 320,
+      "turbidity": 1.4,
+      "temperature": 21.0
+    },
+    {
+      "timestamp": "2026-08-24T20:04:45Z",
+      "pH": 7.3,
+      "TDS": 330,
+      "turbidity": 1.6,
+      "temperature": 21.5
+    },
+    {
+      "timestamp": "2026-08-25T20:04:45Z",
+      "pH": 7.4,
+      "TDS": 340,
+      "turbidity": 1.8,
+      "temperature": 22.0
+    },
+    {
+      "timestamp": "2026-08-26T20:04:45Z",
+      "pH": 7.5,
+      "TDS": 350,
+      "turbidity": 1.0,
+      "temperature": 22.5
+    },
+    {
+      "timestamp": "2026-08-27T20:04:45Z",
+      "pH": 7.6,
+      "TDS": 360,
+      "turbidity": 1.2,
+      "temperature": 23.0
+    },
+    {
+      "timestamp": "2026-08-28T20:04:45Z",
+      "pH": 7.7,
+      "TDS": 370,
+      "turbidity": 1.4,
+      "temperature": 23.5
+    },
+    {
+      "timestamp": "2026-08-29T20:04:45Z",
+      "pH": 7.8,
+      "TDS": 380,
+      "turbidity": 1.6,
+      "temperature": 24.0
+    },
+    {
+      "timestamp": "2026-08-30T20:04:45Z",
+      "pH": 7.9,
+      "TDS": 390,
+      "turbidity": 1.8,
+      "temperature": 24.5
+    },
+    {
+      "timestamp": "2026-08-31T20:04:45Z",
+      "pH": 7.0,
+      "TDS": 400,
+      "turbidity": 1.0,
+      "temperature": 20.0
+    },
+    {
+      "timestamp": "2026-09-01T20:04:45Z",
+      "pH": 7.1,
+      "TDS": 410,
+      "turbidity": 1.2,
+      "temperature": 20.5
+    },
+    {
+      "timestamp": "2026-09-02T20:04:45Z",
+      "pH": 7.2,
+      "TDS": 420,
+      "turbidity": 1.4,
+      "temperature": 21.0
+    },
+    {
+      "timestamp": "2026-09-03T20:04:45Z",
+      "pH": 7.3,
+      "TDS": 430,
+      "turbidity": 1.6,
+      "temperature": 21.5
+    },
+    {
+      "timestamp": "2026-09-04T20:04:45Z",
+      "pH": 7.4,
+      "TDS": 440,
+      "turbidity": 1.8,
+      "temperature": 22.0
+    },
+    {
+      "timestamp": "2026-09-05T20:04:45Z",
+      "pH": 7.5,
+      "TDS": 450,
+      "turbidity": 1.0,
+      "temperature": 22.5
+    },
+    {
+      "timestamp": "2026-09-06T20:04:45Z",
+      "pH": 7.6,
+      "TDS": 460,
+      "turbidity": 1.2,
+      "temperature": 23.0
+    },
+    {
+      "timestamp": "2026-09-07T20:04:45Z",
+      "pH": 7.7,
+      "TDS": 470,
+      "turbidity": 1.4,
+      "temperature": 23.5
+    },
+    {
+      "timestamp": "2026-09-08T20:04:45Z",
+      "pH": 7.8,
+      "TDS": 480,
+      "turbidity": 1.6,
+      "temperature": 24.0
+    },
+    {
+      "timestamp": "2026-09-09T20:04:45Z",
+      "pH": 7.9,
+      "TDS": 490,
+      "turbidity": 1.8,
+      "temperature": 24.5
+    },
+    {
+      "timestamp": "2026-09-10T20:04:45Z",
+      "pH": 7.0,
+      "TDS": 300,
+      "turbidity": 1.0,
+      "temperature": 20.0
+    },
+    {
+      "timestamp": "2026-09-11T20:04:45Z",
+      "pH": 7.1,
+      "TDS": 310,
+      "turbidity": 1.2,
+      "temperature": 20.5
+    },
+    {
+      "timestamp": "2026-09-12T20:04:45Z",
+      "pH": 7.2,
+      "TDS": 320,
+      "turbidity": 1.4,
+      "temperature": 21.0
+    },
+    {
+      "timestamp": "2026-09-13T20:04:45Z",
+      "pH": 7.3,
+      "TDS": 330,
+      "turbidity": 1.6,
+      "temperature": 21.5
+    },
+    {
+      "timestamp": "2026-09-14T20:04:45Z",
+      "pH": 7.4,
+      "TDS": 340,
+      "turbidity": 1.8,
+      "temperature": 22.0
+    },
+    {
+      "timestamp": "2026-09-15T20:04:45Z",
+      "pH": 7.5,
+      "TDS": 350,
+      "turbidity": 1.0,
+      "temperature": 22.5
+    },
+    {
+      "timestamp": "2026-09-16T20:04:45Z",
+      "pH": 7.6,
+      "TDS": 360,
+      "turbidity": 1.2,
+      "temperature": 23.0
+    },
+    {
+      "timestamp": "2026-09-17T20:04:45Z",
+      "pH": 7.7,
+      "TDS": 370,
+      "turbidity": 1.4,
+      "temperature": 23.5
+    },
+    {
+      "timestamp": "2026-09-18T20:04:45Z",
+      "pH": 7.8,
+      "TDS": 380,
+      "turbidity": 1.6,
+      "temperature": 24.0
+    },
+    {
+      "timestamp": "2026-09-19T20:04:45Z",
+      "pH": 7.9,
+      "TDS": 390,
+      "turbidity": 1.8,
+      "temperature": 24.5
+    }
+  ]
+}

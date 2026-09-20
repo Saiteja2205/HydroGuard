@@ -86,25 +86,34 @@ class ForecastService:
         self.device = torch.device(self.device)
 
         # Try to use prediction helpers first (full pipeline)
+        use_prediction_helpers = False
         if load_lstm and load_patchtst and load_timemixer:
-            # Load LSTM
-            lstm_path = Path(self.config.lstm_checkpoint_path)
-            if not lstm_path.exists():
-                raise FileNotFoundError(f"LSTM checkpoint not found: {lstm_path}")
-            self.lstm_model, _ = load_lstm(lstm_path, device=self.device)
+            try:
+                # Load LSTM
+                lstm_path = Path(self.config.lstm_checkpoint_path)
+                if not lstm_path.exists():
+                    raise FileNotFoundError(f"LSTM checkpoint not found: {lstm_path}")
+                self.lstm_model, _ = load_lstm(lstm_path, device=self.device)
 
-            # Load PatchTST
-            patchtst_path = Path(self.config.patchtst_checkpoint_path)
-            if not patchtst_path.exists():
-                raise FileNotFoundError(f"PatchTST checkpoint not found: {patchtst_path}")
-            self.patchtst_model, _ = load_patchtst(patchtst_path, device=self.device)
+                # Load PatchTST
+                patchtst_path = Path(self.config.patchtst_checkpoint_path)
+                if not patchtst_path.exists():
+                    raise FileNotFoundError(f"PatchTST checkpoint not found: {patchtst_path}")
+                self.patchtst_model, _ = load_patchtst(patchtst_path, device=self.device)
 
-            # Load TimeMixer
-            timemixer_path = Path(self.config.timemixer_checkpoint_path)
-            if not timemixer_path.exists():
-                raise FileNotFoundError(f"TimeMixer checkpoint not found: {timemixer_path}")
-            self.timemixer_model, _ = load_timemixer(timemixer_path, device=self.device)
-        else:
+                # Load TimeMixer
+                timemixer_path = Path(self.config.timemixer_checkpoint_path)
+                if not timemixer_path.exists():
+                    raise FileNotFoundError(f"TimeMixer checkpoint not found: {timemixer_path}")
+                self.timemixer_model, _ = load_timemixer(timemixer_path, device=self.device)
+                use_prediction_helpers = True
+            except (KeyError, TypeError) as e:
+                # Fallback to direct loading if checkpoint config is incomplete
+                print(f"Warning: Prediction helpers failed due to incomplete checkpoint config: {e}")
+                print("Falling back to direct model loading...")
+                use_prediction_helpers = False
+        
+        if not use_prediction_helpers:
             # Fallback: load models directly (for four-parameter demo mode)
             from ml.models.lstm_model import LSTMModel
             from ml.models.patchtst_model import PatchTST
@@ -116,7 +125,15 @@ class ForecastService:
                 raise FileNotFoundError(f"LSTM checkpoint not found: {lstm_path}")
             checkpoint = torch.load(lstm_path, map_location=self.device)
             input_size = checkpoint.get('config', {}).get('input_size', len(self.config.parameters))
-            self.lstm_model = LSTMModel(input_size=input_size, output_size=input_size)
+            output_size = checkpoint.get('config', {}).get('output_size', input_size)
+            # Use default values for missing parameters
+            self.lstm_model = LSTMModel(
+                input_size=input_size,
+                hidden_size=64,
+                num_layers=2,
+                dropout=0.2,
+                output_size=output_size,
+            )
             self.lstm_model.load_state_dict(checkpoint['model_state_dict'])
             self.lstm_model.to(self.device)
             self.lstm_model.eval()
@@ -127,7 +144,19 @@ class ForecastService:
                 raise FileNotFoundError(f"PatchTST checkpoint not found: {patchtst_path}")
             checkpoint = torch.load(patchtst_path, map_location=self.device)
             input_size = checkpoint.get('config', {}).get('input_size', len(self.config.parameters))
-            self.patchtst_model = PatchTST(input_size=input_size, output_size=input_size)
+            output_size = checkpoint.get('config', {}).get('output_size', input_size)
+            # Use default values for missing parameters
+            self.patchtst_model = PatchTST(
+                input_size=input_size,
+                context_length=30,
+                patch_length=5,
+                stride=5,
+                d_model=64,
+                num_heads=4,
+                num_layers=2,
+                dropout=0.1,
+                output_size=output_size,
+            )
             self.patchtst_model.load_state_dict(checkpoint['model_state_dict'])
             self.patchtst_model.to(self.device)
             self.patchtst_model.eval()
@@ -138,7 +167,17 @@ class ForecastService:
                 raise FileNotFoundError(f"TimeMixer checkpoint not found: {timemixer_path}")
             checkpoint = torch.load(timemixer_path, map_location=self.device)
             input_size = checkpoint.get('config', {}).get('input_size', len(self.config.parameters))
-            self.timemixer_model = TimeMixer(input_size=input_size, output_size=input_size)
+            output_size = checkpoint.get('config', {}).get('output_size', input_size)
+            # Use default values for missing parameters
+            self.timemixer_model = TimeMixer(
+                input_size=input_size,
+                context_length=30,
+                hidden_size=64,
+                num_scales=3,
+                num_mixing_layers=2,
+                dropout=0.1,
+                output_size=output_size,
+            )
             self.timemixer_model.load_state_dict(checkpoint['model_state_dict'])
             self.timemixer_model.to(self.device)
             self.timemixer_model.eval()
@@ -148,6 +187,7 @@ class ForecastService:
             ensemble_config = AdaptiveEnsembleConfig(
                 window_size=self.config.ensemble_window_size,
                 alpha=self.config.ensemble_alpha,
+                parameters=self.config.parameters,  # Use the service's parameters
             )
             self.ensemble = create_ensemble(ensemble_config)
         else:

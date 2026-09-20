@@ -32,6 +32,9 @@ def get_forecast_service() -> "ForecastService":
         config = ForecastServiceConfig(
             four_parameter_mode=four_param_mode,
             parameters=("pH", "TDS", "turbidity", "temperature") if four_param_mode else ("pH", "TDS", "turbidity", "temperature", "EC", "DO"),
+            ensemble_window_size=30,
+            ensemble_alpha=0.5,
+            device="cpu",  # Force CPU to avoid device issues
         )
         forecast_service = create_forecast_service(config)
     return forecast_service
