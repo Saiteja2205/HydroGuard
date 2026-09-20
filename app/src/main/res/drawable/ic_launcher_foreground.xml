@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Centered safe-zone group (66dp bounds within 108dp) -->
+    <group
+        android:translateX="27"
+        android:translateY="27">
+        <!-- 54x54 content size -->
+        <!-- Beautiful Stylized Water Droplet Fused with Smart Shield -->
+        <path
+            android:fillColor="#0D9488"
+            android:pathData="M27.0,2.0 C27.0,2.0 7.0,22.0 7.0,34.0 C7.0,45.0 16.0,52.0 27.0,52.0 C38.0,52.0 47.0,45.0 47.0,34.0 C47.0,22.0 27.0,2.0 27.0,2.0 Z" />
+        <!-- Glowing Core Accent Vector -->
+        <path
+            android:fillColor="#34D399"
+            android:pathData="M27.0,8.0 C27.0,8.0 13.0,24.0 13.0,34.0 C13.0,41.7 19.3,47.0 27.0,47.0 C34.7,47.0 41.0,41.7 41.0,34.0 C41.0,24.0 27.0,8.0 27.0,8.0 Z" />
+        <!-- Digital Checkmark Vector representing clean purity index -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M23.5,37.0 L16.5,30.0 L19.3,27.2 L23.5,31.4 L34.7,20.2 L37.5,23.0 Z" />
+    </group>
+</vector>

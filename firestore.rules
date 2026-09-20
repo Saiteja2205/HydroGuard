@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to get user document
+    function getUserData() {
+      return get(/databases/$(database)/documents/Users/$(request.auth.uid)).data;
+    }
+
+    // Helper function to check if user is an Admin
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'ADMIN';
+    }
+
+    // Helper function to check if user is a Student
+    function isStudent() {
+      return isAuthenticated() && getUserData().role == 'STUDENT';
+    }
+
+    // --- RULES FOR COLLECTIONS ---
+
+    // Users collection
+    match /Users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || (request.auth.uid == userId);
+    }
+
+    // SensorNodes (Overhead tanks, purifiers)
+    match /SensorNodes/{nodeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin(); // Only Admins can modify physical nodes
+    }
+
+    // SensorReadings (IoT physical stream logs)
+    match /SensorReadings/{readingId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Allows write access from ESP32 clients with API verification
+      allow update, delete: if isAdmin();
+    }
+
+    // Predictions (Machine Learning forecast logs)
+    match /Predictions/{predId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin(); // Only AI Engine/Admin accounts write forecasts
+    }
+
+    // Alerts (Safety threshold violations)
+    match /Alerts/{alertId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Auto-triggered by system/ESP32 clients
+      allow update, delete: if isAdmin(); // Only Admins can manually resolve or edit
+    }
+
+    // Notifications (FCM logs)
+    match /Notifications/{notifId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // WaterFeedback (Student chemical complaints)
+    match /WaterFeedback/{feedbackId} {
+      allow read: if isAuthenticated();
+      allow create: if isStudent(); // Students can report water issues
+      allow update: if isAdmin(); // Only Admins can assign staff or resolve
+      allow delete: if isAdmin();
+    }
+
+    // HostelFeedback (Student facility maintenance tickets)
+    match /HostelFeedback/{feedbackId} {
+      allow read: if isAuthenticated();
+      allow create: if isStudent(); // Students can report maintenance
+      allow update: if isAdmin(); // Only Admins can assign staff or resolve
+      allow delete: if isAdmin();
+    }
+
+    // Reports (Water Quality audits)
+    match /Reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin(); // Only Admins can compile weekly audits
+    }
+
+    // AuditLogs (Admin command trail)
+    match /AuditLogs/{logId} {
+      allow read: if isAdmin(); // Highly confidential command trail
+      allow write: if isAdmin();
+    }
+  }
+}

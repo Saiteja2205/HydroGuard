@@ -1,0 +1,49 @@
+{
+  "data_mode": "synthetic_development",
+  "parameters": [
+    "pH",
+    "TDS",
+    "turbidity",
+    "temperature"
+  ],
+  "note": "Synthetic data used only for pipeline validation. Do not use for real-world accuracy claims.",
+  "epochs": 50,
+  "batch_size": 16,
+  "learning_rate": 0.001,
+  "window_size": 30,
+  "models": {
+    "LSTM": {
+      "MAE": {
+        "mae": 2.1543681621551514,
+        "rmse": 4.269260406494141
+      },
+      "RMSE": {
+        "rmse": 4.269260406494141
+      },
+      "train_time_seconds": 4.15544581413269,
+      "best_val_loss": 0.19765107333660126
+    },
+    "PatchTST": {
+      "MAE": {
+        "mae": 1.497678279876709,
+        "rmse": 3.053119421005249
+      },
+      "RMSE": {
+        "rmse": 3.053119421005249
+      },
+      "train_time_seconds": 2.70892071723938,
+      "best_val_loss": 0.08421926014125347
+    },
+    "TimeMixer": {
+      "MAE": {
+        "mae": 0.8988964557647705,
+        "rmse": 1.867598533630371
+      },
+      "RMSE": {
+        "rmse": 1.867598533630371
+      },
+      "train_time_seconds": 7.503462076187134,
+      "best_val_loss": 0.09900852665305138
+    }
+  }
+}

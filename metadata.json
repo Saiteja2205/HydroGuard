@@ -1,0 +1,6 @@
+{
+  "name": "HydroGuard AI",
+  "description": "IoT-Based Smart Water Quality Monitoring & Forecasting System with real-time analytics, AI prediction engine, role-based dashboards, alert system, and feedback management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
