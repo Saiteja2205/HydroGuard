@@ -18,6 +18,9 @@ import com.example.data.database.WaterQualityReport
 import com.example.data.database.AuditLog
 import com.example.data.repository.HydroRepository
 import com.example.data.repository.FirebaseAuthRepository
+import com.example.data.repository.ApiRepository
+import com.example.data.api.ForecastResponse
+import com.example.data.api.LatestReadingResponse
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -27,6 +30,7 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val repository = HydroRepository(database.hydroDao(), viewModelScope)
     private val authRepository = FirebaseAuthRepository(database.hydroDao(), application)
+    private val apiRepository = ApiRepository()
 
     // User State
     val currentUser: StateFlow<User?> = authRepository.currentUserFlow
@@ -89,6 +93,19 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
     val prediction: StateFlow<Prediction?> = _selectedNodeId
         .flatMapLatest { nodeId -> repository.getPrediction(nodeId) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // API State
+    private val _apiForecast = MutableStateFlow<ForecastResponse?>(null)
+    val apiForecast: StateFlow<ForecastResponse?> = _apiForecast.asStateFlow()
+
+    private val _apiLatestReading = MutableStateFlow<LatestReadingResponse?>(null)
+    val apiLatestReading: StateFlow<LatestReadingResponse?> = _apiLatestReading.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _apiError = MutableStateFlow<String?>(null)
+    val apiError: StateFlow<String?> = _apiError.asStateFlow()
 
     fun toggleDarkMode() {
         _isDarkMode.value = !_isDarkMode.value
@@ -213,6 +230,50 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
             val adminEmail = currentUser.value?.email ?: "admin@hostel.edu"
             repository.exportReport(title, summary, ph, turb, tds, alerts, complaints, adminEmail)
         }
+    }
+
+    // API Methods
+    fun fetchLatestReadingFromApi(nodeId: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _apiError.value = null
+
+            val result = apiRepository.getLatestReading(nodeId)
+            result.onSuccess { reading ->
+                _apiLatestReading.value = reading
+                // Automatically generate forecast after successful reading fetch
+                generateForecastFromApi()
+            }.onFailure { error ->
+                _apiError.value = error.localizedMessage ?: "Failed to fetch latest reading"
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun generateForecastFromApi() {
+        viewModelScope.launch {
+            val latestReading = _apiLatestReading.value
+            if (latestReading == null) {
+                _apiError.value = "No latest reading available for forecast"
+                _isLoading.value = false
+                return@launch
+            }
+
+            val forecastReadings = apiRepository.generateForecastReadingsFromLatest(latestReading)
+            val result = apiRepository.generateForecast(forecastReadings)
+
+            result.onSuccess { forecast ->
+                _apiForecast.value = forecast
+            }.onFailure { error ->
+                _apiError.value = error.localizedMessage ?: "Failed to generate forecast"
+            }
+
+            _isLoading.value = false
+        }
+    }
+
+    fun refreshApiData(nodeId: String) {
+        fetchLatestReadingFromApi(nodeId)
     }
 
     class Factory(private val application: Application) : ViewModelProvider.Factory {
