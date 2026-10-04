@@ -120,9 +120,9 @@ class ParameterWiseWeightsTests(unittest.TestCase):
     def test_parameter_wise_weight_calculation(self) -> None:
         """Test that weights are calculated separately for each parameter."""
         model_errors = {
-            "LSTM": {"pH": 0.1, "TDS": 0.2, "temperature": 0.15, "turbidity": 0.12, "EC": 0.18, "DO": 0.14},
-            "PatchTST": {"pH": 0.15, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14, "EC": 0.12, "DO": 0.16},
-            "TimeMixer": {"pH": 0.2, "TDS": 0.15, "temperature": 0.1, "turbidity": 0.16, "EC": 0.14, "DO": 0.12},
+            "LSTM": {"pH": 0.1, "TDS": 0.2, "temperature": 0.15, "turbidity": 0.12},
+            "PatchTST": {"pH": 0.15, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14},
+            "TimeMixer": {"pH": 0.2, "TDS": 0.15, "temperature": 0.1, "turbidity": 0.16},
         }
 
         weights = calculate_parameter_weights(model_errors)
@@ -140,8 +140,8 @@ class ParameterWiseWeightsTests(unittest.TestCase):
     def test_different_weights_per_parameter(self) -> None:
         """Test that different parameters can have different weight distributions."""
         model_errors = {
-            "LSTM": {"pH": 0.1, "TDS": 0.3, "temperature": 0.15, "turbidity": 0.12, "EC": 0.18, "DO": 0.14},
-            "PatchTST": {"pH": 0.3, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14, "EC": 0.12, "DO": 0.16},
+            "LSTM": {"pH": 0.1, "TDS": 0.3, "temperature": 0.15, "turbidity": 0.12},
+            "PatchTST": {"pH": 0.3, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14},
         }
 
         weights = calculate_parameter_weights(model_errors)
@@ -157,8 +157,8 @@ class ErrorHistoryTests(unittest.TestCase):
     def test_error_history_update(self) -> None:
         """Test updating error history."""
         current_errors = {
-            "LSTM": {"pH": 0.1, "TDS": 0.2, "temperature": 0.15, "turbidity": 0.12, "EC": 0.18, "DO": 0.14},
-            "PatchTST": {"pH": 0.15, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14, "EC": 0.12, "DO": 0.16},
+            "LSTM": {"pH": 0.1, "TDS": 0.2, "temperature": 0.15, "turbidity": 0.12},
+            "PatchTST": {"pH": 0.15, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14},
         }
         history = []
 
@@ -185,14 +185,14 @@ class ErrorHistoryTests(unittest.TestCase):
     def test_average_errors_calculation(self) -> None:
         """Test calculation of average errors over history."""
         error1 = {
-            "LSTM": {"pH": 0.1, "TDS": 0.2, "temperature": 0.15, "turbidity": 0.12, "EC": 0.18, "DO": 0.14},
-            "PatchTST": {"pH": 0.15, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14, "EC": 0.12, "DO": 0.16},
-            "TimeMixer": {"pH": 0.2, "TDS": 0.15, "temperature": 0.1, "turbidity": 0.16, "EC": 0.14, "DO": 0.12},
+            "LSTM": {"pH": 0.1, "TDS": 0.2, "temperature": 0.15, "turbidity": 0.12},
+            "PatchTST": {"pH": 0.15, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14},
+            "TimeMixer": {"pH": 0.2, "TDS": 0.15, "temperature": 0.1, "turbidity": 0.16},
         }
         error2 = {
-            "LSTM": {"pH": 0.12, "TDS": 0.18, "temperature": 0.14, "turbidity": 0.13, "EC": 0.17, "DO": 0.15},
-            "PatchTST": {"pH": 0.14, "TDS": 0.12, "temperature": 0.18, "turbidity": 0.15, "EC": 0.13, "DO": 0.17},
-            "TimeMixer": {"pH": 0.18, "TDS": 0.16, "temperature": 0.12, "turbidity": 0.17, "EC": 0.15, "DO": 0.13},
+            "LSTM": {"pH": 0.12, "TDS": 0.18, "temperature": 0.14, "turbidity": 0.13},
+            "PatchTST": {"pH": 0.14, "TDS": 0.12, "temperature": 0.18, "turbidity": 0.15},
+            "TimeMixer": {"pH": 0.18, "TDS": 0.16, "temperature": 0.12, "turbidity": 0.17},
         }
 
         history = [error1, error2]
@@ -214,9 +214,9 @@ class PredictionCombinationTests(unittest.TestCase):
     def test_weighted_prediction_combination(self) -> None:
         """Test combining predictions with weights."""
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
         }
 
         weights = {
@@ -224,11 +224,9 @@ class PredictionCombinationTests(unittest.TestCase):
             "TDS": {"LSTM": 0.3, "PatchTST": 0.5, "TimeMixer": 0.2},
             "turbidity": {"LSTM": 0.4, "PatchTST": 0.3, "TimeMixer": 0.3},
             "temperature": {"LSTM": 0.3, "PatchTST": 0.4, "TimeMixer": 0.3},
-            "EC": {"LSTM": 0.2, "PatchTST": 0.4, "TimeMixer": 0.4},
-            "DO": {"LSTM": 0.4, "PatchTST": 0.3, "TimeMixer": 0.3},
         }
 
-        parameters = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+        parameters = ("pH", "TDS", "turbidity", "temperature")
         combined = combine_predictions(predictions, weights, parameters)
 
         # pH: 7.0*0.5 + 7.2*0.3 + 7.1*0.2 = 3.5 + 2.16 + 1.42 = 7.08
@@ -242,8 +240,8 @@ class PredictionCombinationTests(unittest.TestCase):
     def test_missing_model_handling(self) -> None:
         """Test handling when a model is missing from predictions."""
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
             # TimeMixer missing
         }
 
@@ -252,11 +250,9 @@ class PredictionCombinationTests(unittest.TestCase):
             "TDS": {"LSTM": 0.5, "PatchTST": 0.5, "TimeMixer": 0.0},
             "turbidity": {"LSTM": 0.5, "PatchTST": 0.5, "TimeMixer": 0.0},
             "temperature": {"LSTM": 0.5, "PatchTST": 0.5, "TimeMixer": 0.0},
-            "EC": {"LSTM": 0.5, "PatchTST": 0.5, "TimeMixer": 0.0},
-            "DO": {"LSTM": 0.5, "PatchTST": 0.5, "TimeMixer": 0.0},
         }
 
-        parameters = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+        parameters = ("pH", "TDS", "turbidity", "temperature")
         combined = combine_predictions(predictions, weights, parameters)
 
         # Should only use available models
@@ -299,12 +295,12 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble()
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
         }
 
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
 
         weights = ensemble.update_from_predictions(predictions, ground_truth)
 
@@ -322,9 +318,9 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble()
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
         }
 
         combined = ensemble.combine(predictions)
@@ -339,20 +335,20 @@ class AdaptiveEnsembleTests(unittest.TestCase):
 
         # First update: LSTM performs better on pH
         predictions1 = {
-            "LSTM": {"pH": 7.05, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.3, "TDS": 181.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
-            "TimeMixer": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1},
+            "LSTM": {"pH": 7.05, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.3, "TDS": 181.0, "turbidity": 1.3, "temperature": 22.2},
+            "TimeMixer": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.25, "temperature": 22.1},
         }
-        ground_truth1 = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1}
+        ground_truth1 = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
         ensemble.update_from_predictions(predictions1, ground_truth1)
 
         # Second update: LSTM still performs better on pH
         predictions2 = {
-            "LSTM": {"pH": 7.08, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.25, "TDS": 181.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
-            "TimeMixer": {"pH": 7.18, "TDS": 182.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1},
+            "LSTM": {"pH": 7.08, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.25, "TDS": 181.0, "turbidity": 1.3, "temperature": 22.2},
+            "TimeMixer": {"pH": 7.18, "TDS": 182.0, "turbidity": 1.25, "temperature": 22.1},
         }
-        ground_truth2 = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1}
+        ground_truth2 = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
         ensemble.update_from_predictions(predictions2, ground_truth2)
 
         weights = ensemble.get_current_weights()
@@ -367,11 +363,11 @@ class AdaptiveEnsembleTests(unittest.TestCase):
 
         # Update with some predictions to change weights
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
         }
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
         ensemble.update_from_predictions(predictions, ground_truth)
 
         # Reset weights
@@ -389,11 +385,11 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble(AdaptiveEnsembleConfig(window_size=10))
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
         }
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
 
         # Update multiple times
         for _ in range(5):
@@ -407,11 +403,11 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble(AdaptiveEnsembleConfig(window_size=3))
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
         }
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
 
         # Update more times than window size
         for _ in range(10):
@@ -425,11 +421,11 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble(AdaptiveEnsembleConfig(window_size=10))
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "EC": 500.0, "DO": 8.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "EC": 510.0, "DO": 8.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
         }
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "EC": 505.0, "DO": 8.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
 
         # Update multiple times
         for _ in range(5):
@@ -469,14 +465,14 @@ class CurrentWeightsTests(unittest.TestCase):
         """Test getting current weights from error history."""
         error_history = [
             {
-                "LSTM": {"pH": 0.1, "TDS": 0.2, "temperature": 0.15, "turbidity": 0.12, "EC": 0.18, "DO": 0.14},
-                "PatchTST": {"pH": 0.15, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14, "EC": 0.12, "DO": 0.16},
-                "TimeMixer": {"pH": 0.2, "TDS": 0.15, "temperature": 0.1, "turbidity": 0.16, "EC": 0.14, "DO": 0.12},
+                "LSTM": {"pH": 0.1, "TDS": 0.2, "temperature": 0.15, "turbidity": 0.12},
+                "PatchTST": {"pH": 0.15, "TDS": 0.1, "temperature": 0.2, "turbidity": 0.14},
+                "TimeMixer": {"pH": 0.2, "TDS": 0.15, "temperature": 0.1, "turbidity": 0.16},
             },
             {
-                "LSTM": {"pH": 0.12, "TDS": 0.18, "temperature": 0.14, "turbidity": 0.13, "EC": 0.17, "DO": 0.15},
-                "PatchTST": {"pH": 0.14, "TDS": 0.12, "temperature": 0.18, "turbidity": 0.15, "EC": 0.13, "DO": 0.17},
-                "TimeMixer": {"pH": 0.18, "TDS": 0.16, "temperature": 0.12, "turbidity": 0.17, "EC": 0.15, "DO": 0.13},
+                "LSTM": {"pH": 0.12, "TDS": 0.18, "temperature": 0.14, "turbidity": 0.13},
+                "PatchTST": {"pH": 0.14, "TDS": 0.12, "temperature": 0.18, "turbidity": 0.15},
+                "TimeMixer": {"pH": 0.18, "TDS": 0.16, "temperature": 0.12, "turbidity": 0.17},
             },
         ]
 

@@ -74,7 +74,7 @@ class HydroRepository(
                     turbidity = 1.2f + (-0.2f..0.2f).random(),
                     tds = 180f + (-5f..5f).random(),
                     temperature = 22.4f + (-0.5f..0.5f).random(),
-                    flowRate = 18.0f + (-1f..1f).random()
+                    source = "DEMO"
                 )
             )
         }
@@ -92,7 +92,7 @@ class HydroRepository(
                     turbidity = turbVal,
                     tds = 220f + (-8f..8f).random(),
                     temperature = 24.1f + (-0.4f..0.4f).random(),
-                    flowRate = 14.5f + (-1.5f..1.5f).random()
+                    source = "DEMO"
                 )
             )
         }
@@ -108,7 +108,7 @@ class HydroRepository(
                     turbidity = 0.3f + (-0.05f..0.05f).random(),
                     tds = 95f + (-3f..3f).random(),
                     temperature = 19.8f + (-0.3f..0.3f).random(),
-                    flowRate = 22.0f + (-0.5f..0.5f).random()
+                    source = "DEMO"
                 )
             )
         }
@@ -287,20 +287,17 @@ class HydroRepository(
             val turbDelta = (-0.15f..0.15f).random()
             val tdsDelta = (-3f..3f).random()
             val tempDelta = (-0.1f..0.1f).random()
-            val flowDelta = (-0.5f..0.5f).random()
 
             val basePh = latest?.ph ?: 7.2f
             val baseTurb = latest?.turbidity ?: 1.2f
             val baseTds = latest?.tds ?: 180f
             val baseTemp = latest?.temperature ?: 22.0f
-            val baseFlow = latest?.flowRate ?: 15.0f
 
             // Add occasional simulated drift for variety / demo testing
             var finalPh = (basePh + phDelta).coerceIn(4.0f, 10.0f)
             var finalTurb = (baseTurb + turbDelta).coerceAtLeast(0.1f)
             var finalTds = (baseTds + tdsDelta).coerceAtLeast(10f)
             val finalTemp = (baseTemp + tempDelta).coerceIn(15f, 35f)
-            val finalFlow = (baseFlow + flowDelta).coerceIn(2f, 30f)
 
             // Inject occasional anomaly in Block B for alerts demo
             if (nodeId == "node_overhead_b" && (1..12).random() == 5) {
@@ -317,7 +314,7 @@ class HydroRepository(
                 turbidity = finalTurb,
                 tds = finalTds,
                 temperature = finalTemp,
-                flowRate = finalFlow
+                source = "SIMULATED"
             )
 
             dao.insertReading(newReading)

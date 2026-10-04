@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -21,6 +22,10 @@ import com.example.data.repository.FirebaseAuthRepository
 import com.example.data.repository.ApiRepository
 import com.example.data.api.ForecastResponse
 import com.example.data.api.LatestReadingResponse
+import com.example.data.api.HistoricalReadingResponse
+import com.example.data.api.HistoryResponse
+import com.example.data.api.AlertListResponse
+import com.example.data.api.AlertResponse
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -100,6 +105,12 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _apiLatestReading = MutableStateFlow<LatestReadingResponse?>(null)
     val apiLatestReading: StateFlow<LatestReadingResponse?> = _apiLatestReading.asStateFlow()
+
+    private val _apiHistoricalReadings = MutableStateFlow<List<HistoricalReadingResponse>>(emptyList())
+    val apiHistoricalReadings: StateFlow<List<HistoricalReadingResponse>> = _apiHistoricalReadings.asStateFlow()
+
+    private val _apiAlerts = MutableStateFlow<List<AlertResponse>>(emptyList())
+    val apiAlerts: StateFlow<List<AlertResponse>> = _apiAlerts.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -241,8 +252,10 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
             val result = apiRepository.getLatestReading(nodeId)
             result.onSuccess { reading ->
                 _apiLatestReading.value = reading
-                // Automatically generate forecast after successful reading fetch
-                generateForecastFromApi()
+                // Automatically fetch alerts after successful reading fetch
+                fetchAlertsFromApi(nodeId)
+                // Forecast only from backend-stored, timestamped observations.
+                generateForecastFromApi(nodeId)
             }.onFailure { error ->
                 _apiError.value = error.localizedMessage ?: "Failed to fetch latest reading"
                 _isLoading.value = false
@@ -250,24 +263,48 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun generateForecastFromApi() {
+    fun fetchHistoricalReadingsFromApi(nodeId: String, limit: Int? = null) {
         viewModelScope.launch {
-            val latestReading = _apiLatestReading.value
-            if (latestReading == null) {
-                _apiError.value = "No latest reading available for forecast"
-                _isLoading.value = false
-                return@launch
-            }
-
-            val forecastReadings = apiRepository.generateForecastReadingsFromLatest(latestReading)
-            val result = apiRepository.generateForecast(forecastReadings)
-
-            result.onSuccess { forecast ->
-                _apiForecast.value = forecast
+            val result = apiRepository.getHistoricalReadings(nodeId, limit)
+            result.onSuccess { history ->
+                _apiHistoricalReadings.value = history.readings
             }.onFailure { error ->
-                _apiError.value = error.localizedMessage ?: "Failed to generate forecast"
+                Log.e("HydroViewModel", "Failed to fetch historical readings", error)
+                // Don't set error state for historical readings failure, just log it
             }
+        }
+    }
 
+    fun fetchAlertsFromApi(nodeId: String) {
+        viewModelScope.launch {
+            val result = apiRepository.getAlerts(nodeId)
+            result.onSuccess { alerts ->
+                _apiAlerts.value = alerts.alerts
+            }.onFailure { error ->
+                Log.e("HydroViewModel", "Failed to fetch alerts", error)
+                // Don't set error state for alerts failure, just log it
+            }
+        }
+    }
+
+    fun generateForecastFromApi(nodeId: String = _selectedNodeId.value) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _apiError.value = null
+            val historyResult = apiRepository.getHistoricalReadings(nodeId, limit = 1000)
+            historyResult.onSuccess { history ->
+                _apiHistoricalReadings.value = history.readings
+                val forecastResult = apiRepository.generateForecast(nodeId, history.readings)
+                forecastResult.onSuccess { forecast ->
+                    _apiForecast.value = forecast
+                }.onFailure { error ->
+                    _apiForecast.value = null
+                    _apiError.value = error.localizedMessage ?: "Not enough historical data yet"
+                }
+            }.onFailure { error ->
+                _apiForecast.value = null
+                _apiError.value = error.localizedMessage ?: "Unable to load historical readings"
+            }
             _isLoading.value = false
         }
     }

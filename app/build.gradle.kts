@@ -9,6 +9,13 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+val debugApiBaseUrl = providers.gradleProperty("HYDROGUARD_API_BASE_URL")
+  .orElse(providers.environmentVariable("HYDROGUARD_API_BASE_URL"))
+  .getOrElse("http://10.0.2.2:8000/")
+val releaseApiBaseUrl = providers.gradleProperty("HYDROGUARD_RELEASE_API_BASE_URL")
+  .orElse(providers.environmentVariable("HYDROGUARD_RELEASE_API_BASE_URL"))
+  .getOrElse("")
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -19,17 +26,23 @@ android {
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
+    buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+    val keystorePath = System.getenv("KEYSTORE_PATH")
+    val storePasswordValue = System.getenv("STORE_PASSWORD")
+    val keyAliasValue = System.getenv("KEY_ALIAS")
+    val keyPasswordValue = System.getenv("KEY_PASSWORD")
+    if (listOf(keystorePath, storePasswordValue, keyAliasValue, keyPasswordValue).all { !it.isNullOrBlank() }) {
+      create("release") {
+        storeFile = file(keystorePath!!)
+        storePassword = storePasswordValue
+        keyAlias = keyAliasValue
+        keyPassword = keyPasswordValue
+      }
     }
   }
 
@@ -37,8 +50,9 @@ android {
     release {
       isCrunchPngs = false
       isMinifyEnabled = false
+      buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfigs.findByName("release")?.let { signingConfig = it }
     }
     debug {
       // Use default debug signing (Android SDK provides debug keystore)
@@ -54,6 +68,24 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+}
+
+val validateReleaseConfiguration by tasks.registering {
+  doLast {
+    if (!releaseApiBaseUrl.startsWith("https://")) {
+      throw GradleException("Set HYDROGUARD_RELEASE_API_BASE_URL to the production HTTPS API URL before building a release.")
+    }
+    val requiredSigning = listOf("KEYSTORE_PATH", "STORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+    val missing = requiredSigning.filter { System.getenv(it).isNullOrBlank() }
+    val keyStore = System.getenv("KEYSTORE_PATH")?.let(::file)
+    if (missing.isNotEmpty() || keyStore?.isFile != true) {
+      throw GradleException("Release signing is not configured. Supply a private keystore and all signing values through environment variables.")
+    }
+  }
+}
+
+tasks.configureEach {
+  if (name == "assembleRelease" || name == "bundleRelease") dependsOn(validateReleaseConfiguration)
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files

@@ -1,7 +1,7 @@
 """Shared HydroGuard ML data pipeline.
 
 This package prepares historical or simulated CSV series for later forecasting
-models. It does not load live sensors, invent EC/DO measurements, or train
+models. It does not load live sensors or invent measurements.
 LSTM / PatchTST / TimeMixer models.
 
 Default forecasting setup:
@@ -17,11 +17,12 @@ from ml.data.dataset import (
 )
 from ml.data.loader import load_csv
 from ml.data.preprocessing import FeatureScaler, chronological_split
-from ml.data.validator import REQUIRED_COLUMNS, ValidationReport, validate_raw_frame
+from ml.data.validator import PRODUCT_PARAMETERS, REQUIRED_COLUMNS, ValidationReport, validate_raw_frame
 from ml.data.window_generator import create_sliding_windows
 
 __all__ = [
     "PARAMETERS",
+    "PRODUCT_PARAMETERS",
     "REQUIRED_COLUMNS",
     "WINDOW_SIZE",
     "FeatureScaler",

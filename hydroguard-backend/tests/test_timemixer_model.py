@@ -24,13 +24,13 @@ from ml.models.timemixer_model import TimeMixer
 class TimeMixerModelTests(unittest.TestCase):
     def test_model_initialization_default(self) -> None:
         model = TimeMixer()
-        self.assertEqual(model.input_size, 6)
+        self.assertEqual(model.input_size, 4)
         self.assertEqual(model.context_length, 30)
         self.assertEqual(model.hidden_size, 64)
         self.assertEqual(model.num_scales, 3)
         self.assertEqual(model.num_mixing_layers, 2)
         self.assertEqual(model.dropout, 0.1)
-        self.assertEqual(model.output_size, 6)
+        self.assertEqual(model.output_size, 4)
 
     def test_model_initialization_custom(self) -> None:
         model = TimeMixer(
@@ -53,9 +53,9 @@ class TimeMixerModelTests(unittest.TestCase):
     def test_forward_pass_shape(self) -> None:
         model = TimeMixer()
         batch_size = 8
-        X = torch.randn(batch_size, 30, 6)
+        X = torch.randn(batch_size, 30, 4)
         output = model(X)
-        self.assertEqual(output.shape, (batch_size, 6))
+        self.assertEqual(output.shape, (batch_size, 4))
 
     def test_forward_pass_four_param(self) -> None:
         model = TimeMixer(input_size=4, output_size=4)
@@ -105,7 +105,7 @@ class MultiScaleDecompositionTests(unittest.TestCase):
         from ml.models.timemixer_model import MultiScaleDecomposition
         
         decomp = MultiScaleDecomposition(num_scales=2, max_kernel_size=3)
-        X = torch.randn(4, 20, 6)
+        X = torch.randn(4, 20, 4)
         
         scales = decomp(X)
         
@@ -222,13 +222,13 @@ class CheckpointTests(unittest.TestCase):
                 "optimizer_state_dict": optimizer.state_dict(),
                 "val_loss": 0.123,
                 "config": {
-                    "input_size": 6,
+                    "input_size": 4,
                     "context_length": 30,
                     "hidden_size": 64,
                     "num_scales": 3,
                     "num_mixing_layers": 2,
                     "dropout": 0.1,
-                    "output_size": 6,
+                    "output_size": 4,
                 },
             }
             torch.save(checkpoint, checkpoint_path)
@@ -255,12 +255,12 @@ class TimeMixerIntegrationTests(unittest.TestCase):
         model.eval()
         
         batch_size = 4
-        X = torch.randn(batch_size, 30, 6)
+        X = torch.randn(batch_size, 30, 4)
         
         with torch.no_grad():
             output = model(X)
         
-        self.assertEqual(output.shape, (batch_size, 6))
+        self.assertEqual(output.shape, (batch_size, 4))
         self.assertFalse(torch.isnan(output).any())
         self.assertFalse(torch.isinf(output).any())
 
@@ -268,16 +268,16 @@ class TimeMixerIntegrationTests(unittest.TestCase):
         model = TimeMixer()
         
         for batch_size in [1, 8, 16, 32]:
-            X = torch.randn(batch_size, 30, 6)
+            X = torch.randn(batch_size, 30, 4)
             output = model(X)
-            self.assertEqual(output.shape, (batch_size, 6))
+            self.assertEqual(output.shape, (batch_size, 4))
 
     def test_gradient_flow(self) -> None:
         model = TimeMixer()
         model.train()
         
-        X = torch.randn(4, 30, 6)
-        y = torch.randn(4, 6)
+        X = torch.randn(4, 30, 4)
+        y = torch.randn(4, 4)
         
         output = model(X)
         loss = torch.nn.functional.mse_loss(output, y)
@@ -322,16 +322,16 @@ class FourParameterModeTests(unittest.TestCase):
 class NaNValidationTests(unittest.TestCase):
     def test_nan_detection_logic(self) -> None:
         # Test the NaN detection logic that would be used in training
-        X_train_with_nan = np.random.randn(10, 30, 6)
-        X_train_with_nan[0, 0, 4] = np.nan  # EC column
-        y_train_with_nan = np.random.randn(10, 6)
+        X_train_with_nan = np.random.randn(10, 30, 4)
+        X_train_with_nan[0, 0, 3] = np.nan
+        y_train_with_nan = np.random.randn(10, 4)
         
         has_nan = np.isnan(X_train_with_nan).any() or np.isnan(y_train_with_nan).any()
         self.assertTrue(has_nan)
 
     def test_clean_data_detection(self) -> None:
-        X_train_clean = np.random.randn(10, 30, 6)
-        y_train_clean = np.random.randn(10, 6)
+        X_train_clean = np.random.randn(10, 30, 4)
+        y_train_clean = np.random.randn(10, 4)
         
         has_nan = np.isnan(X_train_clean).any() or np.isnan(y_train_clean).any()
         self.assertFalse(has_nan)
@@ -344,9 +344,9 @@ class MultiScaleTests(unittest.TestCase):
             self.assertEqual(model.num_scales, num_scales)
             
             # Test forward pass
-            X = torch.randn(4, 30, 6)
+            X = torch.randn(4, 30, 4)
             output = model(X)
-            self.assertEqual(output.shape, (4, 6))
+            self.assertEqual(output.shape, (4, 4))
 
     def test_different_mixing_layers(self) -> None:
         for num_layers in [1, 2, 3]:
@@ -355,9 +355,9 @@ class MultiScaleTests(unittest.TestCase):
             self.assertEqual(len(model.temporal_mixing_layers), num_layers)
             
             # Test forward pass
-            X = torch.randn(4, 30, 6)
+            X = torch.randn(4, 30, 4)
             output = model(X)
-            self.assertEqual(output.shape, (4, 6))
+            self.assertEqual(output.shape, (4, 4))
 
 
 if __name__ == "__main__":

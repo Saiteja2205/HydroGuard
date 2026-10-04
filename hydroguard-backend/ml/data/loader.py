@@ -13,7 +13,7 @@ def load_csv(path: str | Path) -> pd.DataFrame:
     """Load a water-quality CSV.
 
     Lines starting with ``#`` are comments (used to mark DEMO/TEST files).
-    This function does not invent values for blank EC/DO cells.
+    It does not invent values for missing sensor observations.
     """
     csv_path = Path(path)
     if not csv_path.is_file():

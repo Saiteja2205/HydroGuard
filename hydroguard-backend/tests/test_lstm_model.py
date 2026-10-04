@@ -53,8 +53,6 @@ def synthetic_series(n_days: int = 40, start: str = "2026-01-01") -> pd.DataFram
             "TDS": 180.0 + day,
             "turbidity": 1.2 + 0.01 * day,
             "temperature": 22.0 + 0.05 * np.cos(day / 3.0),
-            "EC": np.nan,
-            "DO": np.nan,
         }
     )
 
@@ -70,8 +68,6 @@ def synthetic_four_param_series(n_days: int = 40, start: str = "2026-01-01") -> 
             "TDS": 180.0 + day,
             "turbidity": 1.2 + 0.01 * day,
             "temperature": 22.0 + 0.05 * np.cos(day / 3.0),
-            "EC": np.nan,
-            "DO": np.nan,
         }
     )
 
@@ -79,11 +75,11 @@ def synthetic_four_param_series(n_days: int = 40, start: str = "2026-01-01") -> 
 class LSTMModelTests(unittest.TestCase):
     def test_model_initialization_default(self) -> None:
         model = LSTMModel()
-        self.assertEqual(model.input_size, 6)
+        self.assertEqual(model.input_size, 4)
         self.assertEqual(model.hidden_size, 64)
         self.assertEqual(model.num_layers, 2)
         self.assertEqual(model.dropout, 0.2)
-        self.assertEqual(model.output_size, 6)
+        self.assertEqual(model.output_size, 4)
 
     def test_model_initialization_custom(self) -> None:
         model = LSTMModel(input_size=4, hidden_size=32, num_layers=1, dropout=0.1, output_size=4)
@@ -96,9 +92,9 @@ class LSTMModelTests(unittest.TestCase):
     def test_forward_pass_shape(self) -> None:
         model = LSTMModel()
         batch_size = 8
-        X = torch.randn(batch_size, 30, 6)
+        X = torch.randn(batch_size, 30, 4)
         output = model(X)
-        self.assertEqual(output.shape, (batch_size, 6))
+        self.assertEqual(output.shape, (batch_size, 4))
 
     def test_forward_pass_four_param(self) -> None:
         model = LSTMModel(input_size=4, output_size=4)
@@ -140,10 +136,10 @@ class DeviceTests(unittest.TestCase):
 
 class DataLoaderTests(unittest.TestCase):
     def test_data_loader_creation(self) -> None:
-        X_train = np.random.randn(100, 30, 6).astype(np.float32)
-        y_train = np.random.randn(100, 6).astype(np.float32)
-        X_val = np.random.randn(20, 30, 6).astype(np.float32)
-        y_val = np.random.randn(20, 6).astype(np.float32)
+        X_train = np.random.randn(100, 30, 4).astype(np.float32)
+        y_train = np.random.randn(100, 4).astype(np.float32)
+        X_val = np.random.randn(20, 30, 4).astype(np.float32)
+        y_val = np.random.randn(20, 4).astype(np.float32)
 
         train_loader, val_loader = create_data_loaders(X_train, y_train, X_val, y_val, batch_size=8)
 
@@ -189,11 +185,11 @@ class PredictionTests(unittest.TestCase):
     def test_predict_shape(self) -> None:
         model = LSTMModel()
         model.eval()
-        X = np.random.randn(10, 30, 6).astype(np.float32)
+        X = np.random.randn(10, 30, 4).astype(np.float32)
         device = torch.device("cpu")
 
         predictions = predict(model, X, device)
-        self.assertEqual(predictions.shape, (10, 6))
+        self.assertEqual(predictions.shape, (10, 4))
 
     def test_predict_four_param_shape(self) -> None:
         model = LSTMModel(input_size=4, output_size=4)
@@ -221,7 +217,7 @@ class PredictionTests(unittest.TestCase):
 
 
 class IntegrationTests(unittest.TestCase):
-    def test_train_lstm_with_six_params(self) -> None:
+    def test_train_rejects_parameters_outside_product_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
             csv_path = tmp_path / "test_data.csv"
@@ -231,16 +227,10 @@ class IntegrationTests(unittest.TestCase):
                 random_seed=42,
                 num_epochs=5,
                 checkpoint_dir=str(tmp_path / "checkpoints"),
-                four_param_mode=False,
+                parameters=("pH", "TDS", "turbidity", "temperature", "experimental"),
             )
-
-            model, metrics, pipeline_config = train_lstm(csv_path, config)
-
-            self.assertIsInstance(model, LSTMModel)
-            self.assertEqual(model.input_size, 6)
-            self.assertEqual(model.output_size, 6)
-            self.assertEqual(len(metrics.train_losses), 5)
-            self.assertEqual(pipeline_config.parameters, ("pH", "TDS", "turbidity", "temperature", "EC", "DO"))
+            with self.assertRaisesRegex(ValueError, "restricted"):
+                train_lstm(csv_path, config)
 
     def test_train_lstm_with_four_params(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -267,7 +257,7 @@ class IntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
             csv_path = tmp_path / "test_data.csv"
-            synthetic_series(60).to_csv(csv_path, index=False)
+            synthetic_series(240).to_csv(csv_path, index=False)
 
             checkpoint_dir = tmp_path / "checkpoints"
             checkpoint_dir.mkdir()
@@ -276,7 +266,7 @@ class IntegrationTests(unittest.TestCase):
                 random_seed=42,
                 num_epochs=3,
                 checkpoint_dir=str(checkpoint_dir),
-                four_param_mode=False,
+                four_param_mode=True,
             )
 
             model, metrics, _ = train_lstm(csv_path, config)
@@ -303,25 +293,24 @@ class IntegrationTests(unittest.TestCase):
         physical_predictions = predict_with_inverse_transform(model, X_test, result, device)
 
         self.assertEqual(physical_predictions.shape, result.y_test.shape)
-        self.assertTrue(np.isnan(physical_predictions[:, 4]).all())
-        self.assertTrue(np.isnan(physical_predictions[:, 5]).all())
+        self.assertEqual(physical_predictions.shape[1], 4)
 
 
 class ModelArchitectureTests(unittest.TestCase):
     def test_architecture_spec(self) -> None:
         model = LSTMModel()
         
-        self.assertEqual(model.input_size, 6)
+        self.assertEqual(model.input_size, 4)
         self.assertEqual(model.hidden_size, 64)
         self.assertEqual(model.num_layers, 2)
         self.assertEqual(model.dropout, 0.2)
-        self.assertEqual(model.output_size, 6)
+        self.assertEqual(model.output_size, 4)
 
         batch_size = 4
-        X = torch.randn(batch_size, 30, 6)
+        X = torch.randn(batch_size, 30, 4)
         output = model(X)
         
-        self.assertEqual(output.shape, (batch_size, 6))
+        self.assertEqual(output.shape, (batch_size, 4))
 
 
 if __name__ == "__main__":

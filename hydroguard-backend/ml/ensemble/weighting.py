@@ -6,6 +6,7 @@ Implements inverse error weighting for combining predictions from multiple model
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite, log
 from typing import Any
 
 import numpy as np
@@ -57,31 +58,50 @@ def calculate_weights(
     """
     config = config or WeightingConfig()
 
-    # Calculate inverse error weights
-    inverse_errors = [1.0 / (score + config.epsilon) for score in error_scores]
+    if not error_scores:
+        raise ValueError("At least one model error score is required.")
+    if not 0.0 <= config.min_weight <= config.max_weight <= 1.0:
+        raise ValueError("Weight bounds must satisfy 0 <= min_weight <= max_weight <= 1.")
+    if config.min_weight * len(error_scores) > 1.0:
+        raise ValueError("Minimum weight is infeasible for the number of models.")
+    if any(not isfinite(float(score)) or float(score) < 0 for score in error_scores):
+        raise ValueError("Model error scores must be finite and non-negative.")
 
-    # Sum of inverse errors
-    total_inverse = sum(inverse_errors)
-
-    # Normalize to sum to 1
-    if total_inverse > 0:
-        weights = [inv / total_inverse for inv in inverse_errors]
+    # Normalize errors first to avoid overflow for tiny errors and underflow
+    # for very large values, then project weights onto configured bounds.
+    errors = np.asarray(error_scores, dtype=np.float64)
+    if np.all(errors == 0):
+        raw = np.full(len(errors), 1.0 / len(errors))
     else:
-        # Fallback to equal weights if all errors are zero
-        weights = [1.0 / len(error_scores) for _ in error_scores]
+        scale = float(errors.min()) if float(errors.min()) > 0 else float(errors[errors > 0].min())
+        # Work in log space to keep ratios finite even when error magnitudes
+        # span the full float64 range. Values beyond 1/epsilon are equivalent
+        # for the bounded weight projection and can safely be capped.
+        log_ratios = np.full(errors.shape, -np.inf, dtype=np.float64)
+        positive = errors > 0
+        log_ratios[positive] = np.log(errors[positive]) - log(scale)
+        max_log_ratio = log(1.0 / config.epsilon)
+        ratios = np.exp(np.minimum(log_ratios, max_log_ratio))
+        inverse = 1.0 / (ratios + config.epsilon)
+        raw = inverse / inverse.sum()
 
-    # Apply min/max weight constraints
-    weights = [
-        max(config.min_weight, min(config.max_weight, w))
-        for w in weights
-    ]
-
-    # Renormalize after constraints
-    total = sum(weights)
-    if total > 0:
-        weights = [w / total for w in weights]
-
-    return weights
+    weights = raw.copy()
+    for _ in range(len(weights) * 4):
+        below = weights < config.min_weight
+        above = weights > config.max_weight
+        if not below.any() and not above.any():
+            break
+        fixed = below | above
+        weights[below] = config.min_weight
+        weights[above] = config.max_weight
+        remaining = 1.0 - float(weights[fixed].sum())
+        free = ~fixed
+        if not free.any():
+            break
+        free_sum = float(raw[free].sum())
+        weights[free] = remaining / free.sum() if free_sum == 0 else raw[free] * remaining / free_sum
+    weights /= weights.sum()
+    return weights.tolist()
 
 
 def calculate_parameter_weights(
@@ -242,7 +262,7 @@ def get_current_weights(
     if not avg_errors:
         # No history yet, return equal weights for all parameters
         model_names = ("LSTM", "PatchTST", "TimeMixer")
-        parameters = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+        parameters = ("pH", "TDS", "turbidity", "temperature")
         equal_weight = 1.0 / len(model_names)
         return {
             param: {model: equal_weight for model in model_names}

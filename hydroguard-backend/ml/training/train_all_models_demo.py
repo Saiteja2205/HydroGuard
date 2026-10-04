@@ -27,7 +27,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-# Use four-parameter mode for development (avoid EC/DO issues)
+# The demo models the four numerical forecasting inputs.
 PARAMETERS = ("pH", "TDS", "turbidity", "temperature")
 INPUT_SIZE = 4
 OUTPUT_SIZE = 4

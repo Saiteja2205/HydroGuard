@@ -1,9 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.alerts import router as alerts_router
 from app.api.forecast import router as forecast_router
 from app.api.health import router as health_router
+from app.api.hostel import router as hostel_router
+from app.api.nodes import router as nodes_router
 from app.api.readings import router as readings_router
+from app.api.research_export import router as research_export_router
+from app.db.database import init_db
 
 app = FastAPI(
     title="HydroGuard ML API",
@@ -13,6 +18,12 @@ app = FastAPI(
         "historical or simulated development data, not live sensor readings."
     ),
 )
+
+
+@app.on_event("startup")
+def initialize_database() -> None:
+    """Create current tables and apply additive SQLite compatibility changes."""
+    init_db()
 
 # Local development CORS (Android emulator, localhost clients, Swagger UI).
 app.add_middleware(
@@ -36,3 +47,7 @@ app.add_middleware(
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(readings_router, prefix="/api/v1")
 app.include_router(forecast_router, prefix="/api/v1")
+app.include_router(nodes_router, prefix="/api/v1")
+app.include_router(alerts_router, prefix="/api/v1")
+app.include_router(hostel_router, prefix="/api/v1")
+app.include_router(research_export_router, prefix="/api/v1")

@@ -31,7 +31,15 @@ data class SensorReading(
     val turbidity: Float,
     val tds: Float,
     val temperature: Float,
-    val flowRate: Float
+    @Deprecated("Legacy Room column retained for migration compatibility; not an active HydroGuard parameter.")
+    val flowRate: Float = 0f,
+    val red: Int? = null,
+    val green: Int? = null,
+    val blue: Int? = null,
+    val clear: Int? = null,
+    val opticalColourIndex: Float? = null,
+    val calibrationId: Int? = null,
+    val source: String = "DEMO"
 )
 
 @Entity(tableName = "predictions")

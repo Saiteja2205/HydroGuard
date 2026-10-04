@@ -105,3 +105,13 @@ pnpm-debug.log*
 *.zip
 *.rar
 *.7z
+# Local build/test caches
+android-cache/
+gradle-cache/
+kotlin/
+robolectric-home/
+# Local build/test caches
+.android-cache/
+.gradle-cache/
+.kotlin/
+.robolectric-home/

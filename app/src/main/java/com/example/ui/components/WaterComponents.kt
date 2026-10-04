@@ -69,7 +69,7 @@ fun GlassCard(
 }
 
 /**
- * Radial Water Quality & Safety Dial with Smart Infrastructure Glassmorphism
+ * Heuristic sensor-condition indicator. This does not assess potability.
  */
 @Composable
 fun WaterSafetyGauge(
@@ -91,10 +91,10 @@ fun WaterSafetyGauge(
     }
 
     val statusText = when {
-        score >= 85 -> "OPTIMAL POTABILITY"
-        score >= 70 -> "NORMAL / SAFE"
-        score >= 50 -> "INSPECTION NEEDED"
-        else -> "CRITICAL BREACH"
+        score >= 85 -> "WITHIN CONFIGURED BOUNDS"
+        score >= 70 -> "NO THRESHOLD ALERT"
+        score >= 50 -> "REVIEW MEASUREMENTS"
+        else -> "THRESHOLD ALERT"
     }
 
     val statusBgColor = when {
@@ -124,14 +124,14 @@ fun WaterSafetyGauge(
             ) {
                 Column {
                     Text(
-                        text = "WATER SAFETY INDEX",
+                text = "HEURISTIC SENSOR INDEX",
                         style = MaterialTheme.typography.labelSmall,
                         color = CeruleanBlueBright,
                         letterSpacing = 1.2.sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Real-Time Potability Score",
+                        text = "Sensor-based status indicator",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -210,7 +210,7 @@ fun WaterSafetyGauge(
                         )
                     }
                     Text(
-                        text = "HEALTH SCORE",
+                    text = "HEURISTIC INDEX",
                         style = MaterialTheme.typography.labelSmall,
                         color = SlateBlueSubtle
                     )
@@ -237,7 +237,7 @@ fun WaterSafetyGauge(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (score >= 70) "Safe for campus consumption & domestic use" else "Active telemetry alert: Filtration check advised",
+                    text = if (score >= 70) "No configured threshold alert; this does not establish water safety" else "Threshold alert indicated; investigate the measurements",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = color
@@ -401,9 +401,10 @@ fun KPIBentoCard(
 
 /**
  * Interactive Historical Trend Chart with Area Gradient and Translucent Glass Canvas
+ * For local Room database data (SensorReading)
  */
 @Composable
-fun InteractiveTrendChart(
+fun InteractiveTrendChartLocal(
     readings: List<SensorReading>,
     paramSelector: (SensorReading) -> Float,
     label: String,
@@ -473,7 +474,152 @@ fun InteractiveTrendChart(
                 }
             } else {
                 val dataPoints = readings.take(12).reversed()
-                val values = dataPoints.map(paramSelector)
+                val values = dataPoints.map { paramSelector(it) }
+                val maxVal = values.maxOrNull() ?: 1f
+                val minVal = values.minOrNull() ?: 0f
+                val range = if (maxVal - minVal == 0f) 1f else (maxVal - minVal) * 1.2f
+                val adjustedMin = (minVal - range * 0.1f).coerceAtLeast(0f)
+                val finalRange = if (maxVal - adjustedMin == 0f) 1f else (maxVal - adjustedMin)
+
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                ) {
+                    val widthStep = size.width / (dataPoints.size - 1).coerceAtLeast(1)
+
+                    // Grid Lines
+                    val gridLines = 4
+                    for (i in 0..gridLines) {
+                        val yGrid = size.height * i / gridLines
+                        drawLine(
+                            color = if (isDark) Color(0x1F94A3B8) else Color(0x140047AB),
+                            start = Offset(0f, yGrid),
+                            end = Offset(size.width, yGrid),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
+
+                    val path = Path()
+                    val fillPath = Path()
+
+                    dataPoints.forEachIndexed { index, reading ->
+                        val value = paramSelector(reading)
+                        val x = index * widthStep
+                        val ratio = (value - adjustedMin) / finalRange
+                        val y = size.height - (ratio * size.height)
+
+                        if (index == 0) {
+                            path.moveTo(x, y)
+                            fillPath.moveTo(x, size.height)
+                            fillPath.lineTo(x, y)
+                        } else {
+                            path.lineTo(x, y)
+                            fillPath.lineTo(x, y)
+                        }
+
+                        if (index == dataPoints.size - 1) {
+                            fillPath.lineTo(x, size.height)
+                            fillPath.close()
+                        }
+                    }
+
+                    // Fill
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(color.copy(alpha = 0.25f), Color.Transparent)
+                        )
+                    )
+
+                    // Stroke
+                    drawPath(
+                        path = path,
+                        color = color,
+                        style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Interactive Historical Trend Chart with Area Gradient and Translucent Glass Canvas
+ * For backend API data (HistoricalReadingResponse)
+ */
+@Composable
+fun InteractiveTrendChart(
+    readings: List<com.example.data.api.HistoricalReadingResponse>,
+    paramSelector: (com.example.data.api.HistoricalReadingResponse) -> Float,
+    label: String,
+    unit: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val isDark = isSystemInDarkTheme()
+
+    GlassCard(
+        modifier = modifier
+            .testTag("trend_chart_card")
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        isDark = isDark
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "HISTORICAL METRICS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CeruleanBlueBright
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "$label 12-Hour Trend",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                val currentVal = readings.firstOrNull()?.let { paramSelector(it) }
+                if (currentVal != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(color.copy(alpha = 0.12f))
+                            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "${String.format("%.2f", currentVal)} $unit",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            color = color
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (readings.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No historical telemetry recorded.", color = SlateBlueSubtle)
+                }
+            } else {
+                val dataPoints = readings.take(12).reversed()
+                val values = dataPoints.map { paramSelector(it) }
                 val maxVal = values.maxOrNull() ?: 1f
                 val minVal = values.minOrNull() ?: 0f
                 val range = if (maxVal - minVal == 0f) 1f else (maxVal - minVal) * 1.2f
@@ -608,20 +754,20 @@ fun DonutContaminationChart(
         ) {
             Column(modifier = Modifier.weight(1.2f)) {
                 Text(
-                    text = "CONTAMINATION RISK",
+                    text = "DEMO-ONLY RISK VISUAL",
                     style = MaterialTheme.typography.labelSmall,
                     color = CeruleanBlueBright
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Infrastructure Hazard Level",
+                    text = "Illustrative indicator; not an observed contaminant",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Evaluated continuously from multi-sensor telemetry and baseline purity thresholds.",
+                    text = "This legacy demo visualization is not a measured or validated contamination result.",
                     style = MaterialTheme.typography.bodySmall,
                     color = SlateBlueSubtle,
                     lineHeight = 15.sp
@@ -758,13 +904,13 @@ fun AlertTimeline(
                 ) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Safe",
+                        contentDescription = "No active threshold alerts",
                         tint = SafeGreen,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "All IoT telemetry streams within safe operational limits. Zero active alerts.",
+                        text = "No active threshold alerts are recorded. This does not establish water safety.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = SlateBlueSubtle
                     )

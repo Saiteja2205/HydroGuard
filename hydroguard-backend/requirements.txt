@@ -5,3 +5,8 @@ numpy
 pandas
 scikit-learn
 torch>=2.14.0
+sqlalchemy
+alembic
+firebase-admin
+pytest
+httpx2

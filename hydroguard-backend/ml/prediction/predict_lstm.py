@@ -90,7 +90,7 @@ def evaluate_on_test(
     device: str = "auto",
 ) -> dict[str, Any]:
     model, checkpoint = load_model_for_prediction(checkpoint_path, device)
-    device_obj = model.lstm.weight.device
+    device_obj = next(model.parameters()).device
     
     pipeline_config = pipeline_config or PipelineConfig()
     

@@ -63,48 +63,38 @@ class FirebaseAuthRepository(
         expectedRole: String
     ): Result<User> {
         if (!_isFirebaseAvailable.value || firebaseAuth == null) {
-            // Local fallback simulation mode
-            return loginWithLocalFallback(email, expectedRole)
+            return Result.failure(Exception("Authentication is unavailable. Configure Firebase before signing in."))
         }
 
         return try {
             val authResult = firebaseAuth!!.signInWithEmailAndPassword(email, password).await()
             val firebaseUser = authResult.user ?: throw Exception("Auth succeeded but Firebase user is null")
-            
             val userEmail = firebaseUser.email ?: email
+            val claims = firebaseUser.getIdToken(false).await().claims
+            val claimedRole = (claims["role"] as? String)?.uppercase() ?: "STUDENT"
+            if (claimedRole !in setOf("STUDENT", "ADMIN") || claimedRole != expectedRole.uppercase()) {
+                firebaseAuth!!.signOut()
+                return Result.failure(Exception("This account does not have the selected role."))
+            }
             var localUser = hydroDao.getUserByEmail(userEmail)
-            
             if (localUser == null) {
-                // If the user authenticated on Firebase but profile is missing in Room, auto-create it
                 localUser = User(
                     email = userEmail,
                     name = "User (${userEmail.substringBefore("@")})",
-                    role = expectedRole,
-                    hostelBlock = if (expectedRole == "ADMIN") "Office" else "A",
-                    roomNumber = if (expectedRole == "ADMIN") "HQ" else "101"
+                    role = claimedRole,
+                    hostelBlock = "",
+                    roomNumber = ""
                 )
                 hydroDao.insertUser(localUser)
-            }
-
-            if (localUser.role != expectedRole) {
-                firebaseAuth!!.signOut()
-                return Result.failure(Exception("Role mismatch: expected $expectedRole but profile is ${localUser.role}"))
+            } else if (localUser.role != claimedRole) {
+                localUser = localUser.copy(role = claimedRole)
+                hydroDao.insertUser(localUser)
             }
 
             _currentUserFlow.value = localUser
             Result.success(localUser)
         } catch (e: Exception) {
-            Log.e("FirebaseAuthRepository", "Firebase auth login failed, checking local simulation...", e)
-            // If the Firebase configuration exists but the credential is not registered or network failed, 
-            // let's try local database fallback for a painless sandbox demo experience.
-            if (e.message?.contains("no user record") == true || e.message?.contains("INVALID_LOGIN_CREDENTIALS") == true) {
-                // Try logging in locally using database credentials if they exist
-                val localUser = hydroDao.getUserByEmail(email)
-                if (localUser != null && localUser.role == expectedRole) {
-                    _currentUserFlow.value = localUser
-                    return Result.success(localUser)
-                }
-            }
+            Log.e("FirebaseAuthRepository", "Firebase auth login failed", e)
             Result.failure(e)
         }
     }
@@ -117,19 +107,19 @@ class FirebaseAuthRepository(
         hostelBlock: String,
         roomNumber: String
     ): Result<User> {
+        if (role.uppercase() != "STUDENT") {
+            return Result.failure(Exception("Administrator accounts must be provisioned by an authorized administrator."))
+        }
         val user = User(
             email = email,
             name = name,
-            role = role,
+            role = "STUDENT",
             hostelBlock = hostelBlock,
             roomNumber = roomNumber
         )
 
         if (!_isFirebaseAvailable.value || firebaseAuth == null) {
-            // Local fallback signup
-            hydroDao.insertUser(user)
-            _currentUserFlow.value = user
-            return Result.success(user)
+            return Result.failure(Exception("Authentication is unavailable. Configure Firebase before creating an account."))
         }
 
         return try {
@@ -140,11 +130,8 @@ class FirebaseAuthRepository(
             _currentUserFlow.value = user
             Result.success(user)
         } catch (e: Exception) {
-            Log.e("FirebaseAuthRepository", "Firebase signup failed, saving locally...", e)
-            // Create locally in case they are offline or running in sandbox simulation
-            hydroDao.insertUser(user)
-            _currentUserFlow.value = user
-            Result.success(user)
+            Log.e("FirebaseAuthRepository", "Firebase signup failed", e)
+            Result.failure(e)
         }
     }
 
@@ -155,35 +142,6 @@ class FirebaseAuthRepository(
             Log.e("FirebaseAuthRepository", "Error during Firebase signout", e)
         }
         _currentUserFlow.value = null
-    }
-
-    private suspend fun loginWithLocalFallback(email: String, role: String): Result<User> {
-        return try {
-            val existing = hydroDao.getUserByEmail(email)
-            if (existing != null) {
-                if (existing.role == role) {
-                    _currentUserFlow.value = existing
-                    Result.success(existing)
-                } else {
-                    Result.failure(Exception("Role mismatch: expected $role but profile is ${existing.role}"))
-                }
-            } else {
-                // Register a new demo account automatically
-                val name = if (role == "ADMIN") "Administrator (${email.substringBefore("@")})" else "Student (${email.substringBefore("@")})"
-                val newUser = User(
-                    email = email,
-                    name = name,
-                    role = role,
-                    hostelBlock = if (role == "ADMIN") "Office" else listOf("A", "B").random(),
-                    roomNumber = if (role == "ADMIN") "HQ" else (101..400).random().toString()
-                )
-                hydroDao.insertUser(newUser)
-                _currentUserFlow.value = newUser
-                Result.success(newUser)
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
     }
 
     // Helper extension to await Firebase Tasks

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -57,10 +58,10 @@ class ForecastServiceConfig:
     timemixer_checkpoint_path: str = "artifacts/checkpoints/timemixer_water_quality_best.pt"
     device: str = "auto"
     window_size: int = 30
-    parameters: tuple[str, ...] = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+    parameters: tuple[str, ...] = ("pH", "TDS", "turbidity", "temperature")
     ensemble_window_size: int = 30
     ensemble_alpha: float = 0.5
-    four_parameter_mode: bool = False  # Enable for four-parameter demo mode
+    four_parameter_mode: bool = True  # Optical colour has no validated checkpoint yet.
 
 
 class ForecastService:
@@ -203,7 +204,7 @@ class ForecastService:
             input_window: Input array of shape (window_size, num_parameters)
 
         Raises:
-            ValueError: If shape is invalid or contains NaN in six-parameter mode
+            ValueError: If shape, finiteness, or observation completeness is invalid
         """
         expected_shape = (self.config.window_size, len(self.config.parameters))
 
@@ -213,13 +214,8 @@ class ForecastService:
                 f"Need {self.config.window_size} days × {len(self.config.parameters)} parameters."
             )
 
-        # Check for NaN in six-parameter mode
-        if len(self.config.parameters) == 6:
-            if np.isnan(input_window).any():
-                raise ValueError(
-                    "Forecast requires valid EC and DO measurements for six-parameter mode. "
-                    "No fabricated values will be used."
-                )
+        if not np.isfinite(input_window).all():
+            raise ValueError("Forecast history contains missing or non-finite values.")
 
     def normalize_input(
         self,
@@ -393,9 +389,24 @@ class ForecastService:
             "prediction": final_prediction,
             "model_predictions": physical_predictions,
             "weights": current_weights,
+            "model_versions": {
+                "LSTM": self._checkpoint_version(self.config.lstm_checkpoint_path),
+                "PatchTST": self._checkpoint_version(self.config.patchtst_checkpoint_path),
+                "TimeMixer": self._checkpoint_version(self.config.timemixer_checkpoint_path),
+            },
         }
 
         return response
+
+    @staticmethod
+    def _checkpoint_version(path: str) -> str:
+        """Return a stable content identifier for the exact checkpoint used."""
+        checkpoint_path = Path(path)
+        digest = hashlib.sha256()
+        with checkpoint_path.open("rb") as checkpoint_file:
+            for chunk in iter(lambda: checkpoint_file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return f"{checkpoint_path.name}@sha256:{digest.hexdigest()[:16]}"
 
     def update_ensemble(
         self,

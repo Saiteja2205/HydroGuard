@@ -43,8 +43,6 @@ def synthetic_series(n_days: int = 40, start: str = "2026-01-01") -> pd.DataFram
             "TDS": 180.0 + day,
             "turbidity": 1.2 + 0.01 * day,
             "temperature": 22.0 + 0.05 * np.cos(day / 3.0),
-            "EC": np.nan,
-            "DO": np.nan,
         }
     )
 
@@ -54,7 +52,7 @@ class ColumnValidationTests(unittest.TestCase):
         frame = pd.DataFrame({"timestamp": ["2026-01-01"], "pH": [7.0]})
         missing = validate_required_columns(frame)
         self.assertIn("TDS", missing)
-        self.assertIn("EC", missing)
+        self.assertIn("turbidity", missing)
 
     def test_complete_columns_pass(self) -> None:
         frame = synthetic_series(5)
@@ -108,8 +106,6 @@ class DuplicateHandlingTests(unittest.TestCase):
                 "TDS": [100.0, 200.0],
                 "turbidity": [1.0, 3.0],
                 "temperature": [20.0, 22.0],
-                "EC": [np.nan, np.nan],
-                "DO": [np.nan, np.nan],
             }
         )
         collapsed = collapse_duplicate_timestamps(frame, how="mean")
@@ -120,7 +116,7 @@ class DuplicateHandlingTests(unittest.TestCase):
 
 class SplitTests(unittest.TestCase):
     def test_chronological_70_15_15(self) -> None:
-        daily = synthetic_series(100).set_index("timestamp")[["pH", "TDS", "turbidity", "temperature", "EC", "DO"]]
+        daily = synthetic_series(100).set_index("timestamp")[["pH", "TDS", "turbidity", "temperature"]]
         train_df, val_df, test_df = chronological_split(daily, 0.70, 0.15, 0.15)
         self.assertEqual(len(train_df), 70)
         self.assertEqual(len(val_df), 15)
@@ -129,7 +125,7 @@ class SplitTests(unittest.TestCase):
         self.assertLess(val_df.index.max(), test_df.index.min())
 
     def test_random_split_is_not_used(self) -> None:
-        daily = synthetic_series(20).set_index("timestamp")[["pH", "TDS", "turbidity", "temperature", "EC", "DO"]]
+        daily = synthetic_series(20).set_index("timestamp")[["pH", "TDS", "turbidity", "temperature"]]
         train_df, val_df, test_df = chronological_split(daily, 0.50, 0.25, 0.25)
         combined = pd.concat([train_df, val_df, test_df])
         pd.testing.assert_index_equal(combined.index, daily.index)
@@ -157,10 +153,10 @@ class ScalerAndWindowTests(unittest.TestCase):
             PipelineConfig(window_size=3, train_ratio=0.70, val_ratio=0.15, test_ratio=0.15),
         )
         n_train = len(result.train_df) - 3
-        self.assertEqual(result.X_train.shape, (n_train, 3, 6))
-        self.assertEqual(result.y_train.shape, (n_train, 6))
-        self.assertEqual(result.X_train.shape[2], 6)
-        self.assertEqual(result.y_train.shape[1], 6)
+        self.assertEqual(result.X_train.shape, (n_train, 3, 4))
+        self.assertEqual(result.y_train.shape, (n_train, 4))
+        self.assertEqual(result.X_train.shape[2], 4)
+        self.assertEqual(result.y_train.shape[1], 4)
 
     def test_no_future_leakage_in_windows(self) -> None:
         result = run_pipeline(
@@ -187,20 +183,12 @@ class ScalerAndWindowTests(unittest.TestCase):
         train_target_dates = result.diagnostics["train_target_dates"]
         self.assertTrue((train_target_dates <= last_train).all())
 
-    def test_ec_and_do_remain_unavailable(self) -> None:
+    def test_ml_contract_is_four_checkpoint_parameters(self) -> None:
         result = run_pipeline(
             synthetic_series(40),
             PipelineConfig(window_size=3),
         )
-        self.assertFalse(result.column_availability["EC"])
-        self.assertFalse(result.column_availability["DO"])
-        self.assertIn("EC", result.unavailable_columns)
-        self.assertIn("DO", result.unavailable_columns)
-        self.assertTrue(np.isnan(result.y_train[:, 4]).all())
-        self.assertTrue(np.isnan(result.y_train[:, 5]).all())
-        restored = result.inverse_transform_predictions(result.y_train)
-        self.assertTrue(np.isnan(restored[:, 4]).all())
-        self.assertTrue(np.isnan(restored[:, 5]).all())
+        self.assertEqual(tuple(result.config.parameters), ("pH", "TDS", "turbidity", "temperature"))
 
     def test_inverse_transform_roundtrip_available_columns(self) -> None:
         result = run_pipeline(
@@ -228,7 +216,7 @@ class ScalerAndWindowTests(unittest.TestCase):
 
 
 class LoaderDemoCsvTests(unittest.TestCase):
-    def test_demo_csv_loads_and_is_labeled_unavailable_ec_do(self) -> None:
+    def test_demo_csv_is_explicitly_demo_provenance_and_model_inputs_are_four(self) -> None:
         frame = load_csv(DEMO_CSV)
         for column in REQUIRED_COLUMNS:
             self.assertIn(column, frame.columns)
@@ -236,8 +224,7 @@ class LoaderDemoCsvTests(unittest.TestCase):
             DEMO_CSV,
             PipelineConfig(window_size=2, train_ratio=0.50, val_ratio=0.25, test_ratio=0.25),
         )
-        self.assertIn("EC", result.unavailable_columns)
-        self.assertIn("DO", result.unavailable_columns)
+        self.assertEqual(result.diagnostics["available_columns"], ["pH", "TDS", "turbidity", "temperature"])
         self.assertGreater(result.validation_report.n_duplicate_timestamps, 0)
         self.assertGreater(result.validation_report.invalid_counts["pH"], 0)
 

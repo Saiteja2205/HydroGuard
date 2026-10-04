@@ -19,7 +19,7 @@ SCALER_TYPES = {"standard", "minmax"}
 class FeatureScaler:
     """Scalers fitted only on training rows of *available* parameters.
 
-    Unavailable parameters (typically EC/DO until those sensors exist) are
+    Unavailable parameters (including unvalidated optical colour) are
     not filled with fake measurements. Their inverse-transformed slots stay
     NaN.
     """
@@ -160,7 +160,7 @@ def identify_unavailable_columns(
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """A column is unavailable when it has zero non-NaN daily values.
 
-    That is the expected state for EC/DO until those sensors exist.
+    An unavailable parameter is never imputed.
     Unavailable columns are not imputed.
     """
     available: list[str] = []
@@ -184,7 +184,7 @@ def apply_missing_strategy(
     - uses only past values (no future leakage)
     - does not back-fill
     - does not interpolate (interpolation would use future points)
-    - does not touch unavailable columns such as empty EC/DO
+    - does not touch unavailable columns
 
     Leading NaNs (before the first valid observation) remain NaN and should
     be dropped by ``drop_incomplete_available_rows``.

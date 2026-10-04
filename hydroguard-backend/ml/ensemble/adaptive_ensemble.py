@@ -27,7 +27,7 @@ class AdaptiveEnsembleConfig:
     """Configuration for adaptive ensemble."""
 
     model_names: tuple[str, ...] = ("LSTM", "PatchTST", "TimeMixer")
-    parameters: tuple[str, ...] = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+    parameters: tuple[str, ...] = ("pH", "TDS", "turbidity", "temperature")
     alpha: float = 0.5  # Weight for MAE in error score
     epsilon: float = 1e-8  # Small constant to prevent division by zero
     window_size: int = 30  # Rolling window size for error history

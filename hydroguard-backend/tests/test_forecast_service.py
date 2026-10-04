@@ -23,13 +23,13 @@ class ForecastServiceConfigTests(unittest.TestCase):
         # Test config without importing the full service
         window_size = 30
         device = "auto"
-        parameters = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+        parameters = ("pH", "TDS", "turbidity", "temperature")
         ensemble_window_size = 30
         ensemble_alpha = 0.5
         
         self.assertEqual(window_size, 30)
         self.assertEqual(device, "auto")
-        self.assertEqual(len(parameters), 6)
+        self.assertEqual(len(parameters), 4)
         self.assertEqual(ensemble_window_size, 30)
         self.assertEqual(ensemble_alpha, 0.5)
 
@@ -50,9 +50,9 @@ class InputValidationTests(unittest.TestCase):
     def test_valid_input_shape(self) -> None:
         """Test validation of correct input shape."""
         config_window_size = 30
-        config_parameters = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+        config_parameters = ("pH", "TDS", "turbidity", "temperature")
         
-        input_window = np.random.randn(30, 6)
+        input_window = np.random.randn(30, 4)
         expected_shape = (config_window_size, len(config_parameters))
         
         self.assertEqual(input_window.shape, expected_shape)
@@ -60,39 +60,37 @@ class InputValidationTests(unittest.TestCase):
     def test_invalid_input_shape(self) -> None:
         """Test validation of incorrect input shape."""
         config_window_size = 30
-        config_parameters = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+        config_parameters = ("pH", "TDS", "turbidity", "temperature")
         expected_shape = (config_window_size, len(config_parameters))
         
         # Wrong number of days
-        input_window = np.random.randn(20, 6)
+        input_window = np.random.randn(20, 4)
         self.assertNotEqual(input_window.shape, expected_shape)
 
         # Wrong number of parameters
-        input_window = np.random.randn(30, 4)
+        input_window = np.random.randn(30, 3)
         self.assertNotEqual(input_window.shape, expected_shape)
 
-    def test_nan_validation_six_parameter_mode(self) -> None:
-        """Test NaN detection in six-parameter mode."""
-        parameters = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+    def test_nan_validation_for_forecast_parameters(self) -> None:
+        """Test NaN detection for modelled parameters."""
+        parameters = ("pH", "TDS", "turbidity", "temperature")
         
-        input_window = np.random.randn(30, 6)
-        input_window[0, 4] = np.nan  # EC column
+        input_window = np.random.randn(30, 4)
+        input_window[0, 3] = np.nan
         
         has_nan = np.isnan(input_window).any()
         self.assertTrue(has_nan)
-        self.assertEqual(len(parameters), 6)
+        self.assertEqual(len(parameters), 4)
 
-    def test_nan_allowed_four_parameter_mode(self) -> None:
-        """Test that NaN detection is appropriate for mode."""
-        parameters_six = ("pH", "TDS", "turbidity", "temperature", "EC", "DO")
+    def test_nan_detection_for_four_parameter_windows(self) -> None:
+        """Test missing-value detection for the supported input width."""
         parameters_four = ("pH", "TDS", "turbidity", "temperature")
         
-        input_window = np.random.randn(30, 6)
-        input_window[0, 4] = np.nan  # EC column
+        input_window = np.random.randn(30, 4)
+        input_window[0, 3] = np.nan
         
         has_nan = np.isnan(input_window).any()
         self.assertTrue(has_nan)
-        self.assertEqual(len(parameters_six), 6)
         self.assertEqual(len(parameters_four), 4)
 
 

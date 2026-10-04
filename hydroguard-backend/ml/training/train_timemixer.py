@@ -14,19 +14,20 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from ml.data import run_pipeline, PipelineConfig
+from ml.data.validator import PARAMETERS
 from ml.models.timemixer_model import TimeMixer
 
 
 @dataclass
 class TimeMixerTrainingConfig:
     model_name: str = "timemixer_water_quality"
-    input_size: int = 6
+    input_size: int = 4
     context_length: int = 30
     hidden_size: int = 64
     num_scales: int = 3
     num_mixing_layers: int = 2
     dropout: float = 0.1
-    output_size: int = 6
+    output_size: int = 4
     batch_size: int = 32
     learning_rate: float = 0.001
     num_epochs: int = 100
@@ -34,7 +35,7 @@ class TimeMixerTrainingConfig:
     random_seed: int = 42
     checkpoint_dir: str = "artifacts/checkpoints"
     device: str = "auto"
-    four_param_mode: bool = False
+    four_param_mode: bool = True
     parameters: tuple[str, ...] | None = None
 
 
@@ -187,20 +188,11 @@ def train_timemixer(
     device = get_device(config.device)
     print(f"Using device: {device}")
 
-    pipeline_config = PipelineConfig()
-    
-    if config.parameters is not None:
-        pipeline_config.parameters = tuple(config.parameters)
-        config.input_size = len(config.parameters)
-        config.output_size = len(config.parameters)
-        print(f"Using custom parameters: {list(config.parameters)}")
-    elif config.four_param_mode:
-        pipeline_config.parameters = ("pH", "TDS", "turbidity", "temperature")
-        config.input_size = 4
-        config.output_size = 4
-        print("Using four-parameter development mode: [pH, TDS, turbidity, temperature]")
-    else:
-        print("Using six-parameter mode: [pH, TDS, turbidity, temperature, EC, DO]")
+    if not config.four_param_mode or (config.parameters is not None and tuple(config.parameters) != PARAMETERS):
+        raise ValueError(f"HydroGuard forecasting is restricted to {PARAMETERS}; legacy/extra parameters are unsupported.")
+    pipeline_config = PipelineConfig(parameters=PARAMETERS)
+    config.input_size = len(PARAMETERS)
+    config.output_size = len(PARAMETERS)
 
     result = run_pipeline(data_source, pipeline_config)
 
@@ -221,27 +213,6 @@ def train_timemixer(
     print(f"Validation data shape: X={X_val.shape}, y={y_val.shape}")
     print(f"Available columns: {result.diagnostics['available_columns']}")
     print(f"Unavailable columns: {result.diagnostics['unavailable_columns']}")
-
-    # Determine if this is six-parameter mode (includes EC and DO)
-    is_six_param_mode = (
-        config.parameters is None and not config.four_param_mode
-    ) or (
-        config.parameters is not None and 
-        len(config.parameters) == 6 and 
-        "EC" in config.parameters and 
-        "DO" in config.parameters
-    )
-    
-    if is_six_param_mode:
-        # Check for NaN in six-parameter mode
-        has_nan_train = np.isnan(X_train).any() or np.isnan(y_train).any()
-        has_nan_val = np.isnan(X_val).any() or np.isnan(y_val).any()
-        has_nan_test = X_test.shape[0] > 0 and (np.isnan(X_test).any() or np.isnan(y_test).any())
-        
-        if has_nan_train or has_nan_val or has_nan_test:
-            raise ValueError(
-                "Six-parameter TimeMixer training requires valid EC and DO data. No fabricated values will be used."
-            )
 
     train_loader, val_loader = create_data_loaders(
         X_train, y_train, X_val, y_val, config.batch_size
@@ -384,17 +355,8 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # Determine if four-parameter mode based on parameters
-    four_param_mode = False
-    if args.parameters is not None:
-        if len(args.parameters) == 4 and set(args.parameters) == {"pH", "TDS", "turbidity", "temperature"}:
-            four_param_mode = True
-        elif len(args.parameters) == 6 and set(args.parameters) == {"pH", "TDS", "turbidity", "temperature", "EC", "DO"}:
-            four_param_mode = False
-        else:
-            print(f"Warning: Unusual parameter set: {args.parameters}")
-            print("Expected 4 parameters [pH, TDS, turbidity, temperature] for development mode")
-            print("Expected 6 parameters [pH, TDS, turbidity, temperature, EC, DO] for standard mode")
+    if args.parameters is not None and tuple(args.parameters) != PARAMETERS:
+        parser.error(f"HydroGuard forecasting only supports: {', '.join(PARAMETERS)}")
     
     config = TimeMixerTrainingConfig(
         random_seed=args.seed,
@@ -407,8 +369,8 @@ if __name__ == "__main__":
         dropout=args.dropout,
         checkpoint_dir=args.checkpoint_dir,
         device=args.device,
-        four_param_mode=four_param_mode,
-        parameters=tuple(args.parameters) if args.parameters is not None else None,
+        four_param_mode=True,
+        parameters=PARAMETERS,
     )
 
     model, metrics, pipeline_config = train_timemixer(
