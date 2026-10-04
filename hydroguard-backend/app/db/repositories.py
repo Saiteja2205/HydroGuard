@@ -166,6 +166,13 @@ class ForecastRepository:
         horizon_hours: int = 24,
     ) -> Forecast:
         """Create a new forecast record."""
+        # Tests, scripts, or app workers may connect to an existing SQLite DB
+        # without passing through the FastAPI startup hook. Apply the additive
+        # local upgrade before the INSERT so stale tables fail neither late nor
+        # destructively.
+        from app.db.database import ensure_forecast_schema
+
+        ensure_forecast_schema()
         forecast = Forecast(
             node_id=node_id,
             forecast_date=forecast_date,
@@ -195,6 +202,10 @@ class ForecastRepository:
             ensemble_tds=ensemble_predictions.get("TDS", 0.0),
             ensemble_turbidity=ensemble_predictions.get("turbidity", 0.0),
             ensemble_temperature=ensemble_predictions.get("temperature"),
+            lstm_optical_colour_index=lstm_predictions.get("optical_colour_index"),
+            patchtst_optical_colour_index=patchtst_predictions.get("optical_colour_index"),
+            timemixer_optical_colour_index=timemixer_predictions.get("optical_colour_index"),
+            ensemble_optical_colour_index=ensemble_predictions.get("optical_colour_index"),
             # Model weights for pH
             lstm_weight_ph=weights.get("pH", {}).get("LSTM", 0.33),
             patchtst_weight_ph=weights.get("pH", {}).get("PatchTST", 0.33),
@@ -211,6 +222,9 @@ class ForecastRepository:
             lstm_weight_temperature=weights.get("temperature", {}).get("LSTM", 0.33),
             patchtst_weight_temperature=weights.get("temperature", {}).get("PatchTST", 0.33),
             timemixer_weight_temperature=weights.get("temperature", {}).get("TimeMixer", 0.34),
+            lstm_weight_optical_colour_index=weights.get("optical_colour_index", {}).get("LSTM", 0.33),
+            patchtst_weight_optical_colour_index=weights.get("optical_colour_index", {}).get("PatchTST", 0.33),
+            timemixer_weight_optical_colour_index=weights.get("optical_colour_index", {}).get("TimeMixer", 0.34),
         )
         db.add(forecast)
         db.commit()
@@ -279,6 +293,7 @@ class ModelErrorRepository:
         data_source: str = "HISTORICAL_DATA",
         mape: Optional[float] = None,
         horizon_hours: int = 24,
+        model_version: Optional[str] = None,
     ) -> ModelError:
         """Create a new model error record."""
         error = ModelError(
@@ -298,6 +313,7 @@ class ModelErrorRepository:
             evaluated_at=evaluated_at or datetime.now(timezone.utc),
             data_source=data_source,
             mape=mape,
+            model_version=model_version,
         )
         db.add(error)
         db.commit()
@@ -398,16 +414,17 @@ class EnsembleWeightRepository:
         return query.all()
 
     @staticmethod
-    def set_weight(db: Session, node_id: str, parameter: str, model_name: str, weight: float, observations: int, data_source: str = "HISTORICAL_DATA") -> None:
+    def set_weight(db: Session, node_id: str, parameter: str, model_name: str, weight: float, observations: int, data_source: str = "HISTORICAL_DATA", model_version: str | None = None) -> None:
         row = db.query(EnsembleWeight).filter_by(
             node_id=node_id, parameter=parameter, model_name=model_name, data_source=data_source
         ).first()
         if row is None:
-            row = EnsembleWeight(node_id=node_id, parameter=parameter, model_name=model_name, data_source=data_source, weight=weight, observations=observations)
+            row = EnsembleWeight(node_id=node_id, parameter=parameter, model_name=model_name, data_source=data_source, weight=weight, observations=observations, model_version=model_version)
             db.add(row)
         else:
             row.weight = weight
             row.observations = observations
+            row.model_version = model_version
             row.updated_at = datetime.now(timezone.utc)
         db.commit()
 

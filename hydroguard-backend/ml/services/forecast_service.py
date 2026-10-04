@@ -53,15 +53,15 @@ except ImportError:
 class ForecastServiceConfig:
     """Configuration for ForecastService."""
 
-    lstm_checkpoint_path: str = "artifacts/checkpoints/lstm_water_quality_best.pt"
-    patchtst_checkpoint_path: str = "artifacts/checkpoints/patchtst_water_quality_best.pt"
-    timemixer_checkpoint_path: str = "artifacts/checkpoints/timemixer_water_quality_best.pt"
+    lstm_checkpoint_path: str = "artifacts/checkpoints/lstm_water_quality_5param_v1.pt"
+    patchtst_checkpoint_path: str = "artifacts/checkpoints/patchtst_water_quality_5param_v1.pt"
+    timemixer_checkpoint_path: str = "artifacts/checkpoints/timemixer_water_quality_5param_v1.pt"
     device: str = "auto"
     window_size: int = 30
-    parameters: tuple[str, ...] = ("pH", "TDS", "turbidity", "temperature")
+    parameters: tuple[str, ...] = ("pH", "TDS", "turbidity", "temperature", "optical_colour_index")
     ensemble_window_size: int = 30
     ensemble_alpha: float = 0.5
-    four_parameter_mode: bool = True  # Optical colour has no validated checkpoint yet.
+    five_parameter_mode: bool = True
 
 
 class ForecastService:
@@ -76,6 +76,7 @@ class ForecastService:
         self.ensemble = None
         self.pipeline_result = None
         self.device = None
+        self.training_scaler: tuple[np.ndarray, np.ndarray] | None = None
 
     def load_models(self) -> None:
         """Load all trained model checkpoints."""
@@ -94,19 +95,29 @@ class ForecastService:
                 lstm_path = Path(self.config.lstm_checkpoint_path)
                 if not lstm_path.exists():
                     raise FileNotFoundError(f"LSTM checkpoint not found: {lstm_path}")
-                self.lstm_model, _ = load_lstm(lstm_path, device=self.device)
+                self.lstm_model, lstm_checkpoint = load_lstm(lstm_path, device=self.device)
+                if int(lstm_checkpoint.get("feature_count", lstm_checkpoint.get("config", {}).get("input_size", 0))) != len(self.config.parameters):
+                    raise ValueError("LSTM checkpoint feature dimensions do not match the active five-parameter contract.")
+                if lstm_checkpoint.get("parameters") and tuple(lstm_checkpoint["parameters"]) != self.config.parameters:
+                    raise ValueError("LSTM checkpoint parameter order does not match the active contract.")
+                if "scaler_mean" in lstm_checkpoint and "scaler_std" in lstm_checkpoint:
+                    self.training_scaler = (np.asarray(lstm_checkpoint["scaler_mean"], dtype=np.float32), np.asarray(lstm_checkpoint["scaler_std"], dtype=np.float32))
 
                 # Load PatchTST
                 patchtst_path = Path(self.config.patchtst_checkpoint_path)
                 if not patchtst_path.exists():
                     raise FileNotFoundError(f"PatchTST checkpoint not found: {patchtst_path}")
-                self.patchtst_model, _ = load_patchtst(patchtst_path, device=self.device)
+                self.patchtst_model, patch_checkpoint = load_patchtst(patchtst_path, device=self.device)
+                if int(patch_checkpoint.get("feature_count", patch_checkpoint.get("config", {}).get("input_size", 0))) != len(self.config.parameters):
+                    raise ValueError("PatchTST checkpoint feature dimensions do not match the active five-parameter contract.")
 
                 # Load TimeMixer
                 timemixer_path = Path(self.config.timemixer_checkpoint_path)
                 if not timemixer_path.exists():
                     raise FileNotFoundError(f"TimeMixer checkpoint not found: {timemixer_path}")
-                self.timemixer_model, _ = load_timemixer(timemixer_path, device=self.device)
+                self.timemixer_model, mixer_checkpoint = load_timemixer(timemixer_path, device=self.device)
+                if int(mixer_checkpoint.get("feature_count", mixer_checkpoint.get("config", {}).get("input_size", 0))) != len(self.config.parameters):
+                    raise ValueError("TimeMixer checkpoint feature dimensions do not match the active five-parameter contract.")
                 use_prediction_helpers = True
             except (KeyError, TypeError) as e:
                 # Fallback to direct loading if checkpoint config is incomplete
@@ -115,7 +126,7 @@ class ForecastService:
                 use_prediction_helpers = False
         
         if not use_prediction_helpers:
-            # Fallback: load models directly (for four-parameter demo mode)
+            # Fallback: load versioned model checkpoints directly.
             from ml.models.lstm_model import LSTMModel
             from ml.models.patchtst_model import PatchTST
             from ml.models.timemixer_model import TimeMixer
@@ -231,6 +242,9 @@ class ForecastService:
         Returns:
             Normalized input window
         """
+        if self.training_scaler is not None:
+            mean, std = self.training_scaler
+            return ((input_window - mean) / std).astype(np.float32)
         # Reshape for scaler: (window_size, num_parameters)
         scaled = pipeline_result.scaler.transform(input_window)
         return scaled
@@ -291,6 +305,11 @@ class ForecastService:
         physical_predictions = {}
 
         for model_name, model_preds in scaled_predictions.items():
+            if self.training_scaler is not None:
+                mean, std = self.training_scaler
+                physical_array = np.asarray([model_preds[param] for param in self.config.parameters]) * std + mean
+                physical_predictions[model_name] = {param: float(value) for param, value in zip(self.config.parameters, physical_array)}
+                continue
             # Convert to array for inverse transform
             pred_array = np.array([model_preds[param] for param in self.config.parameters]).reshape(1, -1)
             physical_array = pipeline_result.scaler.inverse_transform(pred_array)[0]

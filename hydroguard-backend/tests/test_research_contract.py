@@ -33,7 +33,7 @@ def _reading(timestamp: datetime, **overrides) -> dict:
         "green": 130,
         "blue": 140,
         "clear": 390,
-        "optical_colour_index": None,
+        "optical_colour_index": 0.55,
         "source": "HISTORICAL_DATA",
     }
     value.update(overrides)
@@ -81,7 +81,7 @@ def test_forecast_request_rejects_duplicate_unordered_naive_and_future_timestamp
 def test_forecast_reading_rejects_missing_and_invalid_sensor_values():
     valid = _reading(datetime.now(timezone.utc) - timedelta(days=1))
     for invalid in (
-        {key: value for key, value in valid.items() if key != "temperature"},
+        {key: value for key, value in valid.items() if key != "optical_colour_index"},
         {**valid, "pH": 15},
         {**valid, "source": "MIXED"},
         {**valid, "flow_rate": 2},
@@ -121,6 +121,7 @@ def test_actual_observation_matches_forecast_and_persists_errors_and_weights():
         "TDS": 180.0,
         "turbidity": 1.0,
         "temperature": 22.0,
+        "optical_colour_index": 0.55,
     }
     model_predictions = {
         "LSTM": predictions,
@@ -129,7 +130,7 @@ def test_actual_observation_matches_forecast_and_persists_errors_and_weights():
     }
     equal_weights = {
         parameter: {"LSTM": 1 / 3, "PatchTST": 1 / 3, "TimeMixer": 1 / 3}
-        for parameter in ("pH", "TDS", "turbidity", "temperature")
+        for parameter in ("pH", "TDS", "turbidity", "temperature", "optical_colour_index")
     }
 
     with get_db_context() as db:
@@ -153,18 +154,19 @@ def test_actual_observation_matches_forecast_and_persists_errors_and_weights():
             tds=181.0,
             turbidity=1.1,
             temperature=22.5,
+            optical_colour_index=0.57,
             red=11,
             green=12,
             blue=13,
             clear=36,
             source="DEMO",
         )
-        assert ErrorTrackingService.evaluate_actual_reading(db, actual) == 12
+        assert ErrorTrackingService.evaluate_actual_reading(db, actual) == 15
         errors = ModelErrorRepository.get_by_node(db, node_id)
-        assert len(errors) == 12
+        assert len(errors) == 15
         assert {row.data_source for row in errors} == {"DEMO"}
         assert {row.actual_timestamp.date() for row in errors} == {now.date()}
-        assert {row.parameter for row in errors} == {"pH", "TDS", "turbidity", "temperature"}
+        assert {row.parameter for row in errors} == {"pH", "TDS", "turbidity", "temperature", "optical_colour_index"}
         assert EnsembleWeightRepository.get_by_node(db, node_id, "DEMO")
         assert ErrorTrackingService.evaluate_actual_reading(db, actual) == 0
 

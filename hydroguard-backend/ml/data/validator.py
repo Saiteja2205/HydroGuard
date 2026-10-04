@@ -6,17 +6,17 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-# Model inputs currently supported by checkpoints (all demo trained).
+# Active forecasting contract. Optical colour remains experimental, but is an
+# explicit model feature only for clearly labelled development datasets.
 PARAMETERS: tuple[str, ...] = (
     "pH",
     "TDS",
     "turbidity",
     "temperature",
+    "optical_colour_index",
 )
-# Full product contract. Optical colour is retained in storage but deliberately
-# excluded from model training until calibrated, validated observations exist.
-PRODUCT_PARAMETERS: tuple[str, ...] = PARAMETERS + ("optical_colour_index",)
-DEPRECATED_LEGACY_PARAMETERS: tuple[str, ...] = ("EC", "DO", "flow_rate")
+PRODUCT_PARAMETERS: tuple[str, ...] = PARAMETERS
+DEPRECATED_LEGACY_PARAMETERS: tuple[str, ...] = ("EC", "DO", "ORP", "nitrate", "ammonia", "flow_rate")
 REQUIRED_COLUMNS: tuple[str, ...] = ("timestamp",) + PARAMETERS
 
 # Bounds for obviously invalid readings. Out-of-range values become NaN.
@@ -26,6 +26,7 @@ VALID_RANGES: dict[str, tuple[float, float]] = {
     "TDS": (0.0, 100_000.0),
     "turbidity": (0.0, 10_000.0),
     "temperature": (-20.0, 80.0),
+    "optical_colour_index": (0.0, 1.0),
 }
 
 

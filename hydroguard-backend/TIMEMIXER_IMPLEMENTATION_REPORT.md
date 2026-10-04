@@ -1,4 +1,6 @@
-# TimeMixer Implementation Report for HydroGuard Project
+﻿# TimeMixer Implementation Report for HydroGuard Project
+
+> Historical report: these original results refer to the former four-feature simulated models and are superseded by the active five-feature development pipeline described in `README.md`.
 
 ## Environment Information
 
@@ -37,34 +39,34 @@ Based on "TimeMixer: Decomposable Multiscale Mixing for Time Series Forecasting"
 ### Architecture Flow
 ```
 Input: (batch, 30, 6)
-    ↓
+    â†“
 Input Projection: (batch, 30, 64) - Linear(6, 64)
-    ↓
+    â†“
 Multi-Scale Decomposition: 3 temporal scales
-    ├─ Scale 1: (batch, 30, 64) - Original resolution
-    ├─ Scale 2: (batch, 30, 64) - Downsampled (kernel=3)
-    └─ Scale 3: (batch, 30, 64) - Coarser (kernel=1)
-    ↓
+    â”œâ”€ Scale 1: (batch, 30, 64) - Original resolution
+    â”œâ”€ Scale 2: (batch, 30, 64) - Downsampled (kernel=3)
+    â””â”€ Scale 3: (batch, 30, 64) - Coarser (kernel=1)
+    â†“
 Scale Mixing: (batch, 30, 64) - Cross-scale attention + mixing
-    ├─ Scale Projections: Linear(64, 64) per scale
-    ├─ Cross-Scale Attention: MultiheadAttention(64, 4)
-    └─ Mixing Layer: Linear(384, 64) → ReLU → Dropout → Linear(64, 64)
-    ↓
+    â”œâ”€ Scale Projections: Linear(64, 64) per scale
+    â”œâ”€ Cross-Scale Attention: MultiheadAttention(64, 4)
+    â””â”€ Mixing Layer: Linear(384, 64) â†’ ReLU â†’ Dropout â†’ Linear(64, 64)
+    â†“
 Temporal Mixing Layers: 2 layers
-    ├─ Temporal Conv: Conv1d(64, 64, kernel=3, padding=1)
-    ├─ LayerNorm
-    ├─ ReLU
-    ├─ Dropout
-    └─ Residual Connection
-    ↓
-Flatten: (batch, 1920) - 30 × 64
-    ↓
+    â”œâ”€ Temporal Conv: Conv1d(64, 64, kernel=3, padding=1)
+    â”œâ”€ LayerNorm
+    â”œâ”€ ReLU
+    â”œâ”€ Dropout
+    â””â”€ Residual Connection
+    â†“
+Flatten: (batch, 1920) - 30 Ã— 64
+    â†“
 Prediction Head: (batch, 6)
-    ├─ Linear(1920, 64)
-    ├─ ReLU
-    ├─ Dropout(0.1)
-    └─ Linear(64, 6)
-    ↓
+    â”œâ”€ Linear(1920, 64)
+    â”œâ”€ ReLU
+    â”œâ”€ Dropout(0.1)
+    â””â”€ Linear(64, 6)
+    â†“
 Output: (batch, 6) - Next day's 6 parameters
 ```
 
@@ -106,45 +108,45 @@ An explicit four-parameter mode is available for development when EC/DO sensors 
 ## Implementation Features
 
 ### Training Features
-- ✅ Configurable model class (num_scales, num_mixing_layers, hidden_size, dropout)
-- ✅ Deterministic random seed (set_random_seed)
-- ✅ PyTorch DataLoader
-- ✅ Training loop with MSE loss
-- ✅ Validation loss tracking
-- ✅ Early stopping (configurable patience)
-- ✅ Best checkpoint saving
-- ✅ Checkpoint loading
-- ✅ CPU support
-- ✅ Optional CUDA detection (auto)
-- ✅ Learning rate scheduling (Adam optimizer)
-- ✅ CLI argument support
-- ✅ Reuses existing HydroGuard data pipeline
+- âœ… Configurable model class (num_scales, num_mixing_layers, hidden_size, dropout)
+- âœ… Deterministic random seed (set_random_seed)
+- âœ… PyTorch DataLoader
+- âœ… Training loop with MSE loss
+- âœ… Validation loss tracking
+- âœ… Early stopping (configurable patience)
+- âœ… Best checkpoint saving
+- âœ… Checkpoint loading
+- âœ… CPU support
+- âœ… Optional CUDA detection (auto)
+- âœ… Learning rate scheduling (Adam optimizer)
+- âœ… CLI argument support
+- âœ… Reuses existing HydroGuard data pipeline
 
 ### Prediction Features
-- ✅ Prediction function
-- ✅ Inverse transformation using existing scaler
-- ✅ Parameter dictionary output (predict_as_dict)
-- ✅ MAE (Mean Absolute Error) calculation
-- ✅ RMSE (Root Mean Square Error) calculation
-- ✅ Test set evaluation
-- ✅ Model loading from checkpoint
-- ✅ Device handling (auto/cpu/cuda)
+- âœ… Prediction function
+- âœ… Inverse transformation using existing scaler
+- âœ… Parameter dictionary output (predict_as_dict)
+- âœ… MAE (Mean Absolute Error) calculation
+- âœ… RMSE (Root Mean Square Error) calculation
+- âœ… Test set evaluation
+- âœ… Model loading from checkpoint
+- âœ… Device handling (auto/cpu/cuda)
 
 ### Unit Tests
-- ✅ Model initialization tests (default and custom)
-- ✅ Multi-scale decomposition tests
-- ✅ Scale mixing tests
-- ✅ Temporal mixing tests
-- ✅ Forward pass shape tests
-- ✅ Four-parameter mode tests
-- ✅ Architecture component tests
-- ✅ Checkpoint save/load tests
-- ✅ Device selection tests
-- ✅ Batch size variation tests
-- ✅ Gradient flow tests
-- ✅ NaN validation logic tests
-- ✅ Different num_scales tests
-- ✅ Different num_mixing_layers tests
+- âœ… Model initialization tests (default and custom)
+- âœ… Multi-scale decomposition tests
+- âœ… Scale mixing tests
+- âœ… Temporal mixing tests
+- âœ… Forward pass shape tests
+- âœ… Four-parameter mode tests
+- âœ… Architecture component tests
+- âœ… Checkpoint save/load tests
+- âœ… Device selection tests
+- âœ… Batch size variation tests
+- âœ… Gradient flow tests
+- âœ… NaN validation logic tests
+- âœ… Different num_scales tests
+- âœ… Different num_mixing_layers tests
 
 ## Test Results
 
@@ -368,10 +370,10 @@ python -m ml.training.train_timemixer \
 - Both models verified unchanged during TimeMixer implementation
 
 ### What Was NOT Implemented
-- ❌ Adaptive ensemble
-- ❌ FastAPI forecast endpoint
-- ❌ ESP32 integration
-- ❌ Model comparison (LSTM vs PatchTST vs TimeMixer)
+- âŒ Adaptive ensemble
+- âŒ FastAPI forecast endpoint
+- âŒ ESP32 integration
+- âŒ Model comparison (LSTM vs PatchTST vs TimeMixer)
 
 ## Comparison: LSTM vs PatchTST vs TimeMixer
 
@@ -410,18 +412,18 @@ python -m ml.training.train_timemixer \
 
 The TimeMixer forecasting component has been successfully implemented with:
 
-- ✅ Multi-scale decomposition architecture (not simple linear regression)
-- ✅ Scale mixing with cross-scale attention
-- ✅ Temporal mixing with convolutional layers
-- ✅ Configurable hyperparameters (num_scales, num_mixing_layers, hidden_size)
-- ✅ Configurable training pipeline with early stopping
-- ✅ Prediction and evaluation functions
-- ✅ Four-parameter development mode support
-- ✅ Comprehensive unit tests (28/28 passed)
-- ✅ Compatible with existing data pipeline
-- ✅ Proper EC/DO handling (never fabricated)
-- ✅ LSTM model preserved unchanged (52,102 parameters)
-- ✅ PatchTST model preserved unchanged (589,318 parameters)
-- ✅ Android project not modified
+- âœ… Multi-scale decomposition architecture (not simple linear regression)
+- âœ… Scale mixing with cross-scale attention
+- âœ… Temporal mixing with convolutional layers
+- âœ… Configurable hyperparameters (num_scales, num_mixing_layers, hidden_size)
+- âœ… Configurable training pipeline with early stopping
+- âœ… Prediction and evaluation functions
+- âœ… Four-parameter development mode support
+- âœ… Comprehensive unit tests (28/28 passed)
+- âœ… Compatible with existing data pipeline
+- âœ… Proper EC/DO handling (never fabricated)
+- âœ… LSTM model preserved unchanged (52,102 parameters)
+- âœ… PatchTST model preserved unchanged (589,318 parameters)
+- âœ… Android project not modified
 
 The implementation provides a multi-scale mixing approach that captures both short-term patterns and long-term trends, offering a middle-ground complexity between LSTM and PatchTST. TimeMixer is ready for use once the scikit-learn dependency is resolved.

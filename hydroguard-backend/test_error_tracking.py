@@ -18,15 +18,16 @@ with get_db_context() as db:
         db=db,
         node_id="node_overhead_a",
         forecast_date=forecast_date,
-        lstm_predictions={"pH": 7.0, "TDS": 180.0, "turbidity": 1.0, "temperature": 22.0},
-        patchtst_predictions={"pH": 7.1, "TDS": 182.0, "turbidity": 1.1, "temperature": 22.2},
-        timemixer_predictions={"pH": 7.05, "TDS": 181.0, "turbidity": 1.05, "temperature": 22.1},
-        ensemble_predictions={"pH": 7.05, "TDS": 181.0, "turbidity": 1.05, "temperature": 22.1},
+        lstm_predictions={"pH": 7.0, "TDS": 180.0, "turbidity": 1.0, "temperature": 22.0, "optical_colour_index": 0.50},
+        patchtst_predictions={"pH": 7.1, "TDS": 182.0, "turbidity": 1.1, "temperature": 22.2, "optical_colour_index": 0.52},
+        timemixer_predictions={"pH": 7.05, "TDS": 181.0, "turbidity": 1.05, "temperature": 22.1, "optical_colour_index": 0.51},
+        ensemble_predictions={"pH": 7.05, "TDS": 181.0, "turbidity": 1.05, "temperature": 22.1, "optical_colour_index": 0.51},
         weights={
             "pH": {"LSTM": 0.33, "PatchTST": 0.33, "TimeMixer": 0.34},
             "TDS": {"LSTM": 0.33, "PatchTST": 0.33, "TimeMixer": 0.34},
             "turbidity": {"LSTM": 0.33, "PatchTST": 0.33, "TimeMixer": 0.34},
             "temperature": {"LSTM": 0.33, "PatchTST": 0.33, "TimeMixer": 0.34},
+            "optical_colour_index": {"LSTM": 0.33, "PatchTST": 0.33, "TimeMixer": 0.34},
         },
     )
     print(f"Created forecast ID: {forecast.id}")
@@ -40,10 +41,8 @@ with get_db_context() as db:
         tds=185.0,
         turbidity=1.15,
         temperature=22.5,
-        ec=None,
-        do=None,
-        flow_rate=18.0,
-        source="simulated",
+        optical_colour_index=0.53,
+        source="SIMULATED",
     )
     print(f"Created actual reading ID: {actual_reading.id}")
 

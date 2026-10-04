@@ -1,0 +1,21 @@
+{
+  "source": "SIMULATED",
+  "dataset_type": "DEVELOPMENT",
+  "real_sensor_data": false,
+  "observation_count": 200,
+  "chronologically_ordered": true,
+  "parameters": [
+    "pH",
+    "TDS",
+    "turbidity",
+    "temperature",
+    "optical_colour_index"
+  ],
+  "raw_optical_sensor_fields": [
+    "rgb_red",
+    "rgb_green",
+    "rgb_blue",
+    "rgb_clear"
+  ],
+  "optical_colour_index_method": "Simulated normalized RGB sum; no scientific calibration or validity claim."
+}

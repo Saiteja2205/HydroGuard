@@ -262,7 +262,7 @@ def get_current_weights(
     if not avg_errors:
         # No history yet, return equal weights for all parameters
         model_names = ("LSTM", "PatchTST", "TimeMixer")
-        parameters = ("pH", "TDS", "turbidity", "temperature")
+        parameters = ("pH", "TDS", "turbidity", "temperature", "optical_colour_index")
         equal_weight = 1.0 / len(model_names)
         return {
             param: {model: equal_weight for model in model_names}

@@ -10,20 +10,21 @@ class LSTMModel(nn.Module):
     """LSTM model for next-day water quality parameter forecasting.
 
     Architecture:
-        Input: (batch, 30, 4) - 30 daily observations of four modelled parameters
+        Input: (batch, 30, 5) - daily observations of five modelled parameters
         LSTM: 2 layers, hidden_size=64, dropout=0.2
-        Output: (batch, 4) - next day's four modelled parameters
+        Output: (batch, 5) - next day's five modelled parameters
 
-    Product model inputs: [pH, TDS, turbidity, temperature]. Optical colour has no validated checkpoint.
+    Inputs: [pH, TDS, turbidity, temperature, optical_colour_index]. The fifth
+    feature is experimental and development-trained until sensor calibration exists.
     """
 
     def __init__(
         self,
-        input_size: int = 4,
+        input_size: int = 5,
         hidden_size: int = 64,
         num_layers: int = 2,
         dropout: float = 0.2,
-        output_size: int = 4,
+        output_size: int = 5,
     ):
         super().__init__()
         self.input_size = input_size

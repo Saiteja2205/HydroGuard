@@ -470,7 +470,7 @@ fun InteractiveTrendChartLocal(
                         .height(180.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No historical telemetry recorded.", color = SlateBlueSubtle)
+                    Text("No historical water readings recorded.", color = SlateBlueSubtle)
                 }
             } else {
                 val dataPoints = readings.take(12).reversed()
@@ -615,7 +615,7 @@ fun InteractiveTrendChart(
                         .height(180.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No historical telemetry recorded.", color = SlateBlueSubtle)
+                    Text("No historical water readings recorded.", color = SlateBlueSubtle)
                 }
             } else {
                 val dataPoints = readings.take(12).reversed()
@@ -712,7 +712,7 @@ fun InteractiveTrendChart(
                         color = SlateBlueSubtle
                     )
                     Text(
-                        text = "LIVE TELEMETRY",
+                        text = "LIVE WATER MONITORING",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = color
@@ -884,7 +884,7 @@ fun AlertTimeline(
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "TELEMETRY ALARM LOG",
+                text = "WATER ALERT LOG",
                 style = MaterialTheme.typography.labelSmall,
                 color = CeruleanBlueBright
             )

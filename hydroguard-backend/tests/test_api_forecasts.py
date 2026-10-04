@@ -65,6 +65,7 @@ def test_forecasts_api(monkeypatch):
             "TDS": 180.0,
             "turbidity": 1.0,
             "temperature": 22.0,
+                "optical_colour_index": 0.5,
             "source": "DEMO",
         }],
     })

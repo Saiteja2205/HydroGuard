@@ -25,8 +25,8 @@ def get_forecast_service() -> "ForecastService":
     global forecast_service
     if forecast_service is None:
         config = ForecastServiceConfig(
-            four_parameter_mode=True,
-            parameters=("pH", "TDS", "turbidity", "temperature"),
+            five_parameter_mode=True,
+            parameters=("pH", "TDS", "turbidity", "temperature", "optical_colour_index"),
             ensemble_window_size=30,
             ensemble_alpha=0.5,
             device="cpu",  # Force CPU to avoid device issues
@@ -53,9 +53,9 @@ def generate_forecast(
             raise HTTPException(status_code=404, detail=f"Node {request.node_id} not found")
 
         service = get_forecast_service()
-        expected_parameters = ("pH", "TDS", "turbidity", "temperature")
+        expected_parameters = ("pH", "TDS", "turbidity", "temperature", "optical_colour_index")
         if tuple(service.config.parameters) != expected_parameters:
-            raise HTTPException(status_code=503, detail="Loaded model checkpoints do not match the active four-parameter model contract.")
+            raise HTTPException(status_code=503, detail="Loaded model checkpoints do not match the active five-parameter model contract.")
 
         # Load models if not already loaded
         if not service.models_loaded:
@@ -66,12 +66,14 @@ def generate_forecast(
                     status_code=503,
                     detail=f"Forecast model checkpoint not found: {str(e)}",
                 )
+            except ValueError as e:
+                raise HTTPException(status_code=503, detail=f"Forecast model checkpoint is incompatible: {e}")
 
         # Convert readings to numpy array
         import numpy as np
 
         selected_readings = request.readings[-service.config.window_size:]
-        readings_array = [[r.pH, r.TDS, r.turbidity, r.temperature] for r in selected_readings]
+        readings_array = [[r.pH, r.TDS, r.turbidity, r.temperature, r.optical_colour_index] for r in selected_readings]
 
         input_window = np.array(readings_array, dtype=np.float32)
 
@@ -107,7 +109,12 @@ def generate_forecast(
             weights = calculate_parameter_weights(errors_by_model)
             for parameter, model_weights in weights.items():
                 for model_name, weight in model_weights.items():
-                    EnsembleWeightRepository.set_weight(db, request.node_id, parameter, model_name, weight, 1, data_source=data_source)
+                    EnsembleWeightRepository.set_weight(
+                        db, request.node_id, parameter, model_name, weight, 1,
+                        data_source=data_source, model_version=service._checkpoint_version(
+                            getattr(service.config, f"{model_name.lower()}_checkpoint_path")
+                        ),
+                    )
         if not adaptive:
             weights = {p: {model: 1.0 / len(model_names) for model in model_names} for p in parameters}
         if service.ensemble is not None:
@@ -130,6 +137,7 @@ def generate_forecast(
                 "TDS": preds["TDS"],
                 "turbidity": preds["turbidity"],
                 "temperature": preds["temperature"],
+                "optical_colour_index": preds["optical_colour_index"],
             }
 
         # Format weights
@@ -173,6 +181,7 @@ def generate_forecast(
                 "TDS": prediction["TDS"],
                 "turbidity": prediction["turbidity"],
                 "temperature": prediction["temperature"],
+                "optical_colour_index": prediction["optical_colour_index"],
             },
             model_predictions=formatted_model_predictions,
             weights=formatted_weights,
@@ -183,7 +192,7 @@ def generate_forecast(
             model_versions=forecast_result["model_versions"],
             weight_strategy="adaptive" if adaptive else "initial",
             weight_status="Adaptive weights from persisted model errors." if adaptive else "Initial weights — insufficient historical model performance data.",
-            optical_colour_forecast_available=False,
+            forecast_horizon_hours=24,
         )
 
         return response

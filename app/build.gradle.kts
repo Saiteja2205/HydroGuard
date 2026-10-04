@@ -27,6 +27,7 @@ android {
     versionCode = 1
     versionName = "1.0"
     buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
+    buildConfigField("boolean", "ALLOW_DEVELOPMENT_LOGIN", "true")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -51,10 +52,12 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
+      buildConfigField("boolean", "ALLOW_DEVELOPMENT_LOGIN", "false")
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfigs.findByName("release")?.let { signingConfig = it }
     }
     debug {
+      buildConfigField("boolean", "ALLOW_DEVELOPMENT_LOGIN", "true")
       // Use default debug signing (Android SDK provides debug keystore)
       signingConfig = android.signingConfigs.findByName("debug")
     }

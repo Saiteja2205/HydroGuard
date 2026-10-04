@@ -133,7 +133,7 @@ class ForecastReading(BaseModel):
     green: Optional[int] = Field(default=None, ge=0, le=65535)
     blue: Optional[int] = Field(default=None, ge=0, le=65535)
     clear: Optional[int] = Field(default=None, ge=0, le=65535)
-    optical_colour_index: Optional[float] = None
+    optical_colour_index: float = Field(..., ge=0.0, le=1.0, allow_inf_nan=False)
     calibration_id: Optional[int] = None
     source: DataSource
 
@@ -167,6 +167,7 @@ class ModelPrediction(BaseModel):
     TDS: float
     turbidity: float
     temperature: float
+    optical_colour_index: float
 
 
 class ModelWeights(BaseModel):
@@ -193,4 +194,4 @@ class ForecastResponse(BaseModel):
     model_versions: dict[str, str]
     weight_strategy: Literal["initial", "adaptive"]
     weight_status: str
-    optical_colour_forecast_available: bool = False
+    forecast_horizon_hours: int = 24

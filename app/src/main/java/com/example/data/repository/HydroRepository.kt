@@ -206,7 +206,7 @@ class HydroRepository(
             )
         )
 
-        // 7. Seed initial Telemetry Summaries
+        // 7. Seed explicitly local development summaries
         dao.insertPrediction(
             Prediction(
                 nodeId = "node_overhead_a",
@@ -214,7 +214,7 @@ class HydroRepository(
                 contaminationProbability = 4.0f,
                 riskScore = 12.0f,
                 confidence = 94.0f,
-                predictionText = "SAFE STATUS: Baseline telemetry indicates optimal water condition. Low sediment, standard mineralization, and steady flow stability.",
+                predictionText = "DEVELOPMENT SAMPLE: Application indicators are within the configured demonstration ranges. This does not establish water safety.",
                 predictedPh = 7.3f,
                 predictedTurbidity = 1.1f,
                 predictedTds = 182f
@@ -227,7 +227,7 @@ class HydroRepository(
                 contaminationProbability = 18.0f,
                 riskScore = 22.0f,
                 confidence = 91.0f,
-                predictionText = "STABILIZING STATUS: Water clarity is recovering following filtration backwash. Parameter stabilization monitored continuously.",
+                predictionText = "DEVELOPMENT SAMPLE: Demonstration readings changed after a simulated maintenance event. This is not a sensor observation.",
                 predictedPh = 7.2f,
                 predictedTurbidity = 1.8f,
                 predictedTds = 215f
@@ -240,7 +240,7 @@ class HydroRepository(
                 contaminationProbability = 1.0f,
                 riskScore = 5.0f,
                 confidence = 98.0f,
-                predictionText = "EXCELLENT STATUS: Multi-stage RO filtration outputs optimal mineralization. System telemetry confirms zero contamination risks.",
+                predictionText = "DEVELOPMENT SAMPLE: Demonstration values are available for interface preview only; contaminant risks are not inferred.",
                 predictedPh = 7.0f,
                 predictedTurbidity = 0.25f,
                 predictedTds = 92f

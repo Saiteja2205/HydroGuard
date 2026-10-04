@@ -20,14 +20,14 @@ from ml.models.timemixer_model import TimeMixer
 
 @dataclass
 class TimeMixerTrainingConfig:
-    model_name: str = "timemixer_water_quality"
-    input_size: int = 4
+    model_name: str = "timemixer_water_quality_5param_v1"
+    input_size: int = 5
     context_length: int = 30
     hidden_size: int = 64
     num_scales: int = 3
     num_mixing_layers: int = 2
     dropout: float = 0.1
-    output_size: int = 4
+    output_size: int = 5
     batch_size: int = 32
     learning_rate: float = 0.001
     num_epochs: int = 100
@@ -35,7 +35,7 @@ class TimeMixerTrainingConfig:
     random_seed: int = 42
     checkpoint_dir: str = "artifacts/checkpoints"
     device: str = "auto"
-    four_param_mode: bool = True
+    active_contract_enabled: bool = True
     parameters: tuple[str, ...] | None = None
 
 
@@ -153,6 +153,9 @@ def save_checkpoint(
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "val_loss": val_loss,
+        "feature_count": len(PARAMETERS),
+        "parameters": list(PARAMETERS),
+        "model_version": "five-param-v1",
         "config": {
             "input_size": config.input_size,
             "context_length": config.context_length,
@@ -188,7 +191,7 @@ def train_timemixer(
     device = get_device(config.device)
     print(f"Using device: {device}")
 
-    if not config.four_param_mode or (config.parameters is not None and tuple(config.parameters) != PARAMETERS):
+    if not config.active_contract_enabled or (config.parameters is not None and tuple(config.parameters) != PARAMETERS):
         raise ValueError(f"HydroGuard forecasting is restricted to {PARAMETERS}; legacy/extra parameters are unsupported.")
     pipeline_config = PipelineConfig(parameters=PARAMETERS)
     config.input_size = len(PARAMETERS)
@@ -369,7 +372,7 @@ if __name__ == "__main__":
         dropout=args.dropout,
         checkpoint_dir=args.checkpoint_dir,
         device=args.device,
-        four_param_mode=True,
+        active_contract_enabled=True,
         parameters=PARAMETERS,
     )
 

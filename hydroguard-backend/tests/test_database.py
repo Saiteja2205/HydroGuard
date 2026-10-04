@@ -6,6 +6,7 @@ Tests database initialization, model creation, and repository operations.
 import sys
 from pathlib import Path
 from datetime import datetime, timezone
+from sqlalchemy import inspect
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -50,6 +51,24 @@ def test_database_initialization():
 
         alerts = db.query(Alert).all()
         print(f"[OK] Alerts table accessible, count: {len(alerts)}")
+
+    from app.db.database import engine
+    forecast_columns = {column["name"] for column in inspect(engine).get_columns("forecasts")}
+    expected_forecast_columns = {
+        "lstm_ph", "lstm_tds", "lstm_turbidity", "lstm_temperature",
+        "patchtst_ph", "patchtst_tds", "patchtst_turbidity", "patchtst_temperature",
+        "timemixer_ph", "timemixer_tds", "timemixer_turbidity", "timemixer_temperature",
+        "ensemble_ph", "ensemble_tds", "ensemble_turbidity", "ensemble_temperature",
+        "lstm_optical_colour_index", "patchtst_optical_colour_index",
+        "timemixer_optical_colour_index", "ensemble_optical_colour_index",
+        "lstm_weight_optical_colour_index", "patchtst_weight_optical_colour_index",
+        "timemixer_weight_optical_colour_index",
+        "lstm_weight_ph", "patchtst_weight_ph", "timemixer_weight_ph",
+        "lstm_weight_tds", "patchtst_weight_tds", "timemixer_weight_tds",
+        "lstm_weight_turbidity", "patchtst_weight_turbidity", "timemixer_weight_turbidity",
+        "lstm_weight_temperature", "patchtst_weight_temperature", "timemixer_weight_temperature",
+    }
+    assert expected_forecast_columns <= forecast_columns
 
     print("\n[OK] Database initialization test passed")
 
@@ -186,18 +205,24 @@ def test_forecast_repository():
             db=db,
             node_id="test_node_3",
             forecast_date=forecast_date,
-            lstm_predictions={"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            patchtst_predictions={"pH": 7.1, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
-            timemixer_predictions={"pH": 7.05, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
-            ensemble_predictions={"pH": 7.05, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
+            lstm_predictions={"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.51},
+            patchtst_predictions={"pH": 7.1, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.52},
+            timemixer_predictions={"pH": 7.05, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.53},
+            ensemble_predictions={"pH": 7.05, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.52},
             weights={
                 "pH": {"LSTM": 0.33, "PatchTST": 0.33, "TimeMixer": 0.34},
                 "TDS": {"LSTM": 0.33, "PatchTST": 0.33, "TimeMixer": 0.34},
                 "turbidity": {"LSTM": 0.33, "PatchTST": 0.33, "TimeMixer": 0.34},
                 "temperature": {"LSTM": 0.33, "PatchTST": 0.33, "TimeMixer": 0.34},
+                "optical_colour_index": {"LSTM": 0.25, "PatchTST": 0.35, "TimeMixer": 0.40},
             },
         )
         print(f"[OK] Created forecast: id={forecast.id}")
+        assert float(forecast.lstm_optical_colour_index) == 0.51
+        assert float(forecast.patchtst_optical_colour_index) == 0.52
+        assert float(forecast.timemixer_optical_colour_index) == 0.53
+        assert float(forecast.ensemble_optical_colour_index) == 0.52
+        assert float(forecast.lstm_weight_optical_colour_index) == 0.25
 
         # Get forecasts
         forecasts = ForecastRepository.get_by_node(db, "test_node_3", limit=10)

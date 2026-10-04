@@ -27,7 +27,7 @@ class ApiRepository {
 
     suspend fun generateForecast(nodeId: String, history: List<HistoricalReadingResponse>): Result<ForecastResponse> = withContext(Dispatchers.IO) {
         try {
-            val valid = history.filter { it.temperature != null }.sortedBy { it.timestamp }
+            val valid = history.filter { it.temperature != null && it.opticalColourIndex != null }.sortedBy { it.timestamp }
             if (valid.size < FORECAST_MIN_HISTORY) {
                 return@withContext Result.failure(InsufficientForecastDataException(
                     "Insufficient historical data for reliable forecasting. At least $FORECAST_MIN_HISTORY valid timestamped observations are required."
@@ -52,7 +52,7 @@ class ApiRepository {
                     green = row.green,
                     blue = row.blue,
                     clear = row.clear,
-                    opticalColourIndex = row.opticalColourIndex,
+                    opticalColourIndex = row.opticalColourIndex!!,
                     calibrationId = row.calibrationId,
                     source = sources.single()
                 )

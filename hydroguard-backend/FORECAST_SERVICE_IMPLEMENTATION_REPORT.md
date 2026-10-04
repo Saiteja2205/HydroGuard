@@ -1,4 +1,6 @@
-# Forecast Service Implementation Report for HydroGuard Project
+﻿# Forecast Service Implementation Report for HydroGuard Project
+
+> Historical report: these original results refer to the former four-feature simulated models and are superseded by the active five-feature development pipeline described in `README.md`.
 
 ## Environment Information
 
@@ -23,40 +25,40 @@
 
 ```
 Input Data (30 historical readings)
-    ↓
+    â†“
 FastAPI POST /api/v1/forecast
-    ↓
+    â†“
 Pydantic Validation (30 readings, EC/DO presence)
-    ↓
+    â†“
 ForecastService.load_models()
-    ├─ Load LSTM checkpoint
-    ├─ Load PatchTST checkpoint
-    ├─ Load TimeMixer checkpoint
-    └─ Initialize Adaptive Ensemble
-    ↓
+    â”œâ”€ Load LSTM checkpoint
+    â”œâ”€ Load PatchTST checkpoint
+    â”œâ”€ Load TimeMixer checkpoint
+    â””â”€ Initialize Adaptive Ensemble
+    â†“
 ForecastService.validate_input_shape()
-    ├─ Check shape: (30, 6)
-    └─ Check for NaN in six-parameter mode
-    ↓
+    â”œâ”€ Check shape: (30, 6)
+    â””â”€ Check for NaN in six-parameter mode
+    â†“
 ForecastService.normalize_input()
-    └─ Apply scaler transformation
-    ↓
+    â””â”€ Apply scaler transformation
+    â†“
 ForecastService.get_individual_predictions()
-    ├─ LSTM prediction
-    ├─ PatchTST prediction
-    └─ TimeMixer prediction
-    ↓
+    â”œâ”€ LSTM prediction
+    â”œâ”€ PatchTST prediction
+    â””â”€ TimeMixer prediction
+    â†“
 ForecastService.inverse_transform_predictions()
-    └─ Convert to physical units
-    ↓
+    â””â”€ Convert to physical units
+    â†“
 AdaptiveEnsemble.combine()
-    └─ Weighted combination of predictions
-    ↓
+    â””â”€ Weighted combination of predictions
+    â†“
 ForecastResponse
-    ├─ forecast_date
-    ├─ prediction (ensemble output)
-    ├─ model_predictions (individual outputs)
-    └─ weights (per parameter)
+    â”œâ”€ forecast_date
+    â”œâ”€ prediction (ensemble output)
+    â”œâ”€ model_predictions (individual outputs)
+    â””â”€ weights (per parameter)
 ```
 
 ## Forecast Service Architecture
@@ -130,11 +132,11 @@ ForecastServiceConfig(
 **Validation:**
 - Exactly 30 readings required
 - pH: 0.0 to 14.0
-- TDS: ≥ 0.0
-- turbidity: ≥ 0.0
+- TDS: â‰¥ 0.0
+- turbidity: â‰¥ 0.0
 - temperature: -20.0 to 80.0
-- EC: ≥ 0.0 (optional but required for six-parameter mode)
-- DO: ≥ 0.0 (optional but required for six-parameter mode)
+- EC: â‰¥ 0.0 (optional but required for six-parameter mode)
+- DO: â‰¥ 0.0 (optional but required for six-parameter mode)
 
 ### Response Format
 
@@ -201,7 +203,7 @@ ForecastServiceConfig(
 
 ### Invalid Input Shape
 - **Status Code:** 400 Bad Request
-- **Message:** "Expected input shape (30, 6), got {actual_shape}. Need 30 days × 6 parameters."
+- **Message:** "Expected input shape (30, 6), got {actual_shape}. Need 30 days Ã— 6 parameters."
 
 ### Missing EC/DO in Six-Parameter Mode
 - **Status Code:** 400 Bad Request
@@ -228,12 +230,12 @@ OK
 ```
 
 **Test Coverage:**
-- ✅ Default configuration values
-- ✅ Custom configuration
-- ✅ Valid input shape validation
-- ✅ Invalid input shape detection
-- ✅ NaN validation in six-parameter mode
-- ✅ NaN handling in four-parameter mode
+- âœ… Default configuration values
+- âœ… Custom configuration
+- âœ… Valid input shape validation
+- âœ… Invalid input shape detection
+- âœ… NaN validation in six-parameter mode
+- âœ… NaN handling in four-parameter mode
 
 **Note:** Full integration tests requiring model loading are skipped due to sklearn dependency issues. The service is designed to work once sklearn is available and trained models exist.
 
@@ -327,20 +329,20 @@ GET /api/v1/readings - UNCHANGED
 
 The Forecast Service implementation is complete with:
 
-- ✅ ForecastService orchestration layer
-- ✅ Model loading (LSTM, PatchTST, TimeMixer)
-- ✅ Input validation (shape, NaN checks)
-- ✅ Individual model predictions
-- ✅ Adaptive Ensemble integration
-- ✅ FastAPI endpoint (POST /api/v1/forecast)
-- ✅ Pydantic request/response schemas
-- ✅ Comprehensive error handling
-- ✅ No fabricated EC/DO values
-- ✅ No model retraining
-- ✅ Forecasting models preserved unchanged
-- ✅ Adaptive ensemble preserved unchanged
-- ✅ Existing API endpoints preserved
-- ✅ Android project not modified
-- ✅ Unit tests (6/6 passed)
+- âœ… ForecastService orchestration layer
+- âœ… Model loading (LSTM, PatchTST, TimeMixer)
+- âœ… Input validation (shape, NaN checks)
+- âœ… Individual model predictions
+- âœ… Adaptive Ensemble integration
+- âœ… FastAPI endpoint (POST /api/v1/forecast)
+- âœ… Pydantic request/response schemas
+- âœ… Comprehensive error handling
+- âœ… No fabricated EC/DO values
+- âœ… No model retraining
+- âœ… Forecasting models preserved unchanged
+- âœ… Adaptive ensemble preserved unchanged
+- âœ… Existing API endpoints preserved
+- âœ… Android project not modified
+- âœ… Unit tests (6/6 passed)
 
 The service provides a complete forecasting workflow that orchestrates the three forecasting models (LSTM, PatchTST, TimeMixer) through the Adaptive Ensemble, delivering structured forecasts with per-parameter weights and individual model predictions via a FastAPI endpoint. The implementation is ready for integration with the Android app and ESP32 sensor ingestion once trained models are available.

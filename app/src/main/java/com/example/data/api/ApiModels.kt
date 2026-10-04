@@ -32,7 +32,7 @@ data class ForecastReading(
     val green: Int? = null,
     val blue: Int? = null,
     val clear: Int? = null,
-    @Json(name = "optical_colour_index") val opticalColourIndex: Float? = null,
+    @Json(name = "optical_colour_index") val opticalColourIndex: Float,
     @Json(name = "calibration_id") val calibrationId: Int? = null,
     val source: String
 )
@@ -48,7 +48,8 @@ data class ModelPrediction(
     @Json(name = "pH") val pH: Float,
     @Json(name = "TDS") val TDS: Float,
     val turbidity: Float,
-    val temperature: Float
+    val temperature: Float,
+    @Json(name = "optical_colour_index") val opticalColourIndex: Float
 )
 
 @JsonClass(generateAdapter = true)
@@ -71,7 +72,7 @@ data class ForecastResponse(
     @Json(name = "model_versions") val modelVersions: Map<String, String>,
     @Json(name = "weight_strategy") val weightStrategy: String,
     @Json(name = "weight_status") val weightStatus: String,
-    @Json(name = "optical_colour_forecast_available") val opticalColourForecastAvailable: Boolean = false
+    @Json(name = "forecast_horizon_hours") val forecastHorizonHours: Int = 24
 )
 
 @JsonClass(generateAdapter = true)
@@ -112,3 +113,12 @@ data class AlertResponse(
 
 @JsonClass(generateAdapter = true)
 data class AlertListResponse(val alerts: List<AlertResponse>, val count: Int)
+
+@JsonClass(generateAdapter = true)
+data class NodeHealthResponse(
+    val node_id: String,
+    val name: String,
+    val location: String,
+    val status: String,
+    val last_seen: String?
+)

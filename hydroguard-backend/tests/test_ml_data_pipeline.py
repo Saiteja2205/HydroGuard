@@ -1,4 +1,4 @@
-"""Unit tests for the shared HydroGuard ML data pipeline.
+﻿"""Unit tests for the shared HydroGuard ML data pipeline.
 
 Fixtures are synthetic DEMO/TEST series. They are not real sensor measurements
 and must not be reported as a real dataset.
@@ -30,6 +30,8 @@ from ml.data.validator import (
 from ml.data.window_generator import assert_no_future_leakage, create_sliding_windows
 
 DEMO_CSV = BACKEND_ROOT / "data" / "demo_water_quality.csv"
+DEVELOPMENT_200_CSV = BACKEND_ROOT / "data" / "development_water_quality_200_observations.csv"
+DEVELOPMENT_200_METADATA = BACKEND_ROOT / "data" / "development_water_quality_200_observations.metadata.json"
 
 
 def synthetic_series(n_days: int = 40, start: str = "2026-01-01") -> pd.DataFrame:
@@ -43,6 +45,7 @@ def synthetic_series(n_days: int = 40, start: str = "2026-01-01") -> pd.DataFram
             "TDS": 180.0 + day,
             "turbidity": 1.2 + 0.01 * day,
             "temperature": 22.0 + 0.05 * np.cos(day / 3.0),
+            "optical_colour_index": 0.5 + 0.01 * np.sin(day / 4.0),
         }
     )
 
@@ -106,6 +109,7 @@ class DuplicateHandlingTests(unittest.TestCase):
                 "TDS": [100.0, 200.0],
                 "turbidity": [1.0, 3.0],
                 "temperature": [20.0, 22.0],
+                "optical_colour_index": [0.4, 0.6],
             }
         )
         collapsed = collapse_duplicate_timestamps(frame, how="mean")
@@ -116,7 +120,7 @@ class DuplicateHandlingTests(unittest.TestCase):
 
 class SplitTests(unittest.TestCase):
     def test_chronological_70_15_15(self) -> None:
-        daily = synthetic_series(100).set_index("timestamp")[["pH", "TDS", "turbidity", "temperature"]]
+        daily = synthetic_series(100).set_index("timestamp")[["pH", "TDS", "turbidity", "temperature", "optical_colour_index"]]
         train_df, val_df, test_df = chronological_split(daily, 0.70, 0.15, 0.15)
         self.assertEqual(len(train_df), 70)
         self.assertEqual(len(val_df), 15)
@@ -125,7 +129,7 @@ class SplitTests(unittest.TestCase):
         self.assertLess(val_df.index.max(), test_df.index.min())
 
     def test_random_split_is_not_used(self) -> None:
-        daily = synthetic_series(20).set_index("timestamp")[["pH", "TDS", "turbidity", "temperature"]]
+        daily = synthetic_series(20).set_index("timestamp")[["pH", "TDS", "turbidity", "temperature", "optical_colour_index"]]
         train_df, val_df, test_df = chronological_split(daily, 0.50, 0.25, 0.25)
         combined = pd.concat([train_df, val_df, test_df])
         pd.testing.assert_index_equal(combined.index, daily.index)
@@ -153,10 +157,10 @@ class ScalerAndWindowTests(unittest.TestCase):
             PipelineConfig(window_size=3, train_ratio=0.70, val_ratio=0.15, test_ratio=0.15),
         )
         n_train = len(result.train_df) - 3
-        self.assertEqual(result.X_train.shape, (n_train, 3, 4))
-        self.assertEqual(result.y_train.shape, (n_train, 4))
-        self.assertEqual(result.X_train.shape[2], 4)
-        self.assertEqual(result.y_train.shape[1], 4)
+        self.assertEqual(result.X_train.shape, (n_train, 3, 5))
+        self.assertEqual(result.y_train.shape, (n_train, 5))
+        self.assertEqual(result.X_train.shape[2], 5)
+        self.assertEqual(result.y_train.shape[1], 5)
 
     def test_no_future_leakage_in_windows(self) -> None:
         result = run_pipeline(
@@ -183,12 +187,12 @@ class ScalerAndWindowTests(unittest.TestCase):
         train_target_dates = result.diagnostics["train_target_dates"]
         self.assertTrue((train_target_dates <= last_train).all())
 
-    def test_ml_contract_is_four_checkpoint_parameters(self) -> None:
+    def test_active_contract_has_five_parameters(self) -> None:
         result = run_pipeline(
             synthetic_series(40),
             PipelineConfig(window_size=3),
         )
-        self.assertEqual(tuple(result.config.parameters), ("pH", "TDS", "turbidity", "temperature"))
+        self.assertEqual(tuple(result.config.parameters), ("pH", "TDS", "turbidity", "temperature", "optical_colour_index"))
 
     def test_inverse_transform_roundtrip_available_columns(self) -> None:
         result = run_pipeline(
@@ -196,8 +200,8 @@ class ScalerAndWindowTests(unittest.TestCase):
             PipelineConfig(window_size=3),
         )
         restored = result.inverse_transform_predictions(result.y_train)
-        original = result.train_df[["pH", "TDS", "turbidity", "temperature"]].to_numpy()[3:]
-        np.testing.assert_allclose(restored[:, :4], original, rtol=1e-6, atol=1e-6)
+        original = result.train_df[["pH", "TDS", "turbidity", "temperature", "optical_colour_index"]].to_numpy()[3:]
+        np.testing.assert_allclose(restored[:, :5], original, rtol=1e-6, atol=1e-6)
 
     def test_univariate_shapes(self) -> None:
         result = run_pipeline(
@@ -216,7 +220,7 @@ class ScalerAndWindowTests(unittest.TestCase):
 
 
 class LoaderDemoCsvTests(unittest.TestCase):
-    def test_demo_csv_is_explicitly_demo_provenance_and_model_inputs_are_four(self) -> None:
+    def test_demo_csv_is_explicitly_simulated_and_five_parameter(self) -> None:
         frame = load_csv(DEMO_CSV)
         for column in REQUIRED_COLUMNS:
             self.assertIn(column, frame.columns)
@@ -224,9 +228,33 @@ class LoaderDemoCsvTests(unittest.TestCase):
             DEMO_CSV,
             PipelineConfig(window_size=2, train_ratio=0.50, val_ratio=0.25, test_ratio=0.25),
         )
-        self.assertEqual(result.diagnostics["available_columns"], ["pH", "TDS", "turbidity", "temperature"])
+        self.assertEqual(result.diagnostics["available_columns"], ["pH", "TDS", "turbidity", "temperature", "optical_colour_index"])
         self.assertGreater(result.validation_report.n_duplicate_timestamps, 0)
         self.assertGreater(result.validation_report.invalid_counts["pH"], 0)
+
+    def test_development_dataset_is_exactly_200_five_parameter_observations(self) -> None:
+        import json
+
+        frame = load_csv(DEVELOPMENT_200_CSV)
+        metadata = json.loads(DEVELOPMENT_200_METADATA.read_text(encoding="utf-8"))
+        self.assertEqual(len(frame), 200)
+        self.assertEqual(metadata["source"], "SIMULATED")
+        self.assertEqual(metadata["dataset_type"], "DEVELOPMENT")
+        self.assertFalse(metadata["real_sensor_data"])
+        self.assertEqual(tuple(metadata["parameters"]), tuple(REQUIRED_COLUMNS[1:]))
+        self.assertTrue(frame["timestamp"].is_monotonic_increasing)
+
+        result = run_pipeline(
+            DEVELOPMENT_200_CSV,
+            PipelineConfig(window_size=30),
+        )
+        self.assertEqual(
+            (len(result.train_df), len(result.val_df), len(result.test_df)),
+            (140, 30, 30),
+        )
+        self.assertEqual(result.X_train.shape[2], 5)
+        self.assertEqual(result.y_train.shape[1], 5)
+        self.assertEqual(result.diagnostics["scaler_fitted_on"], "train_only")
 
 
 class DirectWindowUnitTests(unittest.TestCase):
@@ -241,3 +269,5 @@ class DirectWindowUnitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

@@ -1,0 +1,290 @@
+{
+  "model_version": "five-param-v1",
+  "dataset_size": 200,
+  "dataset_source": "SIMULATED/DEVELOPMENT",
+  "real_sensor_data": false,
+  "parameters": [
+    "pH",
+    "TDS",
+    "turbidity",
+    "temperature",
+    "optical_colour_index"
+  ],
+  "split": {
+    "train": 140,
+    "validation": 30,
+    "test": 30
+  },
+  "window_size": 30,
+  "training_timestamp": "2026-10-04T14:08:06.376564+00:00",
+  "training_results": {
+    "LSTM": {
+      "status": "trained",
+      "best_validation_mse_scaled": 1.0942996740341187,
+      "input_shape": [
+        null,
+        30,
+        5
+      ],
+      "output_shape": [
+        null,
+        5
+      ],
+      "checkpoint": "Z:\\EPICS\\Hydroguard\\hydroguard-backend\\artifacts\\checkpoints\\lstm_water_quality_5param_v1.pt"
+    },
+    "PatchTST": {
+      "status": "trained",
+      "best_validation_mse_scaled": 0.7828768491744995,
+      "input_shape": [
+        null,
+        30,
+        5
+      ],
+      "output_shape": [
+        null,
+        5
+      ],
+      "checkpoint": "Z:\\EPICS\\Hydroguard\\hydroguard-backend\\artifacts\\checkpoints\\patchtst_water_quality_5param_v1.pt"
+    },
+    "TimeMixer": {
+      "status": "trained",
+      "best_validation_mse_scaled": 0.7328343391418457,
+      "input_shape": [
+        null,
+        30,
+        5
+      ],
+      "output_shape": [
+        null,
+        5
+      ],
+      "checkpoint": "Z:\\EPICS\\Hydroguard\\hydroguard-backend\\artifacts\\checkpoints\\timemixer_water_quality_5param_v1.pt"
+    }
+  },
+  "validation_metrics_by_model": {
+    "LSTM": {
+      "pH": {
+        "MAE": 0.10808565840317215,
+        "RMSE": 0.1182144200863218,
+        "MAPE": 1.5493227021024685
+      },
+      "TDS": {
+        "MAE": 2.975118997795674,
+        "RMSE": 3.429815088849213,
+        "MAPE": 1.0546389999162136
+      },
+      "turbidity": {
+        "MAE": 0.3117827868653738,
+        "RMSE": 0.32982885082678925,
+        "MAPE": 20.768034247712823
+      },
+      "temperature": {
+        "MAE": 0.7981458551264525,
+        "RMSE": 0.9294792661272645,
+        "MAPE": 3.985484163688567
+      },
+      "optical_colour_index": {
+        "MAE": 0.025857107886124654,
+        "RMSE": 0.029989303801656073,
+        "MAPE": 4.689543350686452
+      }
+    },
+    "PatchTST": {
+      "pH": {
+        "MAE": 0.08788582785081944,
+        "RMSE": 0.09883587213937314,
+        "MAPE": 1.2603490434536744
+      },
+      "TDS": {
+        "MAE": 1.7553146744358874,
+        "RMSE": 2.1359320141743767,
+        "MAPE": 0.6253080400619121
+      },
+      "turbidity": {
+        "MAE": 0.22794651724403894,
+        "RMSE": 0.25090066575534986,
+        "MAPE": 15.076849044606536
+      },
+      "temperature": {
+        "MAE": 0.8676789199160025,
+        "RMSE": 1.028794514861708,
+        "MAPE": 4.333504327245552
+      },
+      "optical_colour_index": {
+        "MAE": 0.01953297070235892,
+        "RMSE": 0.02396176998679683,
+        "MAPE": 3.5553687293574123
+      }
+    },
+    "TimeMixer": {
+      "pH": {
+        "MAE": 0.06815265491149564,
+        "RMSE": 0.07964738968180171,
+        "MAPE": 0.9779355582296891
+      },
+      "TDS": {
+        "MAE": 2.5055691599548786,
+        "RMSE": 2.899582549908269,
+        "MAPE": 0.88999875140497
+      },
+      "turbidity": {
+        "MAE": 0.17756412783067738,
+        "RMSE": 0.2003919116421079,
+        "MAPE": 11.724977761544876
+      },
+      "temperature": {
+        "MAE": 0.850664522809087,
+        "RMSE": 1.0001672457460113,
+        "MAPE": 4.249420388750629
+      },
+      "optical_colour_index": {
+        "MAE": 0.026283538687304184,
+        "RMSE": 0.029005418087613487,
+        "MAPE": 4.749588063107332
+      }
+    }
+  },
+  "test_metrics_by_model": {
+    "LSTM": {
+      "pH": {
+        "MAE": 0.12900417617597604,
+        "RMSE": 0.14952519529472727,
+        "MAPE": 1.7732067538497507
+      },
+      "TDS": {
+        "MAE": 15.70574013683554,
+        "RMSE": 16.652039451548607,
+        "MAPE": 5.309562598471347
+      },
+      "turbidity": {
+        "MAE": 0.11791955686039265,
+        "RMSE": 0.13847069090535458,
+        "MAPE": 11.592020065512616
+      },
+      "temperature": {
+        "MAE": 1.2391514258471676,
+        "RMSE": 1.2631482550277835,
+        "MAPE": 6.2527395545323285
+      },
+      "optical_colour_index": {
+        "MAE": 0.06860992595079314,
+        "RMSE": 0.06894682986019407,
+        "MAPE": 13.232447327604548
+      }
+    },
+    "PatchTST": {
+      "pH": {
+        "MAE": 0.12291467848934495,
+        "RMSE": 0.14723380091638863,
+        "MAPE": 1.6882190373552837
+      },
+      "TDS": {
+        "MAE": 11.970310575876242,
+        "RMSE": 13.405709845098956,
+        "MAPE": 4.036237961583568
+      },
+      "turbidity": {
+        "MAE": 0.14841180382066543,
+        "RMSE": 0.1680225166701907,
+        "MAPE": 14.722931706330197
+      },
+      "temperature": {
+        "MAE": 1.5188444152584641,
+        "RMSE": 1.5513788916714748,
+        "MAPE": 7.663369558746126
+      },
+      "optical_colour_index": {
+        "MAE": 0.05975130092646541,
+        "RMSE": 0.06007216362822973,
+        "MAPE": 11.524588876487618
+      }
+    },
+    "TimeMixer": {
+      "pH": {
+        "MAE": 0.15809082805479954,
+        "RMSE": 0.18092770174915768,
+        "MAPE": 2.1723906260437444
+      },
+      "TDS": {
+        "MAE": 12.870137140334611,
+        "RMSE": 13.74399199062952,
+        "MAPE": 4.349231784354942
+      },
+      "turbidity": {
+        "MAE": 0.3066948510158882,
+        "RMSE": 0.3262320460714389,
+        "MAPE": 29.995101230240834
+      },
+      "temperature": {
+        "MAE": 1.566093244379637,
+        "RMSE": 1.586162492114217,
+        "MAPE": 7.899224913602583
+      },
+      "optical_colour_index": {
+        "MAE": 0.059946544178077855,
+        "RMSE": 0.060220822308433626,
+        "MAPE": 11.561157280131317
+      }
+    }
+  },
+  "adaptive_ensemble_weights_from_validation": {
+    "pH": {
+      "LSTM": 0.2620698639478491,
+      "PatchTST": 0.32230445390425305,
+      "TimeMixer": 0.4156256821478979
+    },
+    "TDS": {
+      "LSTM": 0.2575777403827819,
+      "PatchTST": 0.4365738159891068,
+      "TimeMixer": 0.3058484436281112
+    },
+    "turbidity": {
+      "LSTM": 0.24250198594923625,
+      "PatchTST": 0.33169159921985636,
+      "TimeMixer": 0.42580641483090753
+    },
+    "temperature": {
+      "LSTM": 0.3498797607625885,
+      "PatchTST": 0.3218414953495873,
+      "TimeMixer": 0.32827874388782424
+    },
+    "optical_colour_index": {
+      "LSTM": 0.30233922491211473,
+      "PatchTST": 0.4002267784436602,
+      "TimeMixer": 0.29743399664422515
+    }
+  },
+  "adaptive_ensemble_test_metrics": {
+    "pH": {
+      "MAE": 0.13894494181560144,
+      "RMSE": 0.16094554463113972,
+      "MAPE": 1.9091035211314178
+    },
+    "TDS": {
+      "MAE": 13.207684635822037,
+      "RMSE": 14.316735411151283,
+      "MAPE": 4.459946717886696
+    },
+    "turbidity": {
+      "MAE": 0.20124617182081977,
+      "RMSE": 0.22310364108547162,
+      "MAPE": 19.903259483887258
+    },
+    "temperature": {
+      "MAE": 1.4364962853103356,
+      "RMSE": 1.4602619646789075,
+      "MAPE": 7.247244969978768
+    },
+    "optical_colour_index": {
+      "MAE": 0.06248768273075269,
+      "RMSE": 0.06279736954296844,
+      "MAPE": 12.051818163304574
+    }
+  },
+  "checkpoints": {
+    "LSTM": "Z:\\EPICS\\Hydroguard\\hydroguard-backend\\artifacts\\checkpoints\\lstm_water_quality_5param_v1.pt",
+    "PatchTST": "Z:\\EPICS\\Hydroguard\\hydroguard-backend\\artifacts\\checkpoints\\patchtst_water_quality_5param_v1.pt",
+    "TimeMixer": "Z:\\EPICS\\Hydroguard\\hydroguard-backend\\artifacts\\checkpoints\\timemixer_water_quality_5param_v1.pt"
+  },
+  "note": "Development/simulated data only; not evidence of real-world accuracy."
+}

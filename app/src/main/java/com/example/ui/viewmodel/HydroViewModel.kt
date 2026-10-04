@@ -154,6 +154,15 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun developmentLogin(role: String) {
+        viewModelScope.launch {
+            _loginError.value = null
+            authRepository.loginAsDevelopment(role).onFailure { error ->
+                _loginError.value = error.localizedMessage ?: "Development Login is disabled."
+            }
+        }
+    }
+
     fun register(
         email: String,
         password: String,

@@ -4,18 +4,19 @@
 # It is NOT real sensor data, NOT a production dataset, and MUST NOT be
 # used to claim model accuracy or dataset size.
 #
-# EC and DO are intentionally left blank: those physical sensors have not
-# been purchased yet. The pipeline must treat them as unavailable rather
 # than fabricating values.
 #
-timestamp,pH,TDS,turbidity,temperature,EC,DO
-2026-01-03T09:00:00Z,7.10,180,1.20,22.0,,
-2026-01-01T08:00:00Z,7.20,175,1.10,21.5,,
-2026-01-01T18:00:00Z,7.30,185,1.30,22.5,,
-2026-01-02T10:00:00Z,7.15,178,1.15,21.8,,
-2026-01-02T10:00:00Z,7.25,182,1.25,22.2,,
-2026-01-04T11:00:00Z,15.00,190,1.40,22.1,,
-2026-01-05T09:00:00Z,,188,1.10,21.9,,
-2026-01-06T09:00:00Z,7.05,176,1.05,21.4,,
-2026-01-07T09:00:00Z,7.40,200,1.50,23.0,,
-2026-01-08T09:00:00Z,7.22,181,1.18,22.3,,
+# source=SIMULATED
+# dataset_type=DEVELOPMENT
+# real_sensor_data=false
+timestamp,pH,TDS,turbidity,temperature,optical_colour_index
+2026-01-03T09:00:00Z,7.10,180,1.20,22.0,0.55
+2026-01-01T08:00:00Z,7.20,175,1.10,21.5,0.55
+2026-01-01T18:00:00Z,7.30,185,1.30,22.5,0.55
+2026-01-02T10:00:00Z,7.15,178,1.15,21.8,0.55
+2026-01-02T10:00:00Z,7.25,182,1.25,22.2,0.55
+2026-01-04T11:00:00Z,15.00,190,1.40,22.1,0.55
+2026-01-05T09:00:00Z,,188,1.10,21.9,0.55
+2026-01-06T09:00:00Z,7.05,176,1.05,21.4,0.55
+2026-01-07T09:00:00Z,7.40,200,1.50,23.0,0.55
+2026-01-08T09:00:00Z,7.22,181,1.18,22.3,0.55

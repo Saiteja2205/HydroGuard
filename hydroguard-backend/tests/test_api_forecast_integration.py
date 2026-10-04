@@ -6,6 +6,7 @@ Tests the complete forecast workflow from input to response without FastAPI.
 from __future__ import annotations
 
 import csv
+from io import StringIO
 import sys
 from pathlib import Path
 
@@ -19,21 +20,21 @@ from ml.services import create_forecast_service, ForecastServiceConfig
 
 
 def load_demo_data() -> np.ndarray:
-    """Load 30 days of demo data for forecast request (four-parameter mode)."""
-    data_file = BACKEND_ROOT / "data" / "demo_water_quality_200days.csv"
+    """Load 30 timestamped simulated five-feature observations."""
+    data_file = BACKEND_ROOT / "data" / "development_water_quality_200_observations.csv"
     
     readings = []
-    with open(data_file) as f:
-        reader = csv.DictReader(f)
+    with open(data_file, encoding="utf-8-sig") as f:
+        reader = csv.DictReader(line for line in f if not line.startswith("#"))
         for i, row in enumerate(reader):
             if i >= 30:  # Only need 30 days
                 break
-            # Only include four parameters for demo mode
             readings.append([
                 float(row["pH"]),
                 float(row["TDS"]),
                 float(row["turbidity"]),
                 float(row["temperature"]),
+                float(row["optical_colour_index"]),
             ])
     
     return np.array(readings, dtype=np.float32)
@@ -48,9 +49,9 @@ def test_forecast_service_integration() -> None:
     # Check checkpoints exist
     checkpoint_dir = BACKEND_ROOT / "artifacts" / "checkpoints"
     checkpoints = [
-        "lstm_water_quality_best.pt",
-        "patchtst_water_quality_best.pt",
-        "timemixer_water_quality_best.pt",
+        "lstm_water_quality_5param_v1.pt",
+        "patchtst_water_quality_5param_v1.pt",
+        "timemixer_water_quality_5param_v1.pt",
     ]
     
     print("\n1. Checking checkpoints:")
@@ -76,12 +77,12 @@ def test_forecast_service_integration() -> None:
         print(f"   [FAIL] Error loading demo data: {e}")
         return
 
-    # Create forecast service in four-parameter mode
-    print("\n3. Creating forecast service (four-parameter mode):")
+    # Create forecast service using the active five-parameter contract.
+    print("\n3. Creating forecast service (five-parameter mode):")
     try:
         config = ForecastServiceConfig(
-            four_parameter_mode=True,
-            parameters=("pH", "TDS", "turbidity", "temperature"),
+            five_parameter_mode=True,
+            parameters=("pH", "TDS", "turbidity", "temperature", "optical_colour_index"),
         )
         service = create_forecast_service(config)
         print("   [OK] Forecast service created")
@@ -181,7 +182,7 @@ def test_forecast_service_integration() -> None:
     print("="*70)
     print("\nIMPORTANT:")
     print("- This test used synthetic demo data")
-    print("- Checkpoints are in four-parameter mode (pH, TDS, turbidity, temperature)")
+    print("- Five-parameter development checkpoint files are required")
     print("- Forecast service validates the software pipeline only")
     print("- Predictions are NOT real water quality forecasts")
     print("="*70)

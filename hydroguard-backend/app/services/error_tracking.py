@@ -18,7 +18,7 @@ MODELS = {
     "PatchTST": "patchtst",
     "TimeMixer": "timemixer",
 }
-PARAMETERS = {"pH": "ph", "TDS": "tds", "turbidity": "turbidity", "temperature": "temperature"}
+PARAMETERS = {"pH": "ph", "TDS": "tds", "turbidity": "turbidity", "temperature": "temperature", "optical_colour_index": "optical_colour_index"}
 MAPE_ACTUAL_EPSILON = 1e-9
 
 
@@ -68,6 +68,7 @@ class ErrorTrackingService:
                         rmse=absolute_error,
                         mape=(absolute_error / abs(actual_value) * 100.0)
                         if abs(actual_value) >= MAPE_ACTUAL_EPSILON else None,
+                        model_version=(forecast.model_versions or {}).get(model_name),
                     )
                     created += 1
 
@@ -90,6 +91,7 @@ class ErrorTrackingService:
     def _persist_weights(db: Session, node_id: str, source: str, horizon_hours: int = 24, window_size: int = 30) -> None:
         per_parameter: dict[str, dict[str, float]] = {}
         counts: dict[str, int] = {}
+        versions_by_model: dict[str, str | None] = {}
         for parameter in PARAMETERS:
             errors: dict[str, float] = {}
             parameter_counts = []
@@ -103,6 +105,7 @@ class ErrorTrackingService:
                 ).order_by(ModelError.forecast_date.desc()).limit(window_size).all()
                 if not rows:
                     continue
+                versions_by_model[model_name] = rows[0].model_version
                 mae = sum(float(item.absolute_error) for item in rows) / len(rows)
                 rmse = sqrt(sum(float(item.squared_error) for item in rows) / len(rows))
                 errors[model_name] = 0.5 * mae + 0.5 * rmse
@@ -122,7 +125,8 @@ class ErrorTrackingService:
         for parameter, model_weights in calculated.items():
             for model_name, weight in model_weights.items():
                 EnsembleWeightRepository.set_weight(
-                    db, node_id, parameter, model_name, weight, counts[parameter], data_source=source
+                    db, node_id, parameter, model_name, weight, counts[parameter], data_source=source,
+                    model_version=versions_by_model.get(model_name),
                 )
 
     # Compatibility alias for prior callers. It still uses the persisted reading.

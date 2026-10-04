@@ -167,7 +167,7 @@ def evaluate_on_test(
 
 
 if __name__ == "__main__":
-    checkpoint_path = Path("artifacts/checkpoints/patchtst_water_quality_best.pt")
+    checkpoint_path = Path("artifacts/checkpoints/patchtst_water_quality_5param_v1.pt")
     
     if not checkpoint_path.exists():
         print(f"Checkpoint not found: {checkpoint_path}")

@@ -29,14 +29,14 @@ def test_end_to_end_forecast() -> None:
 
     # Configuration
     checkpoint_dir = Path("artifacts/checkpoints")
-    parameters = ("pH", "TDS", "turbidity", "temperature")
-    input_size = 4
+    parameters = ("pH", "TDS", "turbidity", "temperature", "optical_colour_index")
+    input_size = 5
     window_size = 30
 
     # Check checkpoints exist
-    lstm_checkpoint = checkpoint_dir / "lstm_water_quality_best.pt"
-    patchtst_checkpoint = checkpoint_dir / "patchtst_water_quality_best.pt"
-    timemixer_checkpoint = checkpoint_dir / "timemixer_water_quality_best.pt"
+    lstm_checkpoint = checkpoint_dir / "lstm_water_quality_5param_v1.pt"
+    patchtst_checkpoint = checkpoint_dir / "patchtst_water_quality_5param_v1.pt"
+    timemixer_checkpoint = checkpoint_dir / "timemixer_water_quality_5param_v1.pt"
 
     print("\n1. Checking checkpoints:")
     for path in [lstm_checkpoint, patchtst_checkpoint, timemixer_checkpoint]:

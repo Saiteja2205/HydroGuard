@@ -1,4 +1,4 @@
-"""Unit tests for LSTM water quality forecasting model.
+﻿"""Unit tests for LSTM water quality forecasting model.
 
 Tests use synthetic DEMO/TEST data. These are not real sensor measurements
 and must not be reported as a real dataset or model accuracy.
@@ -53,11 +53,12 @@ def synthetic_series(n_days: int = 40, start: str = "2026-01-01") -> pd.DataFram
             "TDS": 180.0 + day,
             "turbidity": 1.2 + 0.01 * day,
             "temperature": 22.0 + 0.05 * np.cos(day / 3.0),
+            "optical_colour_index": 0.5 + 0.01 * np.sin(day / 4.0),
         }
     )
 
 
-def synthetic_four_param_series(n_days: int = 40, start: str = "2026-01-01") -> pd.DataFrame:
+def synthetic_five_param_series(n_days: int = 40, start: str = "2026-01-01") -> pd.DataFrame:
     """Build a synthetic frame with only 4 parameters (not real sensor data)."""
     index = pd.date_range(start, periods=n_days, freq="D", tz="UTC")
     day = np.arange(n_days, dtype=float)
@@ -68,6 +69,7 @@ def synthetic_four_param_series(n_days: int = 40, start: str = "2026-01-01") -> 
             "TDS": 180.0 + day,
             "turbidity": 1.2 + 0.01 * day,
             "temperature": 22.0 + 0.05 * np.cos(day / 3.0),
+            "optical_colour_index": 0.5 + 0.01 * np.sin(day / 4.0),
         }
     )
 
@@ -75,33 +77,33 @@ def synthetic_four_param_series(n_days: int = 40, start: str = "2026-01-01") -> 
 class LSTMModelTests(unittest.TestCase):
     def test_model_initialization_default(self) -> None:
         model = LSTMModel()
-        self.assertEqual(model.input_size, 4)
+        self.assertEqual(model.input_size, 5)
         self.assertEqual(model.hidden_size, 64)
         self.assertEqual(model.num_layers, 2)
         self.assertEqual(model.dropout, 0.2)
-        self.assertEqual(model.output_size, 4)
+        self.assertEqual(model.output_size, 5)
 
     def test_model_initialization_custom(self) -> None:
-        model = LSTMModel(input_size=4, hidden_size=32, num_layers=1, dropout=0.1, output_size=4)
-        self.assertEqual(model.input_size, 4)
+        model = LSTMModel(input_size=5, hidden_size=32, num_layers=1, dropout=0.1, output_size=5)
+        self.assertEqual(model.input_size, 5)
         self.assertEqual(model.hidden_size, 32)
         self.assertEqual(model.num_layers, 1)
         self.assertEqual(model.dropout, 0.1)
-        self.assertEqual(model.output_size, 4)
+        self.assertEqual(model.output_size, 5)
 
     def test_forward_pass_shape(self) -> None:
         model = LSTMModel()
         batch_size = 8
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         output = model(X)
-        self.assertEqual(output.shape, (batch_size, 4))
+        self.assertEqual(output.shape, (batch_size, 5))
 
-    def test_forward_pass_four_param(self) -> None:
-        model = LSTMModel(input_size=4, output_size=4)
+    def test_forward_pass_five_param(self) -> None:
+        model = LSTMModel(input_size=5, output_size=5)
         batch_size = 8
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         output = model(X)
-        self.assertEqual(output.shape, (batch_size, 4))
+        self.assertEqual(output.shape, (batch_size, 5))
 
     def test_model_parameter_count(self) -> None:
         model = LSTMModel()
@@ -136,9 +138,9 @@ class DeviceTests(unittest.TestCase):
 
 class DataLoaderTests(unittest.TestCase):
     def test_data_loader_creation(self) -> None:
-        X_train = np.random.randn(100, 30, 4).astype(np.float32)
+        X_train = np.random.randn(100, 30, 5).astype(np.float32)
         y_train = np.random.randn(100, 4).astype(np.float32)
-        X_val = np.random.randn(20, 30, 4).astype(np.float32)
+        X_val = np.random.randn(20, 30, 5).astype(np.float32)
         y_val = np.random.randn(20, 4).astype(np.float32)
 
         train_loader, val_loader = create_data_loaders(X_train, y_train, X_val, y_val, batch_size=8)
@@ -146,10 +148,10 @@ class DataLoaderTests(unittest.TestCase):
         self.assertEqual(len(train_loader), 13)
         self.assertEqual(len(val_loader), 3)
 
-    def test_data_loader_four_param(self) -> None:
-        X_train = np.random.randn(100, 30, 4).astype(np.float32)
+    def test_data_loader_five_param(self) -> None:
+        X_train = np.random.randn(100, 30, 5).astype(np.float32)
         y_train = np.random.randn(100, 4).astype(np.float32)
-        X_val = np.random.randn(20, 30, 4).astype(np.float32)
+        X_val = np.random.randn(20, 30, 5).astype(np.float32)
         y_val = np.random.randn(20, 4).astype(np.float32)
 
         train_loader, val_loader = create_data_loaders(X_train, y_train, X_val, y_val, batch_size=8)
@@ -185,20 +187,20 @@ class PredictionTests(unittest.TestCase):
     def test_predict_shape(self) -> None:
         model = LSTMModel()
         model.eval()
-        X = np.random.randn(10, 30, 4).astype(np.float32)
+        X = np.random.randn(10, 30, 5).astype(np.float32)
         device = torch.device("cpu")
 
         predictions = predict(model, X, device)
-        self.assertEqual(predictions.shape, (10, 4))
+        self.assertEqual(predictions.shape, (10, 5))
 
-    def test_predict_four_param_shape(self) -> None:
-        model = LSTMModel(input_size=4, output_size=4)
+    def test_predict_five_param_shape(self) -> None:
+        model = LSTMModel(input_size=5, output_size=5)
         model.eval()
-        X = np.random.randn(10, 30, 4).astype(np.float32)
+        X = np.random.randn(10, 30, 5).astype(np.float32)
         device = torch.device("cpu")
 
         predictions = predict(model, X, device)
-        self.assertEqual(predictions.shape, (10, 4))
+        self.assertEqual(predictions.shape, (10, 5))
 
     def test_calculate_metrics(self) -> None:
         y_true = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -232,26 +234,26 @@ class IntegrationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "restricted"):
                 train_lstm(csv_path, config)
 
-    def test_train_lstm_with_four_params(self) -> None:
+    def test_train_lstm_with_five_params(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
             csv_path = tmp_path / "test_data.csv"
-            synthetic_four_param_series(50).to_csv(csv_path, index=False)
+            synthetic_five_param_series(50).to_csv(csv_path, index=False)
 
             config = TrainingConfig(
                 random_seed=42,
                 num_epochs=5,
                 checkpoint_dir=str(tmp_path / "checkpoints"),
-                four_param_mode=True,
+                active_contract_enabled=True,
             )
 
             model, metrics, pipeline_config = train_lstm(csv_path, config)
 
             self.assertIsInstance(model, LSTMModel)
-            self.assertEqual(model.input_size, 4)
-            self.assertEqual(model.output_size, 4)
+            self.assertEqual(model.input_size, 5)
+            self.assertEqual(model.output_size, 5)
             self.assertEqual(len(metrics.train_losses), 5)
-            self.assertEqual(pipeline_config.parameters, ("pH", "TDS", "turbidity", "temperature"))
+            self.assertEqual(pipeline_config.parameters, ("pH", "TDS", "turbidity", "temperature", "optical_colour_index"))
 
     def test_evaluate_on_test(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -266,11 +268,11 @@ class IntegrationTests(unittest.TestCase):
                 random_seed=42,
                 num_epochs=3,
                 checkpoint_dir=str(checkpoint_dir),
-                four_param_mode=True,
+                active_contract_enabled=True,
             )
 
             model, metrics, _ = train_lstm(csv_path, config)
-            checkpoint_path = checkpoint_dir / "lstm_water_quality_best.pt"
+            checkpoint_path = checkpoint_dir / "lstm_water_quality_5param_v1_best.pt"
 
             results = evaluate_on_test(checkpoint_path, csv_path)
 
@@ -293,25 +295,29 @@ class IntegrationTests(unittest.TestCase):
         physical_predictions = predict_with_inverse_transform(model, X_test, result, device)
 
         self.assertEqual(physical_predictions.shape, result.y_test.shape)
-        self.assertEqual(physical_predictions.shape[1], 4)
+        self.assertEqual(physical_predictions.shape[1], 5)
 
 
 class ModelArchitectureTests(unittest.TestCase):
     def test_architecture_spec(self) -> None:
         model = LSTMModel()
         
-        self.assertEqual(model.input_size, 4)
+        self.assertEqual(model.input_size, 5)
         self.assertEqual(model.hidden_size, 64)
         self.assertEqual(model.num_layers, 2)
         self.assertEqual(model.dropout, 0.2)
-        self.assertEqual(model.output_size, 4)
+        self.assertEqual(model.output_size, 5)
 
         batch_size = 4
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         output = model(X)
         
-        self.assertEqual(output.shape, (batch_size, 4))
+        self.assertEqual(output.shape, (batch_size, 5))
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+

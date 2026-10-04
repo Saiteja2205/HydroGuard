@@ -71,7 +71,7 @@ def init_db() -> None:
     from app.db.models import Node, SensorReading, Forecast, ModelError, Alert
     from app.db import hostel_models
     Base.metadata.create_all(bind=engine)
-    _upgrade_legacy_sqlite_schema()
+    ensure_forecast_schema()
 
 
 def _upgrade_legacy_sqlite_schema() -> None:
@@ -92,6 +92,11 @@ def _upgrade_legacy_sqlite_schema() -> None:
             "horizon_hours": "INTEGER NOT NULL DEFAULT 24",
             "data_source": "VARCHAR(50) NOT NULL DEFAULT 'HISTORICAL_DATA'",
             "model_versions": "JSON", "weight_strategy": "VARCHAR(20) NOT NULL DEFAULT 'initial'",
+            "lstm_optical_colour_index": "FLOAT", "patchtst_optical_colour_index": "FLOAT",
+            "timemixer_optical_colour_index": "FLOAT", "ensemble_optical_colour_index": "FLOAT",
+            "lstm_weight_optical_colour_index": "NUMERIC(5,4) NOT NULL DEFAULT 0.33",
+            "patchtst_weight_optical_colour_index": "NUMERIC(5,4) NOT NULL DEFAULT 0.33",
+            "timemixer_weight_optical_colour_index": "NUMERIC(5,4) NOT NULL DEFAULT 0.34",
         },
         "model_errors": {
             "actual_timestamp": "DATETIME",
@@ -99,7 +104,9 @@ def _upgrade_legacy_sqlite_schema() -> None:
             "horizon_hours": "INTEGER NOT NULL DEFAULT 24",
             "data_source": "VARCHAR(50) NOT NULL DEFAULT 'HISTORICAL_DATA'",
             "mape": "NUMERIC(10, 4)",
+            "model_version": "VARCHAR(255)",
         },
+        "ensemble_weights": {"model_version": "VARCHAR(255)"},
     }
     inspector = inspect(engine)
     with engine.begin() as connection:
@@ -110,6 +117,36 @@ def _upgrade_legacy_sqlite_schema() -> None:
             for name, definition in columns.items():
                 if name not in existing:
                     connection.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{name}" {definition}'))
+
+
+def ensure_forecast_schema() -> None:
+    """Apply supported additive SQLite updates and verify Forecast columns."""
+    _upgrade_legacy_sqlite_schema()
+    _verify_forecast_schema()
+
+
+def _verify_forecast_schema() -> None:
+    """Verify persisted Forecast columns match the active ORM model.
+
+    SQLite's ``create_all`` intentionally leaves existing tables alone. Keep
+    the local additive upgrade above in sync with the ORM and fail during
+    initialization, before a request attempts an INSERT, if an older schema
+    is missing a column that cannot be safely synthesized.
+    """
+    if not inspect(engine).has_table("forecasts"):
+        raise RuntimeError("Forecast table was not created during database initialization")
+
+    from app.db.models import Forecast
+
+    actual = {column["name"] for column in inspect(engine).get_columns("forecasts")}
+    expected = {column.name for column in Forecast.__table__.columns}
+    missing = sorted(expected - actual)
+    if missing:
+        raise RuntimeError(
+            "SQLite forecasts schema is behind the SQLAlchemy Forecast model; "
+            f"missing columns: {', '.join(missing)}. "
+            "Run init_db() to apply supported additive schema updates."
+        )
 
 
 def drop_db() -> None:

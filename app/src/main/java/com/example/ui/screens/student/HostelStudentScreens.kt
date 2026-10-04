@@ -83,7 +83,7 @@ fun HostelHomeScreen(viewModel: HydroViewModel, onNavigate: (Int) -> Unit, modif
                     Column(Modifier.fillMaxWidth().padding(18.dp)) {
                     Text("Water overview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
-                        Text(score?.let { "Application index: ${it.index} · ${it.category.displayName}" } ?: "Application index unavailable until required readings arrive.", style = MaterialTheme.typography.titleSmall)
+                        Text(score?.let { "Application Water Quality Index: ${it.index} · ${it.category.displayName}" } ?: "Application Water Quality Index unavailable until required readings arrive.", style = MaterialTheme.typography.titleSmall)
                         Text("This application-specific index is not a drinking-water certification.", style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(8.dp))
                         Text(currentReading?.let { "Source: ${it.source} · Updated ${it.timestamp}" } ?: "No current server reading available.", style = MaterialTheme.typography.bodySmall)

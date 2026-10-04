@@ -1,4 +1,6 @@
-# Adaptive Ensemble Implementation Report for HydroGuard Project
+﻿# Adaptive Ensemble Implementation Report for HydroGuard Project
+
+> Historical report: these original results refer to the former four-feature simulated models and are superseded by the active five-feature development pipeline described in `README.md`.
 
 ## Environment Information
 
@@ -26,18 +28,18 @@ Combines predictions from LSTM, PatchTST, and TimeMixer using adaptive inverse e
 ### Architecture Overview
 
 ```
-Model Predictions (3 models × 6 parameters)
-    ↓
+Model Predictions (3 models Ã— 6 parameters)
+    â†“
 Error Calculation (MAE + RMSE per model/parameter)
-    ↓
-Error Score: α × MAE + (1-α) × RMSE
-    ↓
-Inverse Error Weighting: weight_i = (1/(error_i + ε)) / Σ(1/(error_j + ε))
-    ↓
+    â†“
+Error Score: Î± Ã— MAE + (1-Î±) Ã— RMSE
+    â†“
+Inverse Error Weighting: weight_i = (1/(error_i + Îµ)) / Î£(1/(error_j + Îµ))
+    â†“
 Rolling Error History (default: 30 predictions)
-    ↓
-Weighted Combination: Final = Σ(w_i × prediction_i)
-    ↓
+    â†“
+Weighted Combination: Final = Î£(w_i Ã— prediction_i)
+    â†“
 Final Prediction (6 parameters)
 ```
 
@@ -49,17 +51,17 @@ weight_i = (1 / (ErrorScore_i + epsilon)) / sum(1 / (ErrorScore_j + epsilon))
 ```
 
 **Key Properties:**
-- Lower error → higher weight
+- Lower error â†’ higher weight
 - Weights normalized to sum to 1
 - Applied separately for each parameter
 - No manually assigned weights
 
 **Error Score Formula:**
 ```
-ErrorScore = α × MAE + (1-α) × RMSE
+ErrorScore = Î± Ã— MAE + (1-Î±) Ã— RMSE
 ```
 
-- Default: α = 0.5 (equal weight to MAE and RMSE)
+- Default: Î± = 0.5 (equal weight to MAE and RMSE)
 - Can be adjusted to favor one metric over the other
 
 ### Rolling Error History
@@ -73,7 +75,7 @@ ErrorScore = α × MAE + (1-α) × RMSE
 
 **Average Error Calculation:**
 ```
-AverageError = (Σ error_history) / len(error_history)
+AverageError = (Î£ error_history) / len(error_history)
 ```
 
 ### Example Weight Calculation
@@ -82,9 +84,9 @@ AverageError = (Σ error_history) / len(error_history)
 
 ```
 Model Errors (Temperature):
-- LSTM: MAE=0.3, RMSE=0.4 → ErrorScore=0.35
-- PatchTST: MAE=0.5, RMSE=0.6 → ErrorScore=0.55
-- TimeMixer: MAE=0.2, RMSE=0.3 → ErrorScore=0.25
+- LSTM: MAE=0.3, RMSE=0.4 â†’ ErrorScore=0.35
+- PatchTST: MAE=0.5, RMSE=0.6 â†’ ErrorScore=0.55
+- TimeMixer: MAE=0.2, RMSE=0.3 â†’ ErrorScore=0.25
 
 Inverse Errors:
 - LSTM: 1/0.35 = 2.857
@@ -98,7 +100,7 @@ Normalized Weights:
 - PatchTST: 1.818/8.675 = 0.210
 - TimeMixer: 4.000/8.675 = 0.461
 
-Final Prediction = 0.329×LSTM + 0.210×PatchTST + 0.461×TimeMixer
+Final Prediction = 0.329Ã—LSTM + 0.210Ã—PatchTST + 0.461Ã—TimeMixer
 ```
 
 ### Parameter-Wise Weights
@@ -123,52 +125,52 @@ This allows the ensemble to leverage each model's strengths for different parame
 ## Implementation Features
 
 ### Weighting Module Features
-- ✅ Configurable error score calculation (α parameter)
-- ✅ Inverse error weighting with epsilon for stability
-- ✅ Weight normalization (sum to 1)
-- ✅ Min/max weight constraints (configurable)
-- ✅ Parameter-wise weight calculation
-- ✅ Rolling error history management
-- ✅ Average error calculation over history
-- ✅ Current weight calculation from history
+- âœ… Configurable error score calculation (Î± parameter)
+- âœ… Inverse error weighting with epsilon for stability
+- âœ… Weight normalization (sum to 1)
+- âœ… Min/max weight constraints (configurable)
+- âœ… Parameter-wise weight calculation
+- âœ… Rolling error history management
+- âœ… Average error calculation over history
+- âœ… Current weight calculation from history
 
 ### Adaptive Ensemble Features
-- ✅ Configurable ensemble (model names, parameters, window size)
-- ✅ Error calculation (MAE and RMSE per model/parameter)
-- ✅ Error score combination
-- ✅ Weight adaptation based on recent performance
-- ✅ Prediction combination using current weights
-- ✅ Error history tracking
-- ✅ Rolling window management
-- ✅ Weight reset functionality
-- ✅ State management and summary
+- âœ… Configurable ensemble (model names, parameters, window size)
+- âœ… Error calculation (MAE and RMSE per model/parameter)
+- âœ… Error score combination
+- âœ… Weight adaptation based on recent performance
+- âœ… Prediction combination using current weights
+- âœ… Error history tracking
+- âœ… Rolling window management
+- âœ… Weight reset functionality
+- âœ… State management and summary
 
 ### Unit Tests
-- ✅ Error score calculation tests
-- ✅ Weight normalization tests
-- ✅ Inverse error weighting tests
-- ✅ Zero error handling tests
-- ✅ Min/max weight constraint tests
-- ✅ Parameter-wise weight calculation tests
-- ✅ Different weights per parameter tests
-- ✅ Error history update tests
-- ✅ Rolling window truncation tests
-- ✅ Average error calculation tests
-- ✅ Empty history handling tests
-- ✅ Weighted prediction combination tests
-- ✅ Missing model handling tests
-- ✅ Ensemble initialization tests
-- ✅ Ensemble custom configuration tests
-- ✅ Ensemble update from predictions tests
-- ✅ Ensemble weight adaptation tests
-- ✅ Ensemble combine predictions tests
-- ✅ Ensemble reset weights tests
-- ✅ Ensemble error history tracking tests
-- ✅ Ensemble rolling window tests
-- ✅ Ensemble get average errors tests
-- ✅ Ensemble get summary tests
-- ✅ Current weights from history tests
-- ✅ Current weights empty history tests
+- âœ… Error score calculation tests
+- âœ… Weight normalization tests
+- âœ… Inverse error weighting tests
+- âœ… Zero error handling tests
+- âœ… Min/max weight constraint tests
+- âœ… Parameter-wise weight calculation tests
+- âœ… Different weights per parameter tests
+- âœ… Error history update tests
+- âœ… Rolling window truncation tests
+- âœ… Average error calculation tests
+- âœ… Empty history handling tests
+- âœ… Weighted prediction combination tests
+- âœ… Missing model handling tests
+- âœ… Ensemble initialization tests
+- âœ… Ensemble custom configuration tests
+- âœ… Ensemble update from predictions tests
+- âœ… Ensemble weight adaptation tests
+- âœ… Ensemble combine predictions tests
+- âœ… Ensemble reset weights tests
+- âœ… Ensemble error history tracking tests
+- âœ… Ensemble rolling window tests
+- âœ… Ensemble get average errors tests
+- âœ… Ensemble get summary tests
+- âœ… Current weights from history tests
+- âœ… Current weights empty history tests
 
 ## Test Results
 
@@ -324,10 +326,10 @@ EXISTING MODELS UNCHANGED
 - The ensemble can be integrated into FastAPI in future work
 
 ### What Was NOT Implemented
-- ❌ API integration
-- ❌ Android integration
-- ❌ ESP32 integration
-- ❌ New forecasting models
+- âŒ API integration
+- âŒ Android integration
+- âŒ ESP32 integration
+- âŒ New forecasting models
 
 ## Remaining Work
 
@@ -342,19 +344,19 @@ EXISTING MODELS UNCHANGED
 
 The Adaptive Ensemble implementation is complete with:
 
-- ✅ Inverse error weighting method (not manual weights)
-- ✅ Parameter-wise weight calculation
-- ✅ Rolling error history management (configurable window sizes)
-- ✅ MAE and RMSE error calculation
-- ✅ Weight normalization (sum to 1)
-- ✅ Lower error → higher weight behavior
-- ✅ Zero error handling with epsilon
-- ✅ Min/max weight constraints
-- ✅ Comprehensive test suite (27/27 passed)
-- ✅ LSTM model preserved unchanged (52,102 parameters)
-- ✅ PatchTST model preserved unchanged (589,318 parameters)
-- ✅ TimeMixer model preserved unchanged (194,374 parameters)
-- ✅ Android project not modified
-- ✅ FastAPI backend not modified
+- âœ… Inverse error weighting method (not manual weights)
+- âœ… Parameter-wise weight calculation
+- âœ… Rolling error history management (configurable window sizes)
+- âœ… MAE and RMSE error calculation
+- âœ… Weight normalization (sum to 1)
+- âœ… Lower error â†’ higher weight behavior
+- âœ… Zero error handling with epsilon
+- âœ… Min/max weight constraints
+- âœ… Comprehensive test suite (27/27 passed)
+- âœ… LSTM model preserved unchanged (52,102 parameters)
+- âœ… PatchTST model preserved unchanged (589,318 parameters)
+- âœ… TimeMixer model preserved unchanged (194,374 parameters)
+- âœ… Android project not modified
+- âœ… FastAPI backend not modified
 
 The ensemble provides a decision layer that dynamically adapts model contributions based on recent forecasting performance, offering a robust approach to combine the strengths of LSTM, PatchTST, and TimeMixer models for water quality forecasting.

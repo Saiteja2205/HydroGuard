@@ -21,12 +21,12 @@ from ml.models.lstm_model import LSTMModel
 
 @dataclass
 class TrainingConfig:
-    model_name: str = "lstm_water_quality"
-    input_size: int = 4
+    model_name: str = "lstm_water_quality_5param_v1"
+    input_size: int = 5
     hidden_size: int = 64
     num_layers: int = 2
     dropout: float = 0.2
-    output_size: int = 4
+    output_size: int = 5
     batch_size: int = 32
     learning_rate: float = 0.001
     num_epochs: int = 100
@@ -34,7 +34,7 @@ class TrainingConfig:
     random_seed: int = 42
     checkpoint_dir: str = "artifacts/checkpoints"
     device: str = "auto"
-    four_param_mode: bool = True
+    active_contract_enabled: bool = True
     parameters: tuple[str, ...] | None = None
 
 
@@ -152,6 +152,9 @@ def save_checkpoint(
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "val_loss": val_loss,
+        "feature_count": len(PARAMETERS),
+        "parameters": list(PARAMETERS),
+        "model_version": "five-param-v1",
         "config": {
             "input_size": config.input_size,
             "hidden_size": config.hidden_size,
@@ -185,7 +188,7 @@ def train_lstm(
     device = get_device(config.device)
     print(f"Using device: {device}")
 
-    if not config.four_param_mode or (config.parameters is not None and tuple(config.parameters) != PARAMETERS):
+    if not config.active_contract_enabled or (config.parameters is not None and tuple(config.parameters) != PARAMETERS):
         raise ValueError(f"HydroGuard forecasting is restricted to {PARAMETERS}; legacy/extra parameters are unsupported.")
     pipeline_config = PipelineConfig(parameters=PARAMETERS)
     config.input_size = len(PARAMETERS)
@@ -356,7 +359,7 @@ if __name__ == "__main__":
         dropout=args.dropout,
         checkpoint_dir=args.checkpoint_dir,
         device=args.device,
-        four_param_mode=True,
+        active_contract_enabled=True,
         parameters=PARAMETERS,
     )
 

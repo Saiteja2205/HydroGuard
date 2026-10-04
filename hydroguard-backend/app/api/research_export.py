@@ -14,10 +14,10 @@ from app.db import get_db
 from app.db.models import Alert, Forecast, ModelError, SensorCalibration, SensorReading
 
 router = APIRouter(prefix="/research", tags=["research-export"])
-PARAMETERS = {"pH": ("ph", "PH"), "TDS": ("tds", "TDS"), "turbidity": ("turbidity", "TURBIDITY"), "temperature": ("temperature", "TEMPERATURE")}
+PARAMETERS = {"pH": ("ph", "PH"), "TDS": ("tds", "TDS"), "turbidity": ("turbidity", "TURBIDITY"), "temperature": ("temperature", "TEMPERATURE"), "optical_colour_index": ("optical_colour_index", "OPTICAL_COLOUR_INDEX")}
 MODELS = {"LSTM": "lstm", "PatchTST": "patchtst", "TimeMixer": "timemixer"}
 COLUMNS = [
-    "record_type", "timestamp", "target_timestamp", "node_id", "data_source", "parameter",
+    "record_type", "timestamp", "target_timestamp", "node_id", "data_source", "data_provenance", "parameter",
     "ph", "tds", "turbidity", "temperature", "red", "green", "blue", "clear",
     "optical_colour_index", "calibration_id", "calibration_sensor", "calibration_timestamp",
     "calibration_reference", "calibration_metadata", "forecast", "ensemble_forecast", "actual",
@@ -69,7 +69,7 @@ def export_research_csv(
         calibration = calibrations.get(reading.calibration_id)
         row = {
             "record_type": "reading", "timestamp": reading.timestamp.isoformat(), "node_id": reading.node_id,
-            "data_source": reading.source, "ph": reading.ph, "tds": reading.tds,
+            "data_source": reading.source, "data_provenance": reading.source, "ph": reading.ph, "tds": reading.tds,
             "turbidity": reading.turbidity, "temperature": reading.temperature,
             "red": reading.red, "green": reading.green, "blue": reading.blue, "clear": reading.clear,
             "optical_colour_index": reading.optical_colour_index, "calibration_id": reading.calibration_id,
@@ -100,10 +100,12 @@ def export_research_csv(
                 weight_field = f"{prefix}_weight_{parameter_key.lower()}"
                 if parameter == "pH":
                     weight_field = f"{prefix}_weight_ph"
+                elif parameter == "optical_colour_index":
+                    weight_field = f"{prefix}_weight_optical_colour_index"
                 row = {
                     "record_type": "forecast_evaluation", "timestamp": forecast.created_at.isoformat(),
                     "target_timestamp": forecast.forecast_date.isoformat(), "node_id": forecast.node_id,
-                    "data_source": forecast.data_source, "parameter": parameter,
+                    "data_source": forecast.data_source, "data_provenance": forecast.data_source, "parameter": parameter,
                     "forecast": getattr(forecast, f"{prefix}_{actual_field}"),
                     "ensemble_forecast": getattr(forecast, f"ensemble_{actual_field}"),
                     "actual": error.actual_value if error else getattr(target_reading, actual_field, None),

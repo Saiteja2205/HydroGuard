@@ -1,4 +1,6 @@
-# PatchTST Implementation Report for HydroGuard Project
+﻿# PatchTST Implementation Report for HydroGuard Project
+
+> Historical report: these original results refer to the former four-feature simulated models and are superseded by the active five-feature development pipeline described in `README.md`.
 
 ## Environment Information
 
@@ -44,19 +46,19 @@ Based on "A Time Series is Worth 64 Words: Long-term Forecasting with Transforme
 ### Architecture Flow
 ```
 Input: (batch, 30, 6)
-    ↓
-Patch Creation: (batch, 6, 30) - 6 patches of 5 timesteps × 6 features
-    ↓
+    â†“
+Patch Creation: (batch, 6, 30) - 6 patches of 5 timesteps Ã— 6 features
+    â†“
 Patch Embedding: (batch, 6, 64) - Linear projection to d_model
-    ↓
+    â†“
 Positional Encoding: (batch, 6, 64) - Add positional information
-    ↓
+    â†“
 Transformer Encoder: (batch, 6, 64) - Multi-head self-attention
-    ↓
-Flatten: (batch, 384) - 6 patches × 64 dimensions
-    ↓
+    â†“
+Flatten: (batch, 384) - 6 patches Ã— 64 dimensions
+    â†“
 Prediction Head: (batch, 6) - Linear projection to output
-    ↓
+    â†“
 Output: (batch, 6) - Next day's 6 parameters
 ```
 
@@ -78,42 +80,42 @@ An explicit four-parameter mode is available for development when EC/DO sensors 
 ## Implementation Features
 
 ### Training Features
-- ✅ Configurable model class (patch_length, stride, d_model, num_heads, num_layers, dropout)
-- ✅ Deterministic random seed (set_random_seed)
-- ✅ PyTorch DataLoader
-- ✅ Training loop with MSE loss
-- ✅ Validation loss tracking
-- ✅ Early stopping (configurable patience)
-- ✅ Best checkpoint saving
-- ✅ Checkpoint loading
-- ✅ CPU support
-- ✅ Optional CUDA detection (auto)
-- ✅ Learning rate scheduling (Adam optimizer)
-- ✅ CLI argument support
-- ✅ Reuses existing HydroGuard data pipeline
+- âœ… Configurable model class (patch_length, stride, d_model, num_heads, num_layers, dropout)
+- âœ… Deterministic random seed (set_random_seed)
+- âœ… PyTorch DataLoader
+- âœ… Training loop with MSE loss
+- âœ… Validation loss tracking
+- âœ… Early stopping (configurable patience)
+- âœ… Best checkpoint saving
+- âœ… Checkpoint loading
+- âœ… CPU support
+- âœ… Optional CUDA detection (auto)
+- âœ… Learning rate scheduling (Adam optimizer)
+- âœ… CLI argument support
+- âœ… Reuses existing HydroGuard data pipeline
 
 ### Prediction Features
-- ✅ Prediction function
-- ✅ Inverse transformation using existing scaler
-- ✅ Parameter dictionary output (predict_as_dict)
-- ✅ MAE (Mean Absolute Error) calculation
-- ✅ RMSE (Root Mean Square Error) calculation
-- ✅ Test set evaluation
-- ✅ Model loading from checkpoint
-- ✅ Device handling (auto/cpu/cuda)
+- âœ… Prediction function
+- âœ… Inverse transformation using existing scaler
+- âœ… Parameter dictionary output (predict_as_dict)
+- âœ… MAE (Mean Absolute Error) calculation
+- âœ… RMSE (Root Mean Square Error) calculation
+- âœ… Test set evaluation
+- âœ… Model loading from checkpoint
+- âœ… Device handling (auto/cpu/cuda)
 
 ### Unit Tests
-- ✅ Model initialization tests (default and custom)
-- ✅ Patch creation shape tests
-- ✅ Forward pass shape tests
-- ✅ Four-parameter mode tests
-- ✅ Architecture component tests
-- ✅ Checkpoint save/load tests
-- ✅ Device selection tests
-- ✅ Batch size variation tests
-- ✅ Gradient flow tests
-- ✅ NaN validation logic tests
-- ✅ Positional encoding tests
+- âœ… Model initialization tests (default and custom)
+- âœ… Patch creation shape tests
+- âœ… Forward pass shape tests
+- âœ… Four-parameter mode tests
+- âœ… Architecture component tests
+- âœ… Checkpoint save/load tests
+- âœ… Device selection tests
+- âœ… Batch size variation tests
+- âœ… Gradient flow tests
+- âœ… NaN validation logic tests
+- âœ… Positional encoding tests
 
 ## Test Results
 
@@ -335,15 +337,15 @@ python -m ml.training.train_patchtst \
 
 ### LSTM Model
 - **NOT MODIFIED** - LSTM implementation remains unchanged
-- LSTM architecture verified: 52,102 parameters, (batch, 30, 6) → (batch, 6)
+- LSTM architecture verified: 52,102 parameters, (batch, 30, 6) â†’ (batch, 6)
 - LSTM files not modified during PatchTST implementation
 
 ### What Was NOT Implemented
-- ❌ TimeMixer
-- ❌ Adaptive ensemble
-- ❌ FastAPI forecast endpoint
-- ❌ ESP32 integration
-- ❌ Model comparison (LSTM vs PatchTST)
+- âŒ TimeMixer
+- âŒ Adaptive ensemble
+- âŒ FastAPI forecast endpoint
+- âŒ ESP32 integration
+- âŒ Model comparison (LSTM vs PatchTST)
 
 ## Comparison: LSTM vs PatchTST
 
@@ -379,15 +381,15 @@ python -m ml.training.train_patchtst \
 
 The PatchTST forecasting component has been successfully implemented with:
 
-- ✅ Correct Transformer-based architecture (not simplified MLP)
-- ✅ Patch-based time series processing
-- ✅ Configurable training pipeline with early stopping
-- ✅ Prediction and evaluation functions
-- ✅ Four-parameter development mode support
-- ✅ Comprehensive unit tests (21/21 passed)
-- ✅ Compatible with existing data pipeline
-- ✅ Proper EC/DO handling (never fabricated)
-- ✅ LSTM model remains unchanged
-- ✅ Android project not modified
+- âœ… Correct Transformer-based architecture (not simplified MLP)
+- âœ… Patch-based time series processing
+- âœ… Configurable training pipeline with early stopping
+- âœ… Prediction and evaluation functions
+- âœ… Four-parameter development mode support
+- âœ… Comprehensive unit tests (21/21 passed)
+- âœ… Compatible with existing data pipeline
+- âœ… Proper EC/DO handling (never fabricated)
+- âœ… LSTM model remains unchanged
+- âœ… Android project not modified
 
 The implementation is ready for use once the scikit-learn dependency is resolved. The PatchTST model follows the paper's architecture with patching, positional encoding, and transformer encoder, providing a modern alternative to the LSTM baseline.

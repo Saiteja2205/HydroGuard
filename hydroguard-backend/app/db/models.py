@@ -170,6 +170,10 @@ class Forecast(Base):
     ensemble_tds: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     ensemble_turbidity: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     ensemble_temperature: Mapped[float] = mapped_column(Numeric(5, 2), nullable=True)
+    lstm_optical_colour_index: Mapped[float | None] = mapped_column(Float, nullable=True)
+    patchtst_optical_colour_index: Mapped[float | None] = mapped_column(Float, nullable=True)
+    timemixer_optical_colour_index: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ensemble_optical_colour_index: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Model weights for pH
     lstm_weight_ph: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False)
@@ -190,6 +194,9 @@ class Forecast(Base):
     lstm_weight_temperature: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False)
     patchtst_weight_temperature: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False)
     timemixer_weight_temperature: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False)
+    lstm_weight_optical_colour_index: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False, default=0.33)
+    patchtst_weight_optical_colour_index: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False, default=0.33)
+    timemixer_weight_optical_colour_index: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False, default=0.34)
 
     # Relationships
     node: Mapped["Node"] = relationship("Node", back_populates="forecasts")
@@ -224,6 +231,7 @@ class ModelError(Base):
     horizon_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
     data_source: Mapped[str] = mapped_column(String(50), nullable=False, default="HISTORICAL_DATA")
     model_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    model_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
     parameter: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
 
     predicted_value: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
@@ -268,6 +276,7 @@ class EnsembleWeight(Base):
     node_id: Mapped[str] = mapped_column(String(64), ForeignKey("nodes.node_id"), nullable=False, index=True)
     parameter: Mapped[str] = mapped_column(String(50), nullable=False)
     model_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
     data_source: Mapped[str] = mapped_column(String(50), nullable=False, default="HISTORICAL_DATA")
     weight: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False)
     observations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -168,25 +168,25 @@ class TimeMixer(nn.Module):
     """TimeMixer model for next-day water quality parameter forecasting.
 
     Architecture:
-        Input: (batch, 30, 4) - 30 daily observations of four modelled parameters
+        Input: (batch, 30, 5) - daily observations of five modelled parameters
         Multi-scale Decomposition: Create multiple temporal resolutions
         Scale Mixing: Combine information across scales
         Temporal Mixing: Capture time dependencies
         Prediction Head: Linear projection to output
-        Output: (batch, 4) - next day's four modelled parameters
+        Output: (batch, 5) - next day's five modelled parameters
 
-    Product model inputs: [pH, TDS, turbidity, temperature]. Optical colour has no validated checkpoint.
+    Inputs include experimental optical colour; predictions are development-only.
     """
 
     def __init__(
         self,
-        input_size: int = 4,
+        input_size: int = 5,
         context_length: int = 30,
         hidden_size: int = 64,
         num_scales: int = 3,
         num_mixing_layers: int = 2,
         dropout: float = 0.1,
-        output_size: int = 4,
+        output_size: int = 5,
     ):
         super().__init__()
         self.input_size = input_size

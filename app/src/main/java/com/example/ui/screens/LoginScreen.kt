@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.components.GlassCard
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.HydroViewModel
+import com.example.BuildConfig
 
 @Composable
 fun LoginScreen(
@@ -111,11 +112,18 @@ fun LoginScreen(
             )
 
             Text(
-                text = "SMART INFRASTRUCTURE TELEMETRY HUB",
+                text = "Smart Hostel Water Intelligence Platform",
                 style = MaterialTheme.typography.labelSmall,
                 color = SlateBlueSubtle,
                 textAlign = TextAlign.Center,
                 letterSpacing = 1.sp
+            )
+
+            Text(
+                text = "IoT Water Quality Monitoring & Predictive Hostel Services",
+                style = MaterialTheme.typography.bodySmall,
+                color = SlateBlueSubtle,
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -143,7 +151,7 @@ fun LoginScreen(
                         .background(if (isFirebaseAvailable) SafeGreen else WarningAmber)
                 )
                 Text(
-                    text = if (isFirebaseAvailable) "Firebase Auth Connected" else "Local Sandbox Auth",
+                    text = if (isFirebaseAvailable) "Firebase Authentication" else if (BuildConfig.DEBUG) "Development Mode" else "Authentication unavailable",
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isFirebaseAvailable) SafeGreen else WarningAmber,
                     fontSize = 10.sp
@@ -176,7 +184,7 @@ fun LoginScreen(
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
                     Text(
-                        text = "Student Hub",
+                        text = "Student",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
@@ -196,7 +204,7 @@ fun LoginScreen(
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
                     Text(
-                        text = "Admin Console",
+                        text = "Admin",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
@@ -216,14 +224,14 @@ fun LoginScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (isRegisterMode) "Create Account" else "Sign In",
+                        text = if (isRegisterMode) "Create Student Account" else "Sign In",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (isRegisterMode) "Register for campus water telemetry" else "Access your node monitoring dashboard",
+                        text = if (isRegisterMode) "Join your hostel water services" else "Monitor hostel water quality and services",
                         style = MaterialTheme.typography.bodySmall,
                         color = SlateBlueSubtle
                     )
@@ -438,9 +446,10 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Developer shortcuts
+                    if (BuildConfig.DEBUG && BuildConfig.ALLOW_DEVELOPMENT_LOGIN) {
+                    // Explicitly local, debug-only demo entry points.
                     Text(
-                        text = "DEV TEST BYPASS SHORTCUTS",
+                        text = "DEVELOPMENT LOGIN",
                         style = MaterialTheme.typography.labelSmall,
                         color = SlateBlueSubtle,
                         letterSpacing = 1.sp
@@ -454,9 +463,7 @@ fun LoginScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                email = "student@hostel.edu"
-                                password = "password123"
-                                viewModel.login("student@hostel.edu", "password123", "STUDENT")
+                                viewModel.developmentLogin("STUDENT")
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -465,14 +472,12 @@ fun LoginScreen(
                             shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, if (isDark) GlassBorderDark else GlassBorderLight)
                         ) {
-                            Text("Student Bypass", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CobaltBlue)
+                            Text("Development Student", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CobaltBlue)
                         }
 
                         OutlinedButton(
                             onClick = {
-                                email = "admin@hostel.edu"
-                                password = "password123"
-                                viewModel.login("admin@hostel.edu", "password123", "ADMIN")
+                                viewModel.developmentLogin("ADMIN")
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -481,8 +486,9 @@ fun LoginScreen(
                             shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, if (isDark) GlassBorderDark else GlassBorderLight)
                         ) {
-                            Text("Admin Bypass", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CeruleanBlueBright)
+                            Text("Development Admin", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CeruleanBlueBright)
                         }
+                    }
                     }
                 }
             }

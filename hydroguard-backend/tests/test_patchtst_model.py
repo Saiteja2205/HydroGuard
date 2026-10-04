@@ -1,4 +1,4 @@
-"""Unit tests for PatchTST water quality forecasting model.
+﻿"""Unit tests for PatchTST water quality forecasting model.
 
 Tests use synthetic data and random tensors for shape verification.
 No accuracy claims are made - this is architecture verification only.
@@ -24,7 +24,7 @@ from ml.models.patchtst_model import PatchTST
 class PatchTSTModelTests(unittest.TestCase):
     def test_model_initialization_default(self) -> None:
         model = PatchTST()
-        self.assertEqual(model.input_size, 4)
+        self.assertEqual(model.input_size, 5)
         self.assertEqual(model.context_length, 30)
         self.assertEqual(model.patch_length, 5)
         self.assertEqual(model.stride, 5)
@@ -32,11 +32,11 @@ class PatchTSTModelTests(unittest.TestCase):
         self.assertEqual(model.num_heads, 4)
         self.assertEqual(model.num_layers, 2)
         self.assertEqual(model.dropout, 0.1)
-        self.assertEqual(model.output_size, 4)
+        self.assertEqual(model.output_size, 5)
 
     def test_model_initialization_custom(self) -> None:
         model = PatchTST(
-            input_size=4,
+            input_size=5,
             context_length=20,
             patch_length=4,
             stride=4,
@@ -44,9 +44,9 @@ class PatchTSTModelTests(unittest.TestCase):
             num_heads=2,
             num_layers=1,
             dropout=0.2,
-            output_size=4,
+            output_size=5,
         )
-        self.assertEqual(model.input_size, 4)
+        self.assertEqual(model.input_size, 5)
         self.assertEqual(model.context_length, 20)
         self.assertEqual(model.patch_length, 4)
         self.assertEqual(model.stride, 4)
@@ -54,7 +54,7 @@ class PatchTSTModelTests(unittest.TestCase):
         self.assertEqual(model.num_heads, 2)
         self.assertEqual(model.num_layers, 1)
         self.assertEqual(model.dropout, 0.2)
-        self.assertEqual(model.output_size, 4)
+        self.assertEqual(model.output_size, 5)
 
     def test_num_patches_calculation(self) -> None:
         model = PatchTST(context_length=30, patch_length=5, stride=5)
@@ -64,7 +64,7 @@ class PatchTSTModelTests(unittest.TestCase):
     def test_patch_creation_shape(self) -> None:
         model = PatchTST()
         batch_size = 8
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         patches = model._create_patches(X)
         
         # Expected: (batch, num_patches, patch_length * input_size)
@@ -74,16 +74,16 @@ class PatchTSTModelTests(unittest.TestCase):
     def test_forward_pass_shape(self) -> None:
         model = PatchTST()
         batch_size = 8
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         output = model(X)
-        self.assertEqual(output.shape, (batch_size, 4))
+        self.assertEqual(output.shape, (batch_size, 5))
 
-    def test_forward_pass_four_param(self) -> None:
-        model = PatchTST(input_size=4, output_size=4)
+    def test_forward_pass_five_param(self) -> None:
+        model = PatchTST(input_size=5, output_size=5)
         batch_size = 8
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         output = model(X)
-        self.assertEqual(output.shape, (batch_size, 4))
+        self.assertEqual(output.shape, (batch_size, 5))
 
     def test_model_parameter_count(self) -> None:
         model = PatchTST()
@@ -202,12 +202,12 @@ class PatchTSTIntegrationTests(unittest.TestCase):
         model.eval()
         
         batch_size = 4
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         
         with torch.no_grad():
             output = model(X)
         
-        self.assertEqual(output.shape, (batch_size, 4))
+        self.assertEqual(output.shape, (batch_size, 5))
         self.assertFalse(torch.isnan(output).any())
         self.assertFalse(torch.isinf(output).any())
 
@@ -215,16 +215,16 @@ class PatchTSTIntegrationTests(unittest.TestCase):
         model = PatchTST()
         
         for batch_size in [1, 8, 16, 32]:
-            X = torch.randn(batch_size, 30, 4)
+            X = torch.randn(batch_size, 30, 5)
             output = model(X)
-            self.assertEqual(output.shape, (batch_size, 4))
+            self.assertEqual(output.shape, (batch_size, 5))
 
     def test_gradient_flow(self) -> None:
         model = PatchTST()
         model.train()
         
-        X = torch.randn(4, 30, 4)
-        y = torch.randn(4, 4)
+        X = torch.randn(4, 30, 5)
+        y = torch.randn(4, 5)
         
         output = model(X)
         loss = torch.nn.functional.mse_loss(output, y)
@@ -237,22 +237,22 @@ class PatchTSTIntegrationTests(unittest.TestCase):
 
 
 class FourParameterModeTests(unittest.TestCase):
-    def test_four_parameter_model(self) -> None:
-        model = PatchTST(input_size=4, output_size=4, context_length=30)
+    def test_five_parameter_model(self) -> None:
+        model = PatchTST(input_size=5, output_size=5, context_length=30)
         
         batch_size = 8
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         output = model(X)
         
-        self.assertEqual(output.shape, (batch_size, 4))
-        self.assertEqual(model.input_size, 4)
-        self.assertEqual(model.output_size, 4)
+        self.assertEqual(output.shape, (batch_size, 5))
+        self.assertEqual(model.input_size, 5)
+        self.assertEqual(model.output_size, 5)
 
-    def test_four_parameter_patch_creation(self) -> None:
-        model = PatchTST(input_size=4, output_size=4)
+    def test_five_parameter_patch_creation(self) -> None:
+        model = PatchTST(input_size=5, output_size=5)
         
         batch_size = 8
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         patches = model._create_patches(X)
         
         expected_patch_dim = model.patch_length * model.input_size
@@ -262,16 +262,16 @@ class FourParameterModeTests(unittest.TestCase):
 class NaNValidationTests(unittest.TestCase):
     def test_nan_detection_logic(self) -> None:
         # Test the NaN detection logic that would be used in training
-        X_train_with_nan = np.random.randn(10, 30, 4)
+        X_train_with_nan = np.random.randn(10, 30, 5)
         X_train_with_nan[0, 0, 3] = np.nan
-        y_train_with_nan = np.random.randn(10, 4)
+        y_train_with_nan = np.random.randn(10, 5)
         
         has_nan = np.isnan(X_train_with_nan).any() or np.isnan(y_train_with_nan).any()
         self.assertTrue(has_nan)
 
     def test_clean_data_detection(self) -> None:
-        X_train_clean = np.random.randn(10, 30, 4)
-        y_train_clean = np.random.randn(10, 4)
+        X_train_clean = np.random.randn(10, 30, 5)
+        y_train_clean = np.random.randn(10, 5)
         
         has_nan = np.isnan(X_train_clean).any() or np.isnan(y_train_clean).any()
         self.assertFalse(has_nan)
@@ -279,3 +279,6 @@ class NaNValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+

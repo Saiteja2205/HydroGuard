@@ -29,6 +29,7 @@ fun ServerWaterScreen(viewModel: HydroViewModel, modifier: Modifier = Modifier, 
     var history by remember { mutableStateOf<List<HistoricalReadingResponse>>(emptyList()) }
     var alerts by remember { mutableStateOf<List<AlertResponse>>(emptyList()) }
     var forecast by remember { mutableStateOf<ForecastResponse?>(null) }
+    var nodeHealth by remember { mutableStateOf<NodeHealthResponse?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableIntStateOf(0) }
@@ -38,6 +39,7 @@ fun ServerWaterScreen(viewModel: HydroViewModel, modifier: Modifier = Modifier, 
         loading = true; error = null
         try {
             val api = RetrofitClient.apiService
+            nodeHealth = if (isAdmin) api.getNodeHealth(nodeId).takeIf { it.isSuccessful }?.body() else null
             val live = api.getLatestReading(nodeId)
             if (!live.isSuccessful) error("Unable to connect to HydroGuard server")
             reading = live.body()
@@ -45,9 +47,10 @@ fun ServerWaterScreen(viewModel: HydroViewModel, modifier: Modifier = Modifier, 
             if (hist.isSuccessful) history = hist.body()?.readings.orEmpty()
             val alertResponse = api.getAlerts(nodeId)
             if (alertResponse.isSuccessful) alerts = alertResponse.body()?.alerts.orEmpty()
-            if (history.size >= 30) {
-                val req = ForecastRequest(nodeId, history.map { h ->
-                    ForecastReading(h.timestamp, h.ph, h.tds, h.turbidity, h.temperature ?: 0f, h.red, h.green, h.blue, h.clear, h.opticalColourIndex, h.calibrationId, h.source)
+            val completeForecastHistory = history.filter { it.temperature != null && it.opticalColourIndex != null }
+            if (completeForecastHistory.size >= 30) {
+                val req = ForecastRequest(nodeId, completeForecastHistory.map { h ->
+                    ForecastReading(h.timestamp, h.ph, h.tds, h.turbidity, h.temperature!!, h.red, h.green, h.blue, h.clear, h.opticalColourIndex!!, h.calibrationId, h.source)
                 })
                 val forecastResponse = api.generateForecast(req)
                 if (forecastResponse.isSuccessful) forecast = forecastResponse.body()
@@ -65,13 +68,19 @@ fun ServerWaterScreen(viewModel: HydroViewModel, modifier: Modifier = Modifier, 
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
-                SectionHeader(if (isAdmin) "Water monitoring" else "Water quality", trailing = {
+                SectionHeader(if (isAdmin) "Admin Dashboard · Water Monitoring" else "Water quality", trailing = {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         IconButton(onClick = { scope.launch { load() } }, enabled = !loading) { Icon(Icons.Default.Refresh, "Refresh server data") }
                         if (onLogout != null) TextButton(onClick = onLogout) { Text("Sign out") }
                     }
                 })
                 Text("Node $nodeId", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (isAdmin) {
+                    nodeHealth?.let { health ->
+                        Text("Sensor/Node Health · ${health.status.uppercase()} · ${health.name} · ${health.location} · Last seen ${health.last_seen ?: "not reported"}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (nodeHealth == null && !loading) Text("Sensor/Node Health unavailable", style = MaterialTheme.typography.bodySmall)
+                }
             }
             if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             error?.let { item { EmptyState("Unable to connect to HydroGuard server", "Check the connection and try again.") } }
@@ -84,9 +93,9 @@ fun ServerWaterScreen(viewModel: HydroViewModel, modifier: Modifier = Modifier, 
                         item { Card(shape = RoundedCornerShape(20.dp)) { Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("Current observation", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             val index = r.temperature?.let { WaterQualityIndexService.calculate(r.ph, r.tds, r.turbidity, it) }
-                            Text(index?.let { "Application index ${it.index} · ${it.category.displayName}" } ?: "Application index unavailable: temperature is missing", style = MaterialTheme.typography.bodyLarge)
+                            Text(index?.let { "Application Water Quality Index ${it.index} · ${it.category.displayName}" } ?: "Application Water Quality Index unavailable: temperature is missing", style = MaterialTheme.typography.bodyLarge)
                             Text("This application index is not drinking-water certification.", style = MaterialTheme.typography.bodySmall)
-                            Text("${r.source} · ${r.timestamp}", style = MaterialTheme.typography.labelSmall)
+                            Text("${provenanceLabel(r.source)} · ${r.timestamp}", style = MaterialTheme.typography.labelSmall)
                         } } }
                         item { SectionHeader("Sensor readings") }
                         item { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -122,15 +131,23 @@ fun ServerWaterScreen(viewModel: HydroViewModel, modifier: Modifier = Modifier, 
                     if (f == null) item { EmptyState("No sufficient historical data", "Forecast requires at least 30 complete, timestamped server observations.") }
                     else {
                         item { Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("${f.forecastDate} · ${f.weightStrategy}", fontWeight = FontWeight.SemiBold)
-                            Text("pH ${f.prediction.pH} · TDS ${f.prediction.TDS} · Turbidity ${f.prediction.turbidity} · Temperature ${f.prediction.temperature}°C")
+                            Text("Adaptive Ensemble · ${f.forecastDate} · ${f.forecastHorizonHours} hour horizon", fontWeight = FontWeight.Bold)
+                            Text("pH ${f.prediction.pH} · TDS ${f.prediction.TDS} · Turbidity ${f.prediction.turbidity} · Temperature ${f.prediction.temperature}°C · Optical colour ${f.prediction.opticalColourIndex}")
                             Text("Source ${f.dataSource} · weights ${f.weightStatus}", style = MaterialTheme.typography.bodySmall)
                         } } }
-                        item { Text("Models: LSTM · PatchTST · TimeMixer · Adaptive Ensemble", style = MaterialTheme.typography.bodyMedium) }
+                        item { Text("Individual model forecasts", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold) }
                         f.modelPredictions.orEmpty().toSortedMap().forEach { (model, prediction) ->
-                            item { Text("$model · pH ${prediction.pH} · TDS ${prediction.TDS} · Turbidity ${prediction.turbidity} · Temperature ${prediction.temperature}°C", style = MaterialTheme.typography.bodySmall) }
+                            item {
+                                Column {
+                                    Text("$model · pH ${prediction.pH} · TDS ${prediction.TDS} · Turbidity ${prediction.turbidity} · Temperature ${prediction.temperature}°C · Optical colour ${prediction.opticalColourIndex}", style = MaterialTheme.typography.bodySmall)
+                                    f.modelVersions[model]?.let { Text("Model version: $it", style = MaterialTheme.typography.labelSmall) }
+                                }
+                            }
                         }
-                        item { Text("Optical colour forecast unavailable: no validated forecasting model is configured.", style = MaterialTheme.typography.bodySmall) }
+                        f.weights.orEmpty().toSortedMap().forEach { (parameter, modelWeights) ->
+                            item { Text("$parameter ensemble weights · LSTM ${modelWeights.LSTM} · PatchTST ${modelWeights.PatchTST} · TimeMixer ${modelWeights.TimeMixer}", style = MaterialTheme.typography.labelSmall) }
+                        }
+                        item { Text("Optical colour is an experimental development feature, not a validated water-safety measure.", style = MaterialTheme.typography.bodySmall) }
                     }
                 }
                 else -> {
@@ -149,6 +166,13 @@ fun ServerWaterScreen(viewModel: HydroViewModel, modifier: Modifier = Modifier, 
             }
         }
     }
+}
+
+private fun provenanceLabel(source: String): String = when (source.uppercase()) {
+    "REAL_SENSOR" -> "REAL SENSOR"
+    "DEMO", "HISTORICAL_DEMO" -> "HISTORICAL DEMO"
+    "SIMULATED", "DEVELOPMENT" -> "SIMULATED / DEVELOPMENT"
+    else -> source.uppercase()
 }
 
 @Composable

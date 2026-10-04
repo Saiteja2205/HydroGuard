@@ -10,11 +10,11 @@ Reading sources are `REAL_SENSOR`, `HISTORICAL_DATA`, `DEMO`, and `SIMULATED`. F
 
 ## Forecasting and evaluation
 
-Forecasting uses LSTM, PatchTST, and TimeMixer checkpoints for pH, TDS, turbidity, and temperature. Existing checkpoints and metrics originate from synthetic four-parameter data and are not field accuracy claims. The request must contain complete, valid, timestamped observations in strictly increasing order, with no duplicates or future dates. At least 30 observations are required by default; configure this with `HYDROGUARD_FORECAST_MIN_HISTORY`. No generated history is used to satisfy the minimum.
+The active forecast contract uses pH, TDS, turbidity, temperature, and optical_colour_index with LSTM, PatchTST, and TimeMixer. The request must contain complete, valid, timestamped observations in strictly increasing order, with no duplicates or future dates. At least 30 observations are required by default; configure this with `HYDROGUARD_FORECAST_MIN_HISTORY`. No generated history is used to satisfy the minimum.
 
 Forecast records retain node, target and creation times, input interval, per-model and ensemble predictions, parameter-specific weights, source, model versions, and weight strategy. An actual reading is matched to target forecasts only for the same node and source. Errors are recorded per model and parameter; rolling MAE/RMSE drives persisted weights. Equal weights are disclosed as the initial strategy until comparable error history exists.
 
-Training uses chronological train/validation/test partitions and fits data scalers on training data. Optical-colour forecasting is unavailable pending validated observations and a suitable model.
+The active versioned five-parameter checkpoints are trained with `ml/training/train_five_parameter_development.py` on exactly 200 simulated development observations. It uses chronological observation splits (140/30/30), 30-day context windows, and training-only scaler fitting. Validation scores are used to calculate parameter-specific initial adaptive ensemble weights; these are development metrics only. Optical colour remains experimental and is not a validated safety measurement.
 
 ## Run locally
 

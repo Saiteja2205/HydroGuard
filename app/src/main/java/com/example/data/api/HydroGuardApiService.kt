@@ -11,6 +11,9 @@ import retrofit2.http.PUT
 import retrofit2.http.DELETE
 
 interface HydroGuardApiService {
+    @GET("api/v1/nodes/{node_id}")
+    suspend fun getNodeHealth(@Path("node_id") nodeId: String): Response<NodeHealthResponse>
+
 
     @GET("api/v1/nodes/{node_id}/readings/latest")
     suspend fun getLatestReading(

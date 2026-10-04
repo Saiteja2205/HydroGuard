@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.example.BuildConfig
 import com.example.data.database.HydroDao
 import com.example.data.database.User
 import com.google.android.gms.tasks.Task
@@ -95,6 +96,25 @@ class FirebaseAuthRepository(
             Result.success(localUser)
         } catch (e: Exception) {
             Log.e("FirebaseAuthRepository", "Firebase auth login failed", e)
+            Result.failure(e)
+        }
+    }
+
+    /** Local-only identity for debug demos. The release variant compiles with this disabled. */
+    suspend fun loginAsDevelopment(role: String): Result<User> {
+        if (!DevelopmentAuthPolicy.allows(BuildConfig.DEBUG, BuildConfig.ALLOW_DEVELOPMENT_LOGIN)) {
+            return Result.failure(SecurityException("Development Login is disabled in this build."))
+        }
+        val user = when (role.uppercase()) {
+            "STUDENT" -> User("demo.student@hydroguard.local", "Demo Student", "STUDENT", "A", "DEMO")
+            "ADMIN" -> User("demo.admin@hydroguard.local", "Demo Administrator", "ADMIN", "", "")
+            else -> return Result.failure(IllegalArgumentException("Unsupported development role."))
+        }
+        return try {
+            hydroDao.insertUser(user)
+            _currentUserFlow.value = user
+            Result.success(user)
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }

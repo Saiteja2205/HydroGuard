@@ -13,6 +13,7 @@ class ModelPrediction(BaseModel):
     TDS: float
     turbidity: float
     temperature: Optional[float] = None
+    optical_colour_index: Optional[float] = None
 
 
 class ModelWeights(BaseModel):
@@ -56,6 +57,10 @@ class ForecastRecord(BaseModel):
     timemixer_tds: float
     timemixer_turbidity: float
     timemixer_temperature: Optional[float] = None
+    lstm_optical_colour_index: Optional[float] = None
+    patchtst_optical_colour_index: Optional[float] = None
+    timemixer_optical_colour_index: Optional[float] = None
+    ensemble_optical_colour_index: Optional[float] = None
 
     # Ensemble predictions
     ensemble_ph: float
@@ -82,6 +87,9 @@ class ForecastRecord(BaseModel):
     lstm_weight_temperature: float
     patchtst_weight_temperature: float
     timemixer_weight_temperature: float
+    lstm_weight_optical_colour_index: float
+    patchtst_weight_optical_colour_index: float
+    timemixer_weight_optical_colour_index: float
 
 class ForecastListResponse(BaseModel):
     """Response for forecast list endpoint."""

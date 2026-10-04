@@ -34,6 +34,7 @@ import com.example.ui.screens.student.StudentProfileScreen
 import com.example.ui.screens.student.WaterScreen
 import com.example.ui.theme.HydroGuardTheme
 import com.example.ui.viewmodel.HydroViewModel
+import com.example.data.repository.DevelopmentAuthPolicy
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,14 +63,8 @@ class MainActivity : ComponentActivity() {
                             LoginScreen(
                                 viewModel = viewModel,
                                 onLoginSuccess = { role ->
-                                    if (role == "ADMIN") {
-                                        navController.navigate("admin") {
-                                            popUpTo("login") { inclusive = true }
-                                        }
-                                    } else {
-                                        navController.navigate("student") {
-                                            popUpTo("login") { inclusive = true }
-                                        }
+                                    navController.navigate(DevelopmentAuthPolicy.destinationForRole(role)) {
+                                        popUpTo("login") { inclusive = true }
                                     }
                                 }
                             )
@@ -106,7 +101,7 @@ private fun AdminNavigationWrapper(viewModel: HydroViewModel, onLogout: () -> Un
     var selected by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(bottomBar = {
         NavigationBar {
-            listOf("WATER", "HOSTEL OPS").forEachIndexed { index, label ->
+            listOf("WATER MONITORING", "HOSTEL OPERATIONS").forEachIndexed { index, label ->
                 NavigationBarItem(selected == index, onClick = { selected = index },
                     icon = { Icon(if (index == 0) Icons.Default.WaterDrop else Icons.Default.AdminPanelSettings, contentDescription = label) },
                     label = { Text(label) })

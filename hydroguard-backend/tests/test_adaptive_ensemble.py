@@ -214,9 +214,9 @@ class PredictionCombinationTests(unittest.TestCase):
     def test_weighted_prediction_combination(self) -> None:
         """Test combining predictions with weights."""
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5},
         }
 
         weights = {
@@ -240,8 +240,8 @@ class PredictionCombinationTests(unittest.TestCase):
     def test_missing_model_handling(self) -> None:
         """Test handling when a model is missing from predictions."""
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
             # TimeMixer missing
         }
 
@@ -295,12 +295,12 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble()
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5},
         }
 
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5}
 
         weights = ensemble.update_from_predictions(predictions, ground_truth)
 
@@ -318,9 +318,9 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble()
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5},
         }
 
         combined = ensemble.combine(predictions)
@@ -335,20 +335,20 @@ class AdaptiveEnsembleTests(unittest.TestCase):
 
         # First update: LSTM performs better on pH
         predictions1 = {
-            "LSTM": {"pH": 7.05, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.3, "TDS": 181.0, "turbidity": 1.3, "temperature": 22.2},
-            "TimeMixer": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.25, "temperature": 22.1},
+            "LSTM": {"pH": 7.05, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.3, "TDS": 181.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
+            "TimeMixer": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5},
         }
-        ground_truth1 = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
+        ground_truth1 = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5}
         ensemble.update_from_predictions(predictions1, ground_truth1)
 
         # Second update: LSTM still performs better on pH
         predictions2 = {
-            "LSTM": {"pH": 7.08, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.25, "TDS": 181.0, "turbidity": 1.3, "temperature": 22.2},
-            "TimeMixer": {"pH": 7.18, "TDS": 182.0, "turbidity": 1.25, "temperature": 22.1},
+            "LSTM": {"pH": 7.08, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.25, "TDS": 181.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
+            "TimeMixer": {"pH": 7.18, "TDS": 182.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5},
         }
-        ground_truth2 = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
+        ground_truth2 = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5}
         ensemble.update_from_predictions(predictions2, ground_truth2)
 
         weights = ensemble.get_current_weights()
@@ -363,11 +363,11 @@ class AdaptiveEnsembleTests(unittest.TestCase):
 
         # Update with some predictions to change weights
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5},
         }
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5}
         ensemble.update_from_predictions(predictions, ground_truth)
 
         # Reset weights
@@ -385,11 +385,11 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble(AdaptiveEnsembleConfig(window_size=10))
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5},
         }
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5}
 
         # Update multiple times
         for _ in range(5):
@@ -403,11 +403,11 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble(AdaptiveEnsembleConfig(window_size=3))
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5},
         }
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5}
 
         # Update more times than window size
         for _ in range(10):
@@ -421,11 +421,11 @@ class AdaptiveEnsembleTests(unittest.TestCase):
         ensemble = create_ensemble(AdaptiveEnsembleConfig(window_size=10))
 
         predictions = {
-            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0},
-            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2},
-            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1},
+            "LSTM": {"pH": 7.0, "TDS": 180.0, "turbidity": 1.2, "temperature": 22.0, "optical_colour_index": 0.5},
+            "PatchTST": {"pH": 7.2, "TDS": 182.0, "turbidity": 1.3, "temperature": 22.2, "optical_colour_index": 0.5},
+            "TimeMixer": {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5},
         }
-        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1}
+        ground_truth = {"pH": 7.1, "TDS": 181.0, "turbidity": 1.25, "temperature": 22.1, "optical_colour_index": 0.5}
 
         # Update multiple times
         for _ in range(5):

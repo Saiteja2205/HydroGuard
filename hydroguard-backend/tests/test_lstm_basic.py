@@ -1,4 +1,4 @@
-"""Basic LSTM model tests without pandas dependency."""
+﻿"""Basic LSTM model tests without pandas dependency."""
 
 import sys
 import tempfile
@@ -26,33 +26,33 @@ from ml.training.train_lstm import (
 class LSTMModelBasicTests(unittest.TestCase):
     def test_model_initialization_default(self) -> None:
         model = LSTMModel()
-        self.assertEqual(model.input_size, 4)
+        self.assertEqual(model.input_size, 5)
         self.assertEqual(model.hidden_size, 64)
         self.assertEqual(model.num_layers, 2)
         self.assertEqual(model.dropout, 0.2)
-        self.assertEqual(model.output_size, 4)
+        self.assertEqual(model.output_size, 5)
 
     def test_model_initialization_custom(self) -> None:
-        model = LSTMModel(input_size=4, hidden_size=32, num_layers=1, dropout=0.1, output_size=4)
-        self.assertEqual(model.input_size, 4)
+        model = LSTMModel(input_size=5, hidden_size=32, num_layers=1, dropout=0.1, output_size=5)
+        self.assertEqual(model.input_size, 5)
         self.assertEqual(model.hidden_size, 32)
         self.assertEqual(model.num_layers, 1)
         self.assertEqual(model.dropout, 0.1)
-        self.assertEqual(model.output_size, 4)
+        self.assertEqual(model.output_size, 5)
 
     def test_forward_pass_shape(self) -> None:
         model = LSTMModel()
         batch_size = 8
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         output = model(X)
-        self.assertEqual(output.shape, (batch_size, 4))
+        self.assertEqual(output.shape, (batch_size, 5))
 
-    def test_forward_pass_four_param(self) -> None:
-        model = LSTMModel(input_size=4, output_size=4)
+    def test_forward_pass_five_param(self) -> None:
+        model = LSTMModel(input_size=5, output_size=5)
         batch_size = 8
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         output = model(X)
-        self.assertEqual(output.shape, (batch_size, 4))
+        self.assertEqual(output.shape, (batch_size, 5))
 
     def test_model_parameter_count(self) -> None:
         model = LSTMModel()
@@ -87,21 +87,21 @@ class DeviceTests(unittest.TestCase):
 
 class DataLoaderBasicTests(unittest.TestCase):
     def test_data_loader_creation(self) -> None:
-        X_train = np.random.randn(100, 30, 4).astype(np.float32)
-        y_train = np.random.randn(100, 4).astype(np.float32)
-        X_val = np.random.randn(20, 30, 4).astype(np.float32)
-        y_val = np.random.randn(20, 4).astype(np.float32)
+        X_train = np.random.randn(100, 30, 5).astype(np.float32)
+        y_train = np.random.randn(100, 5).astype(np.float32)
+        X_val = np.random.randn(20, 30, 5).astype(np.float32)
+        y_val = np.random.randn(20, 5).astype(np.float32)
 
         train_loader, val_loader = create_data_loaders(X_train, y_train, X_val, y_val, batch_size=8)
 
         self.assertEqual(len(train_loader), 13)
         self.assertEqual(len(val_loader), 3)
 
-    def test_data_loader_four_param(self) -> None:
-        X_train = np.random.randn(100, 30, 4).astype(np.float32)
-        y_train = np.random.randn(100, 4).astype(np.float32)
-        X_val = np.random.randn(20, 30, 4).astype(np.float32)
-        y_val = np.random.randn(20, 4).astype(np.float32)
+    def test_data_loader_five_param(self) -> None:
+        X_train = np.random.randn(100, 30, 5).astype(np.float32)
+        y_train = np.random.randn(100, 5).astype(np.float32)
+        X_val = np.random.randn(20, 30, 5).astype(np.float32)
+        y_val = np.random.randn(20, 5).astype(np.float32)
 
         train_loader, val_loader = create_data_loaders(X_train, y_train, X_val, y_val, batch_size=8)
 
@@ -116,7 +116,7 @@ class CheckpointBasicTests(unittest.TestCase):
             model = LSTMModel()
             optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-            config = TrainingConfig(input_size=4, hidden_size=64, num_layers=2, dropout=0.2, output_size=4)
+            config = TrainingConfig(input_size=5, hidden_size=64, num_layers=2, dropout=0.2, output_size=5)
             save_checkpoint(model, optimizer, epoch=5, val_loss=0.123, config=config, checkpoint_path=checkpoint_path)
 
             self.assertTrue(checkpoint_path.exists())
@@ -136,18 +136,21 @@ class ModelArchitectureTests(unittest.TestCase):
     def test_architecture_spec(self) -> None:
         model = LSTMModel()
         
-        self.assertEqual(model.input_size, 4)
+        self.assertEqual(model.input_size, 5)
         self.assertEqual(model.hidden_size, 64)
         self.assertEqual(model.num_layers, 2)
         self.assertEqual(model.dropout, 0.2)
-        self.assertEqual(model.output_size, 4)
+        self.assertEqual(model.output_size, 5)
 
         batch_size = 4
-        X = torch.randn(batch_size, 30, 4)
+        X = torch.randn(batch_size, 30, 5)
         output = model(X)
         
-        self.assertEqual(output.shape, (batch_size, 4))
+        self.assertEqual(output.shape, (batch_size, 5))
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
