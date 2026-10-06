@@ -116,3 +116,6 @@ robolectric-home/
 .gradle-cache/
 .kotlin/
 .robolectric-home/
+
+.android-user/
+.java-user/
