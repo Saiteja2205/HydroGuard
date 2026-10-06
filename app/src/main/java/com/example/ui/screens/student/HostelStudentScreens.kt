@@ -1,6 +1,8 @@
 package com.example.ui.screens.student
 
+import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -597,6 +600,7 @@ fun StudentProfileScreen(viewModel: HydroViewModel, onLogout: () -> Unit, modifi
     var error by remember { mutableStateOf<String?>(null) }
     var authRequired by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     suspend fun reloadServices() {
         error = null
@@ -657,7 +661,16 @@ fun StudentProfileScreen(viewModel: HydroViewModel, onLogout: () -> Unit, modifi
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(contact.category.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelLarge)
                         Text(contact.name, fontWeight = FontWeight.SemiBold)
-                        Text(contact.phone)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(contact.phone, modifier = Modifier.weight(1f))
+                            TextButton(onClick = {
+                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", contact.phone, null))
+                                runCatching { context.startActivity(dialIntent) }
+                                    .onFailure { Toast.makeText(context, "Calling is unavailable on this device.", Toast.LENGTH_SHORT).show() }
+                            }) {
+                                Text("Call ${contact.category.lowercase().replaceFirstChar { it.uppercase() }}")
+                            }
+                        }
                         contact.details?.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
                 }

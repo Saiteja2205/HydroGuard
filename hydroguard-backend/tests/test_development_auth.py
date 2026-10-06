@@ -88,11 +88,11 @@ def test_development_student_headers_authenticate_all_hostel_service_routes(monk
         "/api/v1/hostel/issues",
         "/api/v1/hostel/notices",
         "/api/v1/hostel/emergency-contacts",
-        "/api/v1/hostel/events",
         "/api/v1/hostel/lost-found",
     ):
         response = client.get(path, headers=headers)
         assert response.status_code == 200, f"{path}: {response.text}"
+    assert client.get("/api/v1/hostel/events", headers=headers).status_code == 404
 
     feedback_id = None
     try:

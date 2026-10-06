@@ -69,9 +69,6 @@ interface HydroGuardApiService {
     @GET("api/v1/hostel/emergency-contacts")
     suspend fun getEmergencyContacts(): Response<List<EmergencyContactResponse>>
 
-    @GET("api/v1/hostel/events")
-    suspend fun getHostelEvents(): Response<List<HostelEventResponse>>
-
     @GET("api/v1/hostel/lost-found")
     suspend fun getLostFoundItems(): Response<List<LostFoundResponse>>
 
@@ -111,12 +108,4 @@ interface HydroGuardApiService {
     @DELETE("api/v1/hostel/emergency-contacts/{contact_id}")
     suspend fun deleteEmergencyContact(@Path("contact_id") contactId: Int): Response<Unit>
 
-    @POST("api/v1/hostel/events")
-    suspend fun createHostelEvent(@Body request: EventCreateRequest): Response<HostelEventResponse>
-
-    @PUT("api/v1/hostel/events/{event_id}")
-    suspend fun updateHostelEvent(@Path("event_id") eventId: Int, @Body request: EventCreateRequest): Response<HostelEventResponse>
-
-    @DELETE("api/v1/hostel/events/{event_id}")
-    suspend fun deleteHostelEvent(@Path("event_id") eventId: Int): Response<Unit>
 }
