@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.example.BuildConfig
 import com.example.data.database.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,9 +32,11 @@ class HydroRepository(
     fun getPrediction(nodeId: String): Flow<Prediction?> = dao.getPredictionForNode(nodeId)
 
     init {
-        scope.launch {
-            seedInitialDataIfNeeded()
-            startSensorSimulation()
+        if (BuildConfig.DEBUG) {
+            scope.launch {
+                seedInitialDataIfNeeded()
+                startSensorSimulation()
+            }
         }
     }
 

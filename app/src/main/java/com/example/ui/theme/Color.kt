@@ -3,14 +3,35 @@ package com.example.ui.theme
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
+/** Centralized HydroGuard palette adapted from the supplied Stitch reference. */
+object HydroGuardColors {
+    val primary = Color(0xFF0B63CE)
+    val deepText = Color(0xFF0D1B2A)
+    val background = Color(0xFFF4F6F9)
+    val surface = Color(0xFFFFFFFF)
+    val secondary = Color(0xFF5A6B82)
+    val border = Color(0xFFE2E8F0)
+    val healthy = Color(0xFF16A34A)
+    val healthyTint = Color(0xFFDCFCE7)
+    val warning = Color(0xFFD97706)
+    val warningTint = Color(0xFFFEF3C7)
+    val critical = Color(0xFFDC2626)
+    val criticalTint = Color(0xFFFEE2E2)
+    val experimental = Color(0xFF6366F1)
+    val experimentalTint = Color(0xFFEEF2FF)
+    val disconnected = Color(0xFF64748B)
+    val disconnectedTint = Color(0xFFF1F5F9)
+    val primaryTint = Color(0xFFEBF3FC)
+}
+
 // ==========================================
 // HYDROGUARD SMART INFRASTRUCTURE PALETTE
 // ==========================================
 
 // Primary Blue Family
-val CobaltBlue = Color(0xFF0047AB)       // Deep Cobalt Blue
-val CobaltBlueDark = Color(0xFF1E3A8A)   // Rich Navy Cobalt
-val CobaltBlueLight = Color(0xFF2563EB)  // Vibrant Cobalt Highlight
+val CobaltBlue = HydroGuardColors.primary
+val CobaltBlueDark = HydroGuardColors.deepText
+val CobaltBlueLight = Color(0xFF2563EB)
 
 // Cerulean Blue Family
 val CeruleanBlue = Color(0xFF007BA7)     // Classic Cerulean
@@ -23,25 +44,25 @@ val SmartTealLight = Color(0xFF14B8A6)   // Vibrant Cyan/Teal
 val SmartTealSoft = Color(0xFFCCFBF1)    // Soft Tint Teal
 
 // Slate Blue Family
-val SlateBlueDark = Color(0xFF0F172A)    // Dark Base Slate-900
+val SlateBlueDark = HydroGuardColors.deepText
 val SlateBlueMedium = Color(0xFF1E293B)  // Card Slate-800
 val SlateBlueBorder = Color(0xFF334155)  // Border Slate-700
-val SlateBlueSubtle = Color(0xFF64748B)  // Slate-500
+val SlateBlueSubtle = HydroGuardColors.secondary
 val SlateBlueLight = Color(0xFF94A3B8)   // Muted Slate-400
 
 // Cool White & Light Backgrounds
 val CoolWhite = Color(0xFFFFFFFF)        // Pure White
-val CoolWhiteSubtle = Color(0xFFF8FAFC)  // Slate-50 Base
-val CoolWhiteContainer = Color(0xFFF1F5F9)// Slate-100 Container
-val CoolWhiteBorder = Color(0xFFE2E8F0)   // Slate-200 Border
+val CoolWhiteSubtle = HydroGuardColors.background
+val CoolWhiteContainer = HydroGuardColors.disconnectedTint
+val CoolWhiteBorder = HydroGuardColors.border
 
 // Status Indicators
-val SafeGreen = Color(0xFF10B981)        // Emerald Green (Optimal)
-val SafeGreenSoft = Color(0xFFD1FAE5)    // Soft Green Pill
-val WarningAmber = Color(0xFFF59E0B)     // Amber (Inspection Needed)
-val WarningAmberSoft = Color(0xFFFEF3C7) // Soft Amber Pill
-val CriticalRed = Color(0xFFEF4444)      // Coral Red (Critical Breach)
-val CriticalRedSoft = Color(0xFFFEE2E2)  // Soft Red Pill
+val SafeGreen = HydroGuardColors.healthy
+val SafeGreenSoft = HydroGuardColors.healthyTint
+val WarningAmber = HydroGuardColors.warning
+val WarningAmberSoft = HydroGuardColors.warningTint
+val CriticalRed = HydroGuardColors.critical
+val CriticalRedSoft = HydroGuardColors.criticalTint
 val InfoLightBlue = Color(0xFF0284C7)    // Cerulean Info
 
 // Backward-compatibility aliases for existing references
@@ -100,7 +121,7 @@ val DarkMeshBackground = Brush.verticalGradient(
 )
 
 val CobaltCeruleanGradient = Brush.horizontalGradient(
-    colors = listOf(CobaltBlue, CeruleanBlueBright)
+    colors = listOf(HydroGuardColors.primary, CeruleanBlueBright)
 )
 
 val CeruleanTealGradient = Brush.horizontalGradient(

@@ -1,494 +1,235 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.components.GlassCard
-import com.example.ui.theme.*
-import com.example.ui.viewmodel.HydroViewModel
+import kotlinx.coroutines.launch
 import com.example.BuildConfig
+import com.example.R
+import com.example.ui.components.HydroCard
+import com.example.ui.components.StatusChip
+import com.example.ui.components.StatusTone
+import com.example.ui.theme.CriticalRed
+import com.example.ui.theme.CoolWhite
+import com.example.ui.theme.HydroGuardShapes
+import com.example.ui.theme.SlateBlueSubtle
+import com.example.ui.theme.CobaltBlue
+import com.example.ui.theme.GlassBorderDark
+import com.example.ui.theme.GlassBorderLight
+import com.example.ui.viewmodel.HydroViewModel
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 
 @Composable
 fun LoginScreen(
     viewModel: HydroViewModel,
-    onLoginSuccess: (String) -> Unit, // passes role
+    onLoginSuccess: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isDark = isSystemInDarkTheme()
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
-    var hostelBlock by remember { mutableStateOf("A") }
-    var roomNumber by remember { mutableStateOf("") }
-    
-    var selectedRole by remember { mutableStateOf("STUDENT") } // "STUDENT" or "ADMIN"
-    var isRegisterMode by remember { mutableStateOf(false) }
-    var passwordVisible by remember { mutableStateOf(false) }
-    
+    val context = LocalContext.current
     val loginError by viewModel.loginError.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val isFirebaseAvailable by viewModel.isFirebaseAvailable.collectAsState()
+    var signingIn by remember { mutableStateOf(false) }
+    val credentialManager = remember(context) { CredentialManager.create(context) }
+    val scope = rememberCoroutineScope()
 
-    // Listen to login success
-    LaunchedEffect(currentUser) {
-        currentUser?.let {
-            onLoginSuccess(it.role)
+    LaunchedEffect(currentUser) { currentUser?.let { onLoginSuccess(it.role) } }
+
+    fun startGoogleSignIn() {
+        viewModel.clearLoginError()
+        if (!isFirebaseAvailable) {
+            viewModel.showLoginError("Google Sign-In is currently unavailable.")
+            return
+        }
+        val clientIdResource = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+        if (clientIdResource == 0) {
+            viewModel.showLoginError("Google Sign-In is currently unavailable.")
+            return
+        }
+        val googleSignInOption = GetSignInWithGoogleOption.Builder(context.getString(clientIdResource)).build()
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(googleSignInOption)
+            .build()
+        signingIn = true
+        scope.launch {
+            try {
+                val result = credentialManager.getCredential(context, request)
+                val credential = result.credential
+                if (credential !is CustomCredential || credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    viewModel.showLoginError("Google sign-in couldn't finish. Please try again.")
+                    return@launch
+                }
+                val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                viewModel.signInWithGoogleIdToken(googleCredential.idToken)
+            } catch (_: GetCredentialCancellationException) {
+                viewModel.clearLoginError()
+            } catch (_: NoCredentialException) {
+                viewModel.showLoginError("No Google account is available on this device. Add an account and try again.")
+            } catch (_: GoogleIdTokenParsingException) {
+                viewModel.showLoginError("Google sign-in couldn't finish. Please try again.")
+            } catch (_: GetCredentialException) {
+                viewModel.showLoginError("We couldn't connect to Google. Check your connection and try again.")
+            } catch (_: Exception) {
+                viewModel.showLoginError("Google sign-in couldn't finish. Please try again.")
+            } finally {
+                signingIn = false
+            }
         }
     }
-
-    val backgroundBrush = if (isDark) DarkMeshBackground else LightMeshBackground
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(backgroundBrush)
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState()),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 24.dp, vertical = 36.dp)
+                .padding(horizontal = 20.dp, vertical = 24.dp)
                 .fillMaxWidth()
                 .widthIn(max = 440.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Enterprise Smart Infrastructure Water Icon Badge
-            Box(
-                modifier = Modifier
-                    .size(76.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(CobaltCeruleanGradient)
-                    .shadow(12.dp, RoundedCornerShape(22.dp), ambientColor = Color(0x330047AB), spotColor = Color(0x660284C7))
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.WaterDrop,
-                    contentDescription = "HydroGuard Logo",
-                    tint = CoolWhite,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
+            Image(
+                painter = painterResource(R.drawable.hydroguard_ai_logo),
+                contentDescription = "HydroGuard",
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(Modifier.height(18.dp))
             Text(
-                text = "HydroGuard AI",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Black,
-                color = CobaltBlue,
+                text = "HydroGuard",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
                 letterSpacing = (-1).sp
             )
-
             Text(
                 text = "Smart Hostel Water Intelligence Platform",
-                style = MaterialTheme.typography.labelSmall,
-                color = SlateBlueSubtle,
-                textAlign = TextAlign.Center,
-                letterSpacing = 1.sp
-            )
-
-            Text(
-                text = "IoT Water Quality Monitoring & Predictive Hostel Services",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyLarge,
                 color = SlateBlueSubtle,
                 textAlign = TextAlign.Center
             )
+            Spacer(Modifier.height(14.dp))
+            StatusChip(
+                label = if (isFirebaseAvailable) "Continue with your Google account" else "Sign-in unavailable",
+                tone = if (isFirebaseAvailable) StatusTone.NEUTRAL else StatusTone.ATTENTION
+            )
+            Spacer(Modifier.height(20.dp))
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Firebase Status Chip
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(
-                        if (isFirebaseAvailable) SafeGreen.copy(alpha = 0.12f) else WarningAmber.copy(alpha = 0.12f)
-                    )
-                    .border(
-                        1.dp,
-                        if (isFirebaseAvailable) SafeGreen.copy(alpha = 0.3f) else WarningAmber.copy(alpha = 0.3f),
-                        RoundedCornerShape(50)
-                    )
-                    .padding(horizontal = 12.dp, vertical = 5.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(if (isFirebaseAvailable) SafeGreen else WarningAmber)
-                )
-                Text(
-                    text = if (isFirebaseAvailable) "Firebase Authentication" else if (BuildConfig.DEBUG) "Development Mode" else "Authentication unavailable",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isFirebaseAvailable) SafeGreen else WarningAmber,
-                    fontSize = 10.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Role selection buttons with Glass Pill Design
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (isDark) GlassSurfaceDark else GlassSurfaceLight)
-                    .border(1.dp, if (isDark) GlassBorderDark else GlassBorderLight, RoundedCornerShape(16.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Button(
-                    onClick = { selectedRole = "STUDENT" },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedRole == "STUDENT") CobaltBlue else Color.Transparent,
-                        contentColor = if (selectedRole == "STUDENT") CoolWhite else SlateBlueSubtle
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp)
-                        .testTag("role_student_toggle"),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                ) {
-                    Text(
-                        text = "Student",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                }
-
-                Button(
-                    onClick = { selectedRole = "ADMIN" },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedRole == "ADMIN") CobaltBlue else Color.Transparent,
-                        contentColor = if (selectedRole == "ADMIN") CoolWhite else SlateBlueSubtle
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp)
-                        .testTag("role_admin_toggle"),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                ) {
-                    Text(
-                        text = "Admin",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Glassmorphic Auth Card
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(26.dp),
-                isDark = isDark
-            ) {
+            HydroCard(modifier = Modifier.fillMaxWidth(), shape = HydroGuardShapes.large) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (isRegisterMode) "Create Student Account" else "Sign In",
+                        text = "Welcome to HydroGuard",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        text = if (isRegisterMode) "Join your hostel water services" else "Monitor hostel water quality and services",
+                        text = "Sign in to view water updates and hostel services",
                         style = MaterialTheme.typography.bodySmall,
-                        color = SlateBlueSubtle
+                        color = SlateBlueSubtle,
+                        textAlign = TextAlign.Center
                     )
+                    Spacer(Modifier.height(20.dp))
 
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Registration fields (Name)
-                    AnimatedVisibility(
-                        visible = isRegisterMode,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        Column {
-                            OutlinedTextField(
-                                value = name,
-                                onValueChange = { name = it },
-                                label = { Text("Full Name") },
-                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = "Name", tint = CeruleanBlueBright) },
-                                singleLine = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("register_name_input"),
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                            Spacer(modifier = Modifier.height(14.dp))
-                        }
-                    }
-
-                    // Email field
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("Institutional Email") },
-                        placeholder = { Text("e.g. resident@campus.edu") },
-                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email", tint = CeruleanBlueBright) },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("email_input"),
-                        shape = RoundedCornerShape(14.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Password field
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Password") },
-                        placeholder = { Text("At least 6 characters") },
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password", tint = CeruleanBlueBright) },
-                        singleLine = true,
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                            val description = if (passwordVisible) "Hide password" else "Show password"
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(imageVector = image, contentDescription = description, tint = SlateBlueSubtle)
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("password_input"),
-                        shape = RoundedCornerShape(14.dp)
-                    )
-
-                    // Registration fields (Block & Room)
-                    AnimatedVisibility(
-                        visible = isRegisterMode,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        Column {
-                            Spacer(modifier = Modifier.height(14.dp))
+                    if (loginError != null) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = CriticalRed.copy(alpha = 0.1f)),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, CriticalRed.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Hostel Block Selector
-                                OutlinedTextField(
-                                    value = hostelBlock,
-                                    onValueChange = { hostelBlock = it.uppercase() },
-                                    label = { Text("Block") },
-                                    placeholder = { Text("A") },
-                                    leadingIcon = { Icon(Icons.Default.Home, contentDescription = "Block", tint = CeruleanBlueBright) },
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("register_block_input"),
-                                    shape = RoundedCornerShape(14.dp)
-                                )
-
-                                // Room Number
-                                OutlinedTextField(
-                                    value = roomNumber,
-                                    onValueChange = { roomNumber = it },
-                                    label = { Text("Room No.") },
-                                    placeholder = { Text("304") },
-                                    leadingIcon = { Icon(Icons.Default.MeetingRoom, contentDescription = "Room", tint = CeruleanBlueBright) },
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("register_room_input"),
-                                    shape = RoundedCornerShape(14.dp)
+                                Icon(Icons.Default.Error, contentDescription = "Sign-in error", tint = CriticalRed)
+                                Text(
+                                    text = loginError.orEmpty(),
+                                    color = CriticalRed,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
+                        Spacer(Modifier.height(16.dp))
                     }
 
-                    // Error Box
-                    AnimatedVisibility(visible = loginError != null) {
-                        loginError?.let {
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = CriticalRed.copy(alpha = 0.1f)
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, CriticalRed.copy(alpha = 0.3f)),
-                                modifier = Modifier
-                                    .padding(top = 14.dp)
-                                    .fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Error,
-                                        contentDescription = "Error icon",
-                                        tint = CriticalRed
-                                    )
-                                    Text(
-                                        text = it,
-                                        color = CriticalRed,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Primary Action Button
                     Button(
-                        onClick = {
-                            if (isRegisterMode) {
-                                viewModel.register(
-                                    email = email,
-                                    password = password,
-                                    name = name,
-                                    role = selectedRole,
-                                    hostelBlock = hostelBlock,
-                                    roomNumber = roomNumber
-                                )
-                            } else {
-                                viewModel.login(
-                                    email = email,
-                                    password = password,
-                                    role = selectedRole
-                                )
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .shadow(6.dp, RoundedCornerShape(14.dp), ambientColor = Color(0x330047AB), spotColor = Color(0x660047AB))
-                            .testTag("login_button"),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CobaltBlue)
+                        onClick = ::startGoogleSignIn,
+                        enabled = !signingIn,
+                        modifier = Modifier.fillMaxWidth().height(50.dp).testTag("google_sign_in_button"),
+                        shape = HydroGuardShapes.button,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
+                        if (signingIn) {
+                            CircularProgressIndicator(Modifier.size(18.dp), color = CoolWhite, strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                        }
                         Text(
-                            text = if (isRegisterMode) "Create Account" else "Sign In",
+                            text = if (signingIn) "Connecting…" else "Sign in with Google",
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = CoolWhite
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Switch Mode Clickable Text
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = if (isRegisterMode) "Already registered? " else "Don't have an account? ",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = SlateBlueSubtle
-                        )
-                        Text(
-                            text = if (isRegisterMode) "Sign In" else "Sign Up",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Black,
-                            color = CobaltBlue,
-                            modifier = Modifier
-                                .clickable {
-                                    isRegisterMode = !isRegisterMode
-                                }
-                                .testTag("toggle_auth_mode")
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    HorizontalDivider(color = if (isDark) GlassBorderDark else GlassBorderLight)
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
                     if (BuildConfig.DEBUG && BuildConfig.ALLOW_DEVELOPMENT_LOGIN) {
-                    // Explicitly local, debug-only demo entry points.
-                    Text(
-                        text = "DEVELOPMENT LOGIN",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = SlateBlueSubtle,
-                        letterSpacing = 1.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.developmentLogin("STUDENT")
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(38.dp)
-                                .testTag("demo_student_btn"),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, if (isDark) GlassBorderDark else GlassBorderLight)
-                        ) {
-                            Text("Development Student", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CobaltBlue)
+                        Spacer(Modifier.height(18.dp))
+                        HorizontalDivider(color = if (isDark) GlassBorderDark else GlassBorderLight)
+                        Spacer(Modifier.height(14.dp))
+                        Text("DEVELOPMENT LOGIN", style = MaterialTheme.typography.labelSmall, color = SlateBlueSubtle, letterSpacing = 1.sp)
+                        Spacer(Modifier.height(10.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(
+                                onClick = { viewModel.developmentLogin("STUDENT") },
+                                modifier = Modifier.weight(1f).height(48.dp).testTag("demo_student_btn"),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, if (isDark) GlassBorderDark else GlassBorderLight)
+                            ) { Text("Continue as Student", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CobaltBlue) }
+                            OutlinedButton(
+                                onClick = { viewModel.developmentLogin("ADMIN") },
+                                modifier = Modifier.weight(1f).height(48.dp).testTag("demo_admin_btn"),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, if (isDark) GlassBorderDark else GlassBorderLight)
+                            ) { Text("Continue as Admin", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CobaltBlue) }
                         }
-
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.developmentLogin("ADMIN")
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(38.dp)
-                                .testTag("demo_admin_btn"),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, if (isDark) GlassBorderDark else GlassBorderLight)
-                        ) {
-                            Text("Development Admin", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CeruleanBlueBright)
-                        }
-                    }
                     }
                 }
             }

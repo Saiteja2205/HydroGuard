@@ -44,8 +44,10 @@ def test_issue_lifecycle_is_persisted_and_owner_scoped(monkeypatch):
     invalid = client.patch(f"/api/v1/hostel/issues/{issue_id}/status", json={"status": "CLOSED"})
     assert invalid.status_code == 409
 
-    # Contact records are empty until an administrator supplies verified data.
-    assert client.get("/api/v1/hostel/emergency-contacts").json() == []
+    # Students only see verified contacts, even if the development database
+    # contains unverified records from earlier test runs.
+    principal.update(uid="student-1", role="STUDENT")
+    assert all(contact["verified"] for contact in client.get("/api/v1/hostel/emergency-contacts").json())
 
 
 def test_hostel_services_admin_management_feedback_and_moderation(monkeypatch):
@@ -72,12 +74,26 @@ def test_hostel_services_admin_management_feedback_and_moderation(monkeypatch):
         **notice_payload, "priority": "URGENT",
     }).json()["priority"] == "URGENT"
 
+    unverified = client.post("/api/v1/hostel/emergency-contacts", json={
+        "category": "SECURITY", "name": "Unverified contact", "phone": "+91 12345 67891",
+    })
+    assert unverified.status_code == 201
+    assert unverified.json()["verified"] is False
+    principal.update(uid="student-services", role="STUDENT")
+    assert client.get("/api/v1/hostel/emergency-contacts").json() == []
+
+    principal.update(uid="warden-services", role="ADMIN")
     contact = client.post("/api/v1/hostel/emergency-contacts", json={
-        "category": "WARDEN", "name": "Verified Warden", "phone": "+91 12345 67890",
+        "category": "WARDEN", "name": "Verified Warden", "phone": "+91 12345 67890", "verified": True,
     })
     assert contact.status_code == 201
-    assert client.get("/api/v1/hostel/emergency-contacts").json()[0]["phone"] == "+91 12345 67890"
+    assert contact.json()["verified"] is True
+    principal.update(uid="student-services", role="STUDENT")
+    student_contacts = client.get("/api/v1/hostel/emergency-contacts").json()
+    assert all(item["verified"] for item in student_contacts)
+    assert any(item["id"] == contact.json()["id"] for item in student_contacts)
 
+    principal.update(uid="warden-services", role="ADMIN")
     event = client.post("/api/v1/hostel/events", json={
         "name": "Orientation", "starts_at": "2026-10-05T10:00:00Z", "location": "Hall",
         "description": "Hostel orientation", "organizer": "Warden",
@@ -105,6 +121,7 @@ def test_hostel_services_admin_management_feedback_and_moderation(monkeypatch):
 
     assert client.delete(f"/api/v1/hostel/notices/{notice.json()['id']}").status_code == 204
     assert client.delete(f"/api/v1/hostel/emergency-contacts/{contact.json()['id']}").status_code == 204
+    assert client.delete(f"/api/v1/hostel/emergency-contacts/{unverified.json()['id']}").status_code == 204
     assert client.delete(f"/api/v1/hostel/events/{event.json()['id']}").status_code == 204
 
 

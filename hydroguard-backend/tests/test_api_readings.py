@@ -107,6 +107,13 @@ def test_readings_api(monkeypatch):
     assert "ec" not in clean_reading and "do" not in clean_reading and "flow_rate" not in clean_reading
     assert clean_reading["red"] == 1200 and clean_reading["clear"] == 3900
 
+    no_reading_node = "test_api_node_no_reading"
+    with get_db_context() as db:
+        NodeRepository.get_or_create(db, no_reading_node, "No Reading Node", "Test Location")
+    empty = client.get(f"/api/v1/nodes/{no_reading_node}/readings/latest")
+    assert empty.status_code == 404
+    assert "No sensor reading" in empty.json()["detail"]
+
     print("\n[OK] Readings API test passed")
 
 

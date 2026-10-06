@@ -70,6 +70,7 @@ data class EmergencyContactResponse(
     val phone: String,
     val details: String?,
     val active: Boolean,
+    val verified: Boolean = false,
     @Json(name = "updated_by") val updatedBy: String,
     @Json(name = "updated_at") val updatedAt: String
 )
@@ -140,7 +141,8 @@ data class EmergencyContactCreateRequest(
     val name: String,
     val phone: String,
     val details: String? = null,
-    val active: Boolean = true
+    val active: Boolean = true,
+    val verified: Boolean = false
 )
 
 data class IssueSummaryResponse(

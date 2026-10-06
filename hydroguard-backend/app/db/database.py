@@ -5,6 +5,7 @@ Designed to be easily migrated to PostgreSQL for cloud deployment.
 """
 
 from contextlib import contextmanager
+import os
 from pathlib import Path
 from typing import Generator
 
@@ -17,7 +18,8 @@ from sqlalchemy.orm import sessionmaker, Session
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DB_DIR = BACKEND_ROOT / "data"
 DB_DIR.mkdir(exist_ok=True)
-DB_PATH = DB_DIR / "hydroguard.db"
+DB_PATH = Path(os.getenv("HYDROGUARD_DATABASE_PATH", str(DB_DIR / "hydroguard.db")))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # SQLAlchemy setup
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -107,6 +109,7 @@ def _upgrade_legacy_sqlite_schema() -> None:
             "model_version": "VARCHAR(255)",
         },
         "ensemble_weights": {"model_version": "VARCHAR(255)"},
+        "emergency_contacts": {"verified": "BOOLEAN NOT NULL DEFAULT 0"},
     }
     inspector = inspect(engine)
     with engine.begin() as connection:

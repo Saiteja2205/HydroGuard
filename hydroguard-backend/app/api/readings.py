@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -15,11 +15,6 @@ from app.schemas.readings import (
 )
 
 router = APIRouter(tags=["readings"])
-
-# Fixed development fixture. It is explicitly labelled DEMO and is never a
-# real-time sensor observation.
-_DEV_TIMESTAMP = datetime(2026, 9, 20, 10, 0, 0, tzinfo=timezone.utc)
-
 
 def _product_source(source: str) -> str:
     """Normalize previously stored lowercase provenance tags during migration."""
@@ -46,8 +41,10 @@ def get_latest_reading(
     ),
     db: Session = Depends(get_db),
 ) -> LatestReadingResponse:
-    """Return the latest reading for a node from database, or fallback to fixture."""
-    # Try to get from database first
+    """Return the latest persisted reading; never fabricate a sensor value."""
+    node = NodeRepository.get_by_node_id(db, node_id)
+    if node is None:
+        raise HTTPException(status_code=404, detail=f"Node {node_id} not found.")
     reading = SensorReadingRepository.get_latest_by_node(db, node_id)
 
     if reading:
@@ -67,20 +64,9 @@ def get_latest_reading(
             source=_product_source(reading.source),
         )
 
-    # Fallback to development fixture if no data in database
-    return LatestReadingResponse(
-        node_id=node_id,
-        timestamp=_DEV_TIMESTAMP,
-        ph=7.2,
-        tds=180.0,
-        turbidity=1.2,
-        temperature=22.4,
-        red=None,
-        green=None,
-        blue=None,
-        clear=None,
-        optical_colour_index=None,
-        source="DEMO",
+    raise HTTPException(
+        status_code=404,
+        detail=f"No sensor reading has been received for node {node_id} yet.",
     )
 
 

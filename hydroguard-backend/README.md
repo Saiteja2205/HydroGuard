@@ -29,6 +29,40 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 API docs are available at `http://127.0.0.1:8000/docs`; health is at `/api/v1/health`.
 
+### Android debug connection
+
+The Android debug build defaults to `http://10.0.2.2:8000/`, the Android Emulator's host bridge. Keep the backend running on port 8000 while using the app. For the local Student Demo and Administrator Demo buttons to access authenticated hostel endpoints, enable the explicitly development-only identity bridge and configure the same random token in both processes. This bridge is disabled by default, accepts only the two local demo identities, and is not enabled in release builds. The Android build reads `HYDROGUARD_DEV_API_TOKEN` from a Gradle property or environment variable, or from the ignored project-root `.dev-auth.env` file. Never commit that file.
+
+In the backend PowerShell terminal, load the same ignored project-root `.dev-auth.env` file:
+
+```powershell
+$devAuthSettings = Get-Content ..\.dev-auth.env -Raw | ConvertFrom-StringData
+$env:HYDROGUARD_ENVIRONMENT = $devAuthSettings.HYDROGUARD_ENVIRONMENT
+$env:HYDROGUARD_ENABLE_DEV_AUTH = $devAuthSettings.HYDROGUARD_ENABLE_DEV_AUTH
+$env:HYDROGUARD_DEV_API_TOKEN = $devAuthSettings.HYDROGUARD_DEV_API_TOKEN
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+In the Android project PowerShell terminal, Gradle reads that file automatically. You can also provide the token using the existing environment-variable or Gradle-property mechanism:
+
+```powershell
+$env:HYDROGUARD_API_BASE_URL = "http://10.0.2.2:8000/"
+.\gradlew.bat :app:assembleDebug
+```
+
+The debug network policy permits cleartext only to the Android Emulator bridge (`10.0.2.2`) and the configured development laptop address (`10.79.232.152`). The shared/release policy denies cleartext HTTP. For an Android Emulator, keep the default base URL and loopback backend bind shown above. For a physical device, bind FastAPI to the LAN interface and build the debug app with the laptop URL:
+
+```powershell
+# Backend terminal (physical-device access)
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Android project terminal
+$env:HYDROGUARD_API_BASE_URL = "http://10.79.232.152:8000/"
+.\gradlew.bat :app:assembleDebug
+```
+
+The phone and laptop must be on a network that allows device-to-device traffic, and the host firewall must allow port 8000. This setting does not alter the release URL or its HTTPS requirement.
+
 ## Authentication and hostel APIs
 
 Protected endpoints accept Firebase ID tokens as `Authorization: Bearer <token>`. Set `HYDROGUARD_FIREBASE_PROJECT_ID` and configure Google Application Default Credentials. A token without a role custom claim is treated as a student; admin endpoints require the server-managed Firebase custom claim `role=ADMIN`. Do not grant admin claims from client code. Sensor `POST /readings` requires `X-Sensor-Token` matching `HYDROGUARD_SENSOR_API_KEY`. These integrations are fail-closed when unconfigured.

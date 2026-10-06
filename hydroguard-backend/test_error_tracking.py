@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
-from app.db.database import get_db_context
+from app.db.database import get_db_context, init_db
 from app.db.repositories import NodeRepository, SensorReadingRepository, ForecastRepository, ModelErrorRepository
 from app.services.error_tracking import ErrorTrackingService
+
+init_db()
 
 with get_db_context() as db:
     # Ensure node exists

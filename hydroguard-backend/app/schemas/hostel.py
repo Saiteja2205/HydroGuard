@@ -102,6 +102,7 @@ class EmergencyContactCreate(StrictInput):
     phone: str = Field(min_length=4, max_length=40, pattern=r"^\+?[0-9][0-9 ()-]{2,38}$")
     details: str | None = Field(default=None, max_length=500)
     active: bool = True
+    verified: bool = False
 
 
 class EmergencyContactRecord(EmergencyContactCreate):

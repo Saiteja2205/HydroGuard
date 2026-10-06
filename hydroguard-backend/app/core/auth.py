@@ -29,7 +29,44 @@ def _firebase_app():
         raise HTTPException(status_code=503, detail="Firebase authentication could not initialize.") from exc
 
 
-def authenticated_principal(authorization: str | None = Header(default=None)) -> dict:
+def _development_principal(
+    token: str | None,
+    role: str | None,
+    uid: str | None,
+) -> dict | None:
+    """Validate a debug-only local identity when explicitly enabled by env."""
+    environment = os.getenv("HYDROGUARD_ENVIRONMENT", "production").strip().lower()
+    if environment not in {"development", "dev", "test"}:
+        return None
+    if os.getenv("HYDROGUARD_ENABLE_DEV_AUTH", "").lower() != "true":
+        return None
+    expected = os.getenv("HYDROGUARD_DEV_API_TOKEN", "")
+    if not expected or not token or not hmac.compare_digest(token, expected):
+        return None
+    normalized_role = (role or "").upper()
+    normalized_uid = (uid or "").strip()
+    allowed = {
+        "demo.student@hydroguard.local": "STUDENT",
+        "demo.admin@hydroguard.local": "ADMIN",
+    }
+    if allowed.get(normalized_uid) != normalized_role:
+        return None
+    return {"uid": normalized_uid, "role": normalized_role, "development": True}
+
+
+def authenticated_principal(
+    authorization: str | None = Header(default=None),
+    x_hydroguard_development_token: str | None = Header(default=None),
+    x_hydroguard_development_role: str | None = Header(default=None),
+    x_hydroguard_development_uid: str | None = Header(default=None),
+) -> dict:
+    local = _development_principal(
+        x_hydroguard_development_token,
+        x_hydroguard_development_role,
+        x_hydroguard_development_uid,
+    )
+    if local is not None:
+        return local
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="A Firebase bearer token is required.")
     token = authorization[7:].strip()

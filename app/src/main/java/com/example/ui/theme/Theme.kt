@@ -4,33 +4,34 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
-    primary = CobaltBlue,
-    onPrimary = CoolWhite,
-    primaryContainer = Color(0xFFDBEAFE),
-    onPrimaryContainer = CobaltBlueDark,
-    secondary = CeruleanBlueBright,
-    onSecondary = CoolWhite,
-    secondaryContainer = Color(0xFFE0F2FE),
-    onSecondaryContainer = Color(0xFF0369A1),
-    tertiary = SmartTeal,
+    primary = HydroGuardColors.primary,
+    onPrimary = HydroGuardColors.surface,
+    primaryContainer = HydroGuardColors.primaryTint,
+    onPrimaryContainer = HydroGuardColors.deepText,
+    secondary = HydroGuardColors.secondary,
+    onSecondary = HydroGuardColors.surface,
+    secondaryContainer = Color(0xFFE8EEF5),
+    onSecondaryContainer = HydroGuardColors.deepText,
+    tertiary = HydroGuardColors.experimental,
     onTertiary = CoolWhite,
-    tertiaryContainer = SmartTealSoft,
-    onTertiaryContainer = Color(0xFF115E59),
-    background = CoolWhiteSubtle,
-    onBackground = SlateBlueDark,
-    surface = CoolWhite,
-    onSurface = SlateBlueDark,
+    tertiaryContainer = HydroGuardColors.experimentalTint,
+    onTertiaryContainer = HydroGuardColors.experimental,
+    background = HydroGuardColors.background,
+    onBackground = HydroGuardColors.deepText,
+    surface = HydroGuardColors.surface,
+    onSurface = HydroGuardColors.deepText,
     surfaceVariant = CoolWhiteContainer,
-    onSurfaceVariant = SlateBlueSubtle,
-    outline = SlateBlueLight,
-    outlineVariant = CoolWhiteBorder,
-    error = CriticalRed,
+    onSurfaceVariant = HydroGuardColors.secondary,
+    outline = Color(0xFF94A3B8),
+    outlineVariant = HydroGuardColors.border,
+    error = HydroGuardColors.critical,
     onError = CoolWhite,
-    errorContainer = CriticalRedSoft,
+    errorContainer = HydroGuardColors.criticalTint,
     onErrorContainer = Color(0xFF991B1B)
 )
 
@@ -71,6 +72,13 @@ fun HydroGuardTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = Shapes(
+            extraSmall = HydroGuardShapes.small,
+            small = HydroGuardShapes.small,
+            medium = HydroGuardShapes.medium,
+            large = HydroGuardShapes.card,
+            extraLarge = HydroGuardShapes.large
+        ),
         content = content
     )
 }

@@ -81,6 +81,7 @@ class EmergencyContact(Base):
     phone: Mapped[str] = mapped_column(String(40), nullable=False)
     details: Mapped[str | None] = mapped_column(String(500), nullable=True)
     active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_now, onupdate=_now)
 

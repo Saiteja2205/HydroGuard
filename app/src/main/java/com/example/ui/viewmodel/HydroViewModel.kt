@@ -126,32 +126,25 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
         _selectedNodeId.value = nodeId
     }
 
-    // Role-Based Authentication Flow
-    fun login(email: String, role: String) {
-        login(email, "password123", role)
-    }
-
-    fun login(email: String, password: String, role: String) {
+    // Role comes only from the verified Firebase ID token custom claim.
+    fun signInWithGoogleIdToken(idToken: String) {
         viewModelScope.launch {
             _loginError.value = null
-            if (email.isBlank()) {
-                _loginError.value = "Email cannot be empty"
-                return@launch
-            }
-            if (password.isBlank()) {
-                _loginError.value = "Password cannot be empty"
-                return@launch
-            }
-            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                _loginError.value = "Invalid email format"
-                return@launch
-            }
-
-            val result = authRepository.loginWithEmailAndPassword(email, password, role)
-            result.onFailure { exception ->
-                _loginError.value = exception.localizedMessage ?: "Authentication failed"
+            authRepository.signInWithGoogleIdToken(idToken).onFailure { exception ->
+                _loginError.value = when (exception) {
+                    is SecurityException -> "This Google account is not authorized for HydroGuard. Contact your administrator."
+                    else -> "We couldn't sign you in right now. Check your connection and try again."
+                }
             }
         }
+    }
+
+    fun showLoginError(message: String) {
+        _loginError.value = message
+    }
+
+    fun clearLoginError() {
+        _loginError.value = null
     }
 
     fun developmentLogin(role: String) {
@@ -159,42 +152,6 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
             _loginError.value = null
             authRepository.loginAsDevelopment(role).onFailure { error ->
                 _loginError.value = error.localizedMessage ?: "Development Login is disabled."
-            }
-        }
-    }
-
-    fun register(
-        email: String,
-        password: String,
-        name: String,
-        role: String,
-        hostelBlock: String,
-        roomNumber: String
-    ) {
-        viewModelScope.launch {
-            _loginError.value = null
-            if (email.isBlank()) {
-                _loginError.value = "Email cannot be empty"
-                return@launch
-            }
-            if (password.isBlank() || password.length < 6) {
-                _loginError.value = "Password must be at least 6 characters"
-                return@launch
-            }
-            if (name.isBlank()) {
-                _loginError.value = "Full Name cannot be empty"
-                return@launch
-            }
-            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                _loginError.value = "Invalid email format"
-                return@launch
-            }
-
-            val result = authRepository.registerWithEmailAndPassword(
-                email, password, name, role, hostelBlock, roomNumber
-            )
-            result.onFailure { exception ->
-                _loginError.value = exception.localizedMessage ?: "Registration failed"
             }
         }
     }

@@ -239,8 +239,11 @@ def delete_notice(notice_id: int, principal: dict = Depends(require_roles("ADMIN
 
 
 @router.get("/emergency-contacts", response_model=list[EmergencyContactRecord])
-def list_emergency_contacts(_: dict = Depends(authenticated_principal), db: Session = Depends(get_db)) -> list[EmergencyContact]:
-    return db.query(EmergencyContact).filter_by(active=True).order_by(EmergencyContact.category.asc()).all()
+def list_emergency_contacts(principal: dict = Depends(authenticated_principal), db: Session = Depends(get_db)) -> list[EmergencyContact]:
+    query = db.query(EmergencyContact).filter_by(active=True)
+    if principal.get("role", "").upper() != "ADMIN":
+        query = query.filter_by(verified=True)
+    return query.order_by(EmergencyContact.category.asc()).all()
 
 
 @router.post("/emergency-contacts", response_model=EmergencyContactRecord, status_code=201)

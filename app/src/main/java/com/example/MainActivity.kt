@@ -11,6 +11,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PersonOutline
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -21,6 +23,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -99,12 +102,17 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AdminNavigationWrapper(viewModel: HydroViewModel, onLogout: () -> Unit) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
-    Scaffold(bottomBar = {
-        NavigationBar {
-            listOf("WATER MONITORING", "HOSTEL OPERATIONS").forEachIndexed { index, label ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, bottomBar = {
+        NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+            listOf("Water Monitoring", "Hostel Operations").forEachIndexed { index, label ->
                 NavigationBarItem(selected == index, onClick = { selected = index },
                     icon = { Icon(if (index == 0) Icons.Default.WaterDrop else Icons.Default.AdminPanelSettings, contentDescription = label) },
-                    label = { Text(label) })
+                    label = { Text(label, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                    ))
             }
         }
     }) { padding ->
@@ -121,18 +129,28 @@ private fun StudentNavigationWrapper(
     onLogout: () -> Unit
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var initialWaterTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar {
-                val labels = listOf("HOME", "WATER", "REPORT", "MY ISSUES", "PROFILE")
-                val icons = listOf(Icons.Default.Home, Icons.Default.WaterDrop, Icons.Default.Warning, Icons.Default.History, Icons.Default.AdminPanelSettings)
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                val labels = listOf("Home", "Water", "Report", "My Issues", "Profile")
+                val icons = listOf(Icons.Default.Home, Icons.Default.WaterDrop, Icons.Default.ReportProblem, Icons.Default.History, Icons.Default.PersonOutline)
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index },
+                        onClick = {
+                            selectedTab = index
+                            if (index == 1) initialWaterTab = 0
+                        },
                         icon = { Icon(icons[index], contentDescription = label) },
-                        label = { Text(label) }
+                        label = { Text(label, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                        )
                     )
                 }
             }
@@ -142,17 +160,26 @@ private fun StudentNavigationWrapper(
             0 -> HostelHomeScreen(
                 viewModel = viewModel,
                 onNavigate = { selectedTab = it },
-                modifier = Modifier.padding(paddingValues)
+                modifier = Modifier.padding(paddingValues),
+                onNavigateToAlerts = {
+                    initialWaterTab = 3
+                    selectedTab = 1
+                },
+                onSignIn = onLogout
             )
             1 -> WaterScreen(
                 viewModel = viewModel,
-                modifier = Modifier.padding(paddingValues)
+                modifier = Modifier.padding(paddingValues),
+                initialTab = initialWaterTab,
+                onSignIn = onLogout
             )
             2 -> ReportIssueScreen(
-                modifier = Modifier.padding(paddingValues)
+                modifier = Modifier.padding(paddingValues),
+                onSignIn = onLogout
             )
             3 -> MyIssuesScreen(
-                modifier = Modifier.padding(paddingValues)
+                modifier = Modifier.padding(paddingValues),
+                onSignIn = onLogout
             )
             4 -> StudentProfileScreen(viewModel, onLogout, Modifier.padding(paddingValues))
         }

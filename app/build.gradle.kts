@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.net.URI
 
 plugins {
   alias(libs.plugins.android.application)
@@ -15,6 +16,21 @@ val debugApiBaseUrl = providers.gradleProperty("HYDROGUARD_API_BASE_URL")
 val releaseApiBaseUrl = providers.gradleProperty("HYDROGUARD_RELEASE_API_BASE_URL")
   .orElse(providers.environmentVariable("HYDROGUARD_RELEASE_API_BASE_URL"))
   .getOrElse("")
+val localDevApiToken = rootProject.file(".dev-auth.env")
+  .takeIf { it.isFile }
+  ?.useLines { lines ->
+    lines.firstNotNullOfOrNull { line ->
+      val value = line.trim()
+      if (value.startsWith("HYDROGUARD_DEV_API_TOKEN=")) value.substringAfter('=').trim().trim('"') else null
+    }
+  }
+val debugDevApiToken = providers.gradleProperty("HYDROGUARD_DEV_API_TOKEN")
+  .orElse(providers.environmentVariable("HYDROGUARD_DEV_API_TOKEN"))
+  .orElse(localDevApiToken ?: "")
+  .getOrElse("")
+
+fun buildConfigString(value: String): String =
+  "\"${value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")}\""
 
 android {
   namespace = "com.example"
@@ -28,6 +44,7 @@ android {
     versionName = "1.0"
     buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
     buildConfigField("boolean", "ALLOW_DEVELOPMENT_LOGIN", "true")
+    buildConfigField("String", "DEVELOPMENT_API_TOKEN", "\"\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -58,6 +75,7 @@ android {
     }
     debug {
       buildConfigField("boolean", "ALLOW_DEVELOPMENT_LOGIN", "true")
+    buildConfigField("String", "DEVELOPMENT_API_TOKEN", buildConfigString(debugDevApiToken))
       // Use default debug signing (Android SDK provides debug keystore)
       signingConfig = android.signingConfigs.findByName("debug")
     }
@@ -77,6 +95,10 @@ val validateReleaseConfiguration by tasks.registering {
   doLast {
     if (!releaseApiBaseUrl.startsWith("https://")) {
       throw GradleException("Set HYDROGUARD_RELEASE_API_BASE_URL to the production HTTPS API URL before building a release.")
+    }
+    val releaseApiHost = runCatching { URI(releaseApiBaseUrl).host?.lowercase() }.getOrNull()
+    if (releaseApiHost.isNullOrBlank() || releaseApiHost in setOf("localhost", "127.0.0.1", "10.0.2.2", "10.79.232.152")) {
+      throw GradleException("The release API URL must use a production host, not a local development address.")
     }
     val requiredSigning = listOf("KEYSTORE_PATH", "STORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
     val missing = requiredSigning.filter { System.getenv(it).isNullOrBlank() }
@@ -138,6 +160,9 @@ dependencies {
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services.auth)
+  implementation(libs.google.id)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
