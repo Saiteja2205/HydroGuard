@@ -38,7 +38,8 @@ This document describes the active source tree. The Android build compiles the J
 | `.../data/api/` | Retrofit service, URL/auth interceptors, and API error handling | Android client/backend | Runtime source and API contract |
 | `.../data/database/` | Java Room entities, database, and DAOs for local cache/offline state | Android client | Runtime source |
 | `.../data/repository/` | Firebase auth, debug session policy, and local/remote data coordination | Android client | Runtime source |
-| `.../data/service/` | Client-side water-quality index calculation | Android client | Runtime source |
+| `.../data/service/` | Client-side water-quality index calculation and local alert notifications (channel, deduplication) | Android client | Runtime source |
+| `.../ui/` | Water monitoring screen controller, alert list adapter, and chart wiring (MPAndroidChart) | Android screens | Runtime source |
 | `.../ui/viewmodel/` | Java UI state and repository coordination | Android screens | Runtime source |
 | `app/src/main/res/` | XML layouts, launcher icons, strings, themes, backup and network policies | Android OS and UI | Runtime resources |
 | `app/src/debug/` | Debug-only manifest and network security policy | Debug APK | Development/runtime configuration |
@@ -50,7 +51,7 @@ This document describes the active source tree. The Android build compiles the J
 | Path | Purpose | Used by | Classification |
 |---|---|---|---|
 | `app/main.py` | Creates FastAPI application, initializes database, and registers API routes | Uvicorn and API clients | Runtime source |
-| `app/api/` | Health, reading, forecast, node, alert, hostel, and research-export endpoints | Android, sensors, administrators, research | Runtime source/API |
+| `app/api/` | Health, reading, forecast, node, alert, threshold, hostel, and research-export endpoints | Android, sensors, administrators, research | Runtime source/API |
 | `app/core/` | Authentication and access-control helpers | API routes | Runtime security source |
 | `app/db/` | SQLAlchemy database, tables, repositories, initialization, and seeding | API/services | Runtime source and database |
 | `app/schemas/` | Pydantic request and response contracts | API routes and clients | Runtime source/API |
