@@ -70,7 +70,7 @@ def update_node_status(
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Node identifier",
     ),
-    status: str = Query(..., regex="^(online|offline|maintenance)$", description="New status"),
+    status: str = Query(..., pattern="^(online|offline|maintenance)$", description="New status"),
     db: Session = Depends(get_db),
     principal: dict = Depends(require_roles("ADMIN")),
 ) -> dict:

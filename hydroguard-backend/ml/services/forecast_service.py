@@ -49,13 +49,16 @@ except ImportError:
     AdaptiveEnsembleConfig = None
 
 
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
+
 @dataclass
 class ForecastServiceConfig:
     """Configuration for ForecastService."""
 
-    lstm_checkpoint_path: str = "artifacts/checkpoints/lstm_water_quality_5param_v1.pt"
-    patchtst_checkpoint_path: str = "artifacts/checkpoints/patchtst_water_quality_5param_v1.pt"
-    timemixer_checkpoint_path: str = "artifacts/checkpoints/timemixer_water_quality_5param_v1.pt"
+    lstm_checkpoint_path: str = str(_BACKEND_ROOT / "artifacts/checkpoints/lstm_water_quality_5param_v1.pt")
+    patchtst_checkpoint_path: str = str(_BACKEND_ROOT / "artifacts/checkpoints/patchtst_water_quality_5param_v1.pt")
+    timemixer_checkpoint_path: str = str(_BACKEND_ROOT / "artifacts/checkpoints/timemixer_water_quality_5param_v1.pt")
     device: str = "auto"
     window_size: int = 30
     parameters: tuple[str, ...] = ("pH", "TDS", "turbidity", "temperature", "optical_colour_index")

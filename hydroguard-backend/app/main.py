@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +13,24 @@ from app.api.hostel import router as hostel_router
 from app.api.nodes import router as nodes_router
 from app.api.readings import router as readings_router
 from app.api.research_export import router as research_export_router
+from app.api.thresholds import router as thresholds_router
 from app.db.database import get_db_context, init_db
+
+# Local CORS is enabled only in an explicitly non-production environment.
+development_environment = os.getenv("HYDROGUARD_ENVIRONMENT", "production").strip().lower()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create current tables and apply additive SQLite compatibility changes."""
+    init_db()
+    if development_environment in {"development", "dev"}:
+        from app.db.seed import seed_development_dataset
+
+        with get_db_context() as db:
+            seed_development_dataset(db)
+    yield
+
 
 app = FastAPI(
     title="HydroGuard ML API",
@@ -21,21 +39,9 @@ app = FastAPI(
         "Backend API for HydroGuard. Responses in this foundation use "
         "historical or simulated development data, not live sensor readings."
     ),
+    lifespan=lifespan,
 )
 
-
-@app.on_event("startup")
-def initialize_database() -> None:
-    """Create current tables and apply additive SQLite compatibility changes."""
-    init_db()
-    if development_environment in {"development", "dev"}:
-        from app.db.seed import seed_development_dataset
-
-        with get_db_context() as db:
-            seed_development_dataset(db)
-
-# Local CORS is enabled only in an explicitly non-production environment.
-development_environment = os.getenv("HYDROGUARD_ENVIRONMENT", "production").strip().lower()
 local_development_origins = [
     "http://localhost",
     "http://localhost:3000",
@@ -63,3 +69,4 @@ app.include_router(hostel_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_users_router, prefix="/api/v1")
 app.include_router(research_export_router, prefix="/api/v1")
+app.include_router(thresholds_router, prefix="/api/v1")

@@ -10,8 +10,7 @@ from pathlib import Path
 from typing import Generator
 
 from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 # Database path (SQLite for local development)
 # Use absolute path to ensure consistency across different execution contexts

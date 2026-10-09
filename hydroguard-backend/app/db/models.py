@@ -332,3 +332,20 @@ class Alert(Base):
 
     def __repr__(self) -> str:
         return f"<Alert(node_id='{self.node_id}', parameter='{self.parameter}', severity='{self.severity}')>"
+
+
+class ThresholdConfig(Base):
+    """Configurable alert thresholds per water-quality parameter."""
+
+    __tablename__ = "threshold_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    parameter: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    min_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

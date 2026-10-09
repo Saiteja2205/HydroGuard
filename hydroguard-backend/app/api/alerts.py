@@ -62,7 +62,7 @@ def create_alert(alert_data: AlertCreate, db: Session = Depends(get_db), princip
 @router.patch("/alerts/{alert_id}", response_model=Alert)
 def update_alert_status(
     alert_id: int = Path(..., ge=1, description="Alert ID"),
-    status: str = Query(..., regex="^(ACTIVE|ACKNOWLEDGED|RESOLVED)$", description="New status"),
+    status: str = Query(..., pattern="^(ACTIVE|ACKNOWLEDGED|RESOLVED)$", description="New status"),
     db: Session = Depends(get_db),
     principal: dict = Depends(require_roles("ADMIN")),
 ) -> Alert:

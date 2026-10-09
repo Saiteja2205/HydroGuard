@@ -9,7 +9,16 @@ from typing import Optional
 from sqlalchemy import and_, case, desc, func, or_
 from sqlalchemy.orm import Session
 
-from app.db.models import Alert, EnsembleWeight, Forecast, ModelError, Node, SensorCalibration, SensorReading
+from app.db.models import (
+    Alert,
+    EnsembleWeight,
+    Forecast,
+    ModelError,
+    Node,
+    SensorCalibration,
+    SensorReading,
+    ThresholdConfig,
+)
 
 
 class NodeRepository:
@@ -528,3 +537,33 @@ class AlertRepository:
             .order_by(desc(Alert.timestamp))
             .all()
         )
+
+
+class ThresholdRepository:
+    """Access layer for configurable alert thresholds."""
+
+    @staticmethod
+    def get_all(db: Session) -> list[ThresholdConfig]:
+        return db.query(ThresholdConfig).order_by(ThresholdConfig.parameter.asc()).all()
+
+    @staticmethod
+    def get_by_parameter(db: Session, parameter: str) -> Optional[ThresholdConfig]:
+        return db.query(ThresholdConfig).filter_by(parameter=parameter).one_or_none()
+
+    @staticmethod
+    def upsert(
+        db: Session,
+        parameter: str,
+        min_value: Optional[float],
+        max_value: Optional[float],
+    ) -> ThresholdConfig:
+        row = ThresholdRepository.get_by_parameter(db, parameter)
+        if row is None:
+            row = ThresholdConfig(parameter=parameter, min_value=min_value, max_value=max_value)
+            db.add(row)
+        else:
+            row.min_value = min_value
+            row.max_value = max_value
+        db.commit()
+        db.refresh(row)
+        return row

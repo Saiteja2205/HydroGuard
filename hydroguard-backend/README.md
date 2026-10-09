@@ -28,14 +28,14 @@ python -m pip install -r requirements.txt
 
 For this repository's Android development setup, run `.\scripts\run-development.ps1` from the backend folder. It loads the ignored project-root `.dev-auth.env`, enables the development-only demo identity bridge, and binds Uvicorn to the selected Wi-Fi or Ethernet IPv4 address on port 8000 so a physical phone on that LAN can connect. Never commit `.dev-auth.env`.
 
-The development computer's active Wi-Fi IPv4 address was verified as `10.0.96.236`. The Android debug URL defaults to `http://10.0.96.236:8000/`; if DHCP changes that address, check the current Wi-Fi IPv4 address and rebuild with the replacement:
+`scripts/run-development.ps1` detects the active LAN IPv4 address, prints the URL, and writes `HYDROGUARD_API_BASE_URL` back into `.dev-auth.env` so the next Android debug build targets the same address automatically. The Android debug URL is resolved in this order: Gradle property `HYDROGUARD_API_BASE_URL`, environment variable `HYDROGUARD_API_BASE_URL`, `.dev-auth.env`, then the built-in default `http://10.0.2.2:8000/` (the Android Studio emulator alias for the host machine). To target a physical phone explicitly, rebuild with the detected LAN address:
 
 ```powershell
 $env:HYDROGUARD_API_BASE_URL = "http://<current-wifi-ipv4>:8000/"
 .\gradlew.bat :app:assembleDebug
 ```
 
-Open `http://10.0.96.236:8000/api/v1/health` from a device on the same network to check the API. The phone and development computer must share a network that allows local device traffic, and Windows Firewall must allow inbound TCP port 8000. If the existing `HydroGuard FastAPI 8000` rule allows remote addresses beyond the local subnet, run `Set-NetFirewallRule -DisplayName "HydroGuard FastAPI 8000" -RemoteAddress LocalSubnet` from an Administrator PowerShell window. The main/release Android network policy denies cleartext HTTP; the debug build alone permits the development HTTP URL. Release builds require a production HTTPS URL.
+Open `http://<lan-ipv4>:8000/api/v1/health` (or `http://127.0.0.1:8000/api/v1/health` on this computer) to check the API. The phone and development computer must share a network that allows local device traffic, and Windows Firewall must allow inbound TCP port 8000. If the existing `HydroGuard FastAPI 8000` rule allows remote addresses beyond the local subnet, run `Set-NetFirewallRule -DisplayName "HydroGuard FastAPI 8000" -RemoteAddress LocalSubnet` from an Administrator PowerShell window. The main/release Android network policy denies cleartext HTTP; the debug build alone permits the development HTTP URL. Release builds require a production HTTPS URL.
 
 The debug Student/Admin demo buttons send the token from `.dev-auth.env` through the three `X-HydroGuard-Development-*` headers. They appear only in debug builds, and the backend accepts them only with `HYDROGUARD_ENVIRONMENT=development`, `HYDROGUARD_ENABLE_DEV_AUTH=true`, the matching token, and one of the two fixed demo identities. Google sign-in continues to use Firebase Authentication and a server-verified ID token.
 

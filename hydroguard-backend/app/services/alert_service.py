@@ -8,19 +8,36 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.db.repositories import AlertRepository, NodeRepository, SensorReadingRepository
+from app.db.repositories import AlertRepository, NodeRepository, SensorReadingRepository, ThresholdRepository
 
 
 class AlertService:
     """Service for alert generation and management operations."""
 
-    # Default thresholds for alert generation
+    # Default thresholds for alert generation; overridden by threshold_configs rows.
     DEFAULT_THRESHOLDS = {
         "ph": {"min": 6.5, "max": 8.5},
         "tds": {"max": 500.0},
         "turbidity": {"max": 5.0},
         "temperature": {"min": 15.0, "max": 30.0},
     }
+
+    @staticmethod
+    def get_effective_thresholds(db: Session) -> dict:
+        """Merge stored admin-configured thresholds over the built-in defaults."""
+        thresholds = {
+            parameter: dict(bounds) for parameter, bounds in AlertService.DEFAULT_THRESHOLDS.items()
+        }
+        for row in ThresholdRepository.get_all(db):
+            key = row.parameter.strip().lower()
+            bounds: dict = {}
+            if row.min_value is not None:
+                bounds["min"] = float(row.min_value)
+            if row.max_value is not None:
+                bounds["max"] = float(row.max_value)
+            if bounds:
+                thresholds[key] = bounds
+        return thresholds
 
     @staticmethod
     def evaluate_reading_for_alerts(
@@ -35,12 +52,12 @@ class AlertService:
             db: Database session
             node_id: Node identifier
             reading_data: Dictionary of parameter values
-            custom_thresholds: Optional custom thresholds (overrides defaults)
+            custom_thresholds: Optional custom thresholds (overrides stored defaults)
 
         Returns:
             List of generated alerts
         """
-        thresholds = custom_thresholds or AlertService.DEFAULT_THRESHOLDS
+        thresholds = custom_thresholds or AlertService.get_effective_thresholds(db)
         alert_timestamp = reading_data.get("timestamp")
         if not isinstance(alert_timestamp, datetime):
             alert_timestamp = datetime.now(timezone.utc)

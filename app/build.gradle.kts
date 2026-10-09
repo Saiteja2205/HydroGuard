@@ -7,21 +7,24 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+val devAuthProperties = providers.provider {
+  val authFile = rootProject.file(".dev-auth.env")
+  Properties().apply {
+    if (authFile.isFile) authFile.inputStream().use(::load)
+  }
+}
 val debugApiBaseUrl = providers.gradleProperty("HYDROGUARD_API_BASE_URL")
   .orElse(providers.environmentVariable("HYDROGUARD_API_BASE_URL"))
-  .getOrElse("http://10.0.96.236:8000/")
+  .orElse(providers.provider { devAuthProperties.get().getProperty("HYDROGUARD_API_BASE_URL", "").trim() })
+  .filter { it.isNotBlank() }
+  .getOrElse("http://10.0.2.2:8000/")
 val releaseApiBaseUrl = providers.gradleProperty("HYDROGUARD_RELEASE_API_BASE_URL")
   .orElse(providers.environmentVariable("HYDROGUARD_RELEASE_API_BASE_URL"))
   .getOrElse("")
-val developmentApiTokenFromFile = providers.provider {
-  val authFile = rootProject.file(".dev-auth.env")
-  if (!authFile.isFile) "" else Properties().apply {
-    authFile.inputStream().use(::load)
-  }.getProperty("HYDROGUARD_DEV_API_TOKEN", "").trim()
-}
 val developmentApiToken = providers.gradleProperty("HYDROGUARD_DEV_API_TOKEN")
   .orElse(providers.environmentVariable("HYDROGUARD_DEV_API_TOKEN"))
-  .orElse(developmentApiTokenFromFile)
+  .orElse(providers.provider { devAuthProperties.get().getProperty("HYDROGUARD_DEV_API_TOKEN", "").trim() })
+  .filter { it.isNotBlank() }
   .getOrElse("")
 val escapedDevelopmentApiToken = developmentApiToken
   .replace("\\", "\\\\")
@@ -78,7 +81,10 @@ android {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
-  buildFeatures { buildConfig = true }
+  buildFeatures {
+    buildConfig = true
+    viewBinding = true
+  }
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
@@ -115,10 +121,13 @@ googleServices {
 
 dependencies {
   implementation(platform(libs.firebase.bom))
-  implementation("com.google.android.material:material:1.12.0")
-  implementation(libs.androidx.lifecycle.livedata) {
-    exclude(group = "androidx.lifecycle", module = "lifecycle-viewmodel")
-  }
+  implementation(libs.material)
+  implementation(libs.androidx.appcompat)
+  implementation(libs.androidx.activity)
+  implementation(libs.androidx.constraintlayout)
+  implementation(libs.androidx.recyclerview)
+  implementation(libs.androidx.swiperefreshlayout)
+  implementation(libs.androidx.lifecycle.livedata)
   implementation(libs.androidx.lifecycle.process)
   implementation(libs.androidx.lifecycle.runtime.android)
   implementation(libs.androidx.lifecycle.viewmodel.android)
@@ -134,7 +143,9 @@ dependencies {
   testImplementation(libs.junit)
 }
 
+// lifecycle 2.8.7 publishes separate desktop/android variants; only the -android
+// AARs carry the Android classes (e.g. lifecycle-runtime ReportFragment).
 configurations.configureEach {
-  exclude(group = "androidx.lifecycle", module = "lifecycle-viewmodel")
-  exclude(group = "androidx.lifecycle", module = "lifecycle-runtime")
+  exclude(group = "androidx.lifecycle", module = "lifecycle-runtime-desktop")
+  exclude(group = "androidx.lifecycle", module = "lifecycle-viewmodel-desktop")
 }

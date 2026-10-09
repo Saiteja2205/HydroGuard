@@ -53,6 +53,16 @@ $lanAddress = $networkInterface.GetIPProperties().UnicastAddresses |
 if ([string]::IsNullOrWhiteSpace($lanAddress)) {
     throw 'No active Wi-Fi or Ethernet IPv4 address with a gateway was found. Connect the development computer to the same network as the phone.'
 }
+
+# Persist the detected address so Android debug builds target it automatically
+# (app/build.gradle.kts reads HYDROGUARD_API_BASE_URL from .dev-auth.env).
+# Emulators on this computer can instead use http://10.0.2.2:8000/.
+$appBaseUrl = "http://${lanAddress}:8000/"
+$envLines = @(Get-Content -LiteralPath $authSettingsPath) |
+    Where-Object { $_ -notmatch '^\s*HYDROGUARD_API_BASE_URL=' } +
+    @("HYDROGUARD_API_BASE_URL=$appBaseUrl")
+Set-Content -LiteralPath $authSettingsPath -Value $envLines -Encoding utf8
+Write-Host "Android debug builds will use API base URL: $appBaseUrl (emulator alternative: http://10.0.2.2:8000/)"
 Write-Host "Starting HydroGuard on $($lanAddress):8000. The API will accept connections through this LAN interface only."
 Write-Host 'Keep this terminal open while the Android phone uses the API.'
 
