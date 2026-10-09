@@ -71,6 +71,7 @@ def init_db() -> None:
     """
     # Import models here to ensure they are registered with Base
     from app.db.models import Node, SensorReading, Forecast, ModelError, Alert
+    from app.db.auth_models import HydroGuardUser
     from app.db import hostel_models
     Base.metadata.create_all(bind=engine)
     ensure_forecast_schema()

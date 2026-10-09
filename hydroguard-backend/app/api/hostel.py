@@ -10,7 +10,6 @@ from app.core.auth import authenticated_principal, require_roles, require_studen
 from app.db import get_db
 from app.db.hostel_models import (
     EmergencyContact,
-    HostelEvent,
     HostelFeedback,
     HostelIssue,
     HostelNotice,
@@ -21,8 +20,6 @@ from app.db.hostel_models import (
 from app.schemas.hostel import (
     EmergencyContactCreate,
     EmergencyContactRecord,
-    EventCreate,
-    EventRecord,
     HostelFeedbackCreate,
     HostelFeedbackRecord,
     IssueCreate,
@@ -240,7 +237,10 @@ def delete_notice(notice_id: int, principal: dict = Depends(require_roles("ADMIN
 
 @router.get("/emergency-contacts", response_model=list[EmergencyContactRecord])
 def list_emergency_contacts(principal: dict = Depends(authenticated_principal), db: Session = Depends(get_db)) -> list[EmergencyContact]:
-    query = db.query(EmergencyContact).filter_by(active=True)
+    query = db.query(EmergencyContact).filter(
+        EmergencyContact.active.is_(True),
+        func.upper(EmergencyContact.category).in_(("WARDEN", "SECURITY")),
+    )
     if principal.get("role", "").upper() != "ADMIN":
         query = query.filter_by(verified=True)
     return query.order_by(EmergencyContact.category.asc()).all()
@@ -296,35 +296,6 @@ def moderate_lost_found(payload: LostFoundModeration, item_id: str, _: dict = De
     row.moderation_status = payload.moderation_status
     db.commit(); db.refresh(row)
     return row
-
-
-@router.get("/events", response_model=list[EventRecord])
-def list_events(_: dict = Depends(authenticated_principal), db: Session = Depends(get_db)) -> list[HostelEvent]:
-    return db.query(HostelEvent).order_by(HostelEvent.starts_at.asc()).limit(500).all()
-
-
-@router.post("/events", response_model=EventRecord, status_code=201)
-def create_event(payload: EventCreate, principal: dict = Depends(require_roles("ADMIN")), db: Session = Depends(get_db)) -> HostelEvent:
-    row = HostelEvent(**payload.model_dump(), author_uid=str(principal["uid"]))
-    db.add(row); db.commit(); db.refresh(row)
-    return row
-
-
-@router.put("/events/{event_id}", response_model=EventRecord)
-def edit_event(payload: EventCreate, event_id: int, _: dict = Depends(require_roles("ADMIN")), db: Session = Depends(get_db)) -> HostelEvent:
-    row = db.get(HostelEvent, event_id)
-    if row is None: raise HTTPException(404, "Event not found.")
-    for key, value in payload.model_dump().items(): setattr(row, key, value)
-    db.commit(); db.refresh(row)
-    return row
-
-
-@router.delete("/events/{event_id}", status_code=204)
-def delete_event(event_id: int, _: dict = Depends(require_roles("ADMIN")), db: Session = Depends(get_db)) -> Response:
-    row = db.get(HostelEvent, event_id)
-    if row is None: raise HTTPException(404, "Event not found.")
-    db.delete(row); db.commit()
-    return Response(status_code=204)
 
 
 @router.post("/feedback", response_model=HostelFeedbackRecord, status_code=201)

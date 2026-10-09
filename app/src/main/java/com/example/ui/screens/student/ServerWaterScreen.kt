@@ -45,23 +45,30 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import android.util.Log
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.BuildConfig
 import com.example.data.api.AlertResponse
 import com.example.data.api.ForecastResponse
 import com.example.data.api.HistoricalReadingResponse
 import com.example.data.api.LatestReadingResponse
+import com.example.data.api.ModelPerformanceRecord
+import com.example.data.api.ModelPerformanceResponse
 import com.example.data.api.NodeHealthResponse
 import com.example.data.repository.ApiFailureKind
 import com.example.data.repository.ApiRepository
 import com.example.data.repository.ApiRequestFailure
+import com.example.data.database.Alert as RoomAlert
+import com.example.data.database.SensorReading
 import com.example.data.service.WaterQualityIndexService
-import com.example.ui.components.ConnectionChip
 import com.example.ui.components.ApplicationIndexSummary
 import com.example.ui.components.EmptyState
 import com.example.ui.components.ErrorState
@@ -73,7 +80,10 @@ import com.example.ui.components.StatusChip
 import com.example.ui.components.StatusTone
 import com.example.ui.theme.HydroGuardColors
 import com.example.ui.viewmodel.HydroViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.ParsePosition
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -91,10 +101,15 @@ private val trendFields = listOf(
     TrendField("TDS", "ppm", HistoricalReadingResponse::tds),
     TrendField("Turbidity", "NTU", HistoricalReadingResponse::turbidity),
     TrendField("Temperature", "°C", HistoricalReadingResponse::temperature),
-    TrendField("Optical Colour", "index", HistoricalReadingResponse::opticalColourIndex)
+    TrendField("Optical Colour Index", "index", HistoricalReadingResponse::opticalColourIndex)
 )
 
-private val trendPeriods = listOf("Today", "7 Days", "30 Days")
+private val trendPeriods = listOf("Today", "7 Days", "30 Days", "All")
+private val monitoringNodeOptions = listOf(
+    "node_overhead_a" to "Block A",
+    "node_overhead_b" to "Block B",
+    "node_mess" to "Mess"
+)
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -107,87 +122,214 @@ fun ServerWaterScreen(
     onSignIn: (() -> Unit)? = onLogout
 ) {
     val nodeId by viewModel.selectedNodeId.collectAsState()
+    val localLatestReading by viewModel.latestReading.collectAsState()
+    val localHistoricalReadings by viewModel.historicalReadings.collectAsState()
+    val roomAlerts by viewModel.allAlerts.collectAsState()
     val api = remember { ApiRepository() }
-    var reading by remember { mutableStateOf<LatestReadingResponse?>(null) }
-    var history by remember { mutableStateOf<List<HistoricalReadingResponse>>(emptyList()) }
+    var apiReading by remember { mutableStateOf<LatestReadingResponse?>(null) }
+    var apiHistory by remember { mutableStateOf<List<HistoricalReadingResponse>>(emptyList()) }
     var alerts by remember { mutableStateOf<List<AlertResponse>>(emptyList()) }
     var forecast by remember { mutableStateOf<ForecastResponse?>(null) }
     var nodeHealth by remember { mutableStateOf<NodeHealthResponse?>(null) }
+    var nodeHealthFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
+    var modelPerformance by remember { mutableStateOf<ModelPerformanceResponse?>(null) }
+    var modelPerformanceFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
+    var exportFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
+    var exportStatus by remember { mutableStateOf<String?>(null) }
+    var exportLoading by remember { mutableStateOf(false) }
+    var pendingExport by remember { mutableStateOf<ByteArray?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var forecastLoading by remember { mutableStateOf(false) }
+    var alertsLoadedFromApi by remember { mutableStateOf(false) }
     var connected by remember { mutableStateOf<Boolean?>(null) }
     var failure by remember { mutableStateOf<ApiRequestFailure?>(null) }
     var historyFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
     var alertsFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
     var forecastFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
     var noReading by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
+    var selectedTab by remember { mutableIntStateOf(initialTab.coerceIn(0, if (isAdmin) 4 else 3)) }
     var selectedTrendField by remember { mutableIntStateOf(0) }
-    var selectedPeriod by remember { mutableIntStateOf(0) }
+    var selectedPeriod by remember { mutableIntStateOf(3) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val reading = apiReading ?: localLatestReading?.toLatestReadingResponse()
+    val localHistory = remember(localHistoricalReadings) {
+        localHistoricalReadings.map(SensorReading::toHistoricalReadingResponse)
+    }
+    val history = if (apiHistory.isNotEmpty()) apiHistory else localHistory
+    val roomAlertsForNode = remember(roomAlerts, nodeId) {
+        roomAlerts.filter { it.nodeId == nodeId }.map(RoomAlert::toAlertResponse)
+    }
+    val alertsForDisplay = if (alertsLoadedFromApi) alerts else roomAlertsForNode
+    val usingRoomAlerts = !alertsLoadedFromApi && roomAlertsForNode.isNotEmpty()
+    val visibleAlertsFailure = alertsFailure.takeUnless { usingRoomAlerts }
+    val usingLocalLatest = apiReading == null && localLatestReading != null
+    val usingLocalHistory = apiHistory.isEmpty() && localHistory.isNotEmpty()
+    val visibleFailure = failure.takeIf { reading == null }
+    val visibleHistoryFailure = historyFailure.takeIf { !usingLocalHistory }
 
-    LaunchedEffect(initialTab) { selectedTab = initialTab.coerceIn(0, 3) }
+    LaunchedEffect(nodeId, usingLocalLatest, usingLocalHistory, history.size) {
+        val latestSource = when {
+            apiReading != null -> "API:${apiReading?.source}"
+            localLatestReading != null -> "Room:${localLatestReading?.source}"
+            else -> "none"
+        }
+        val historySource = when {
+            apiHistory.isNotEmpty() -> "API"
+            localHistory.isNotEmpty() -> "Room"
+            else -> "none"
+        }
+        Log.i(
+            "HydroGuardData",
+            "UI node=$nodeId latestSource=$latestSource historySource=$historySource historyCount=${history.size}"
+        )
+    }
+    val researchExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri: Uri? ->
+        val content = pendingExport
+        pendingExport = null
+        if (uri == null) {
+            exportStatus = "CSV export cancelled."
+        } else if (content != null) {
+            scope.launch {
+                val saved = runCatching {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(content) }
+                            ?: error("The selected location could not be opened.")
+                    }
+                }
+                exportStatus = if (saved.isSuccess) {
+                    "Research CSV saved. Dataset source labels are included."
+                } else {
+                    "The CSV could not be saved. Choose another location and retry."
+                }
+            }
+        }
+    }
+
+    fun requestResearchExport() {
+        scope.launch {
+            exportFailure = null
+            exportStatus = null
+            exportLoading = true
+            api.exportResearchCsv()
+                .onSuccess { bytes ->
+                    pendingExport = bytes
+                    researchExportLauncher.launch("hydroguard-research-export.csv")
+                }
+                .onFailure { error ->
+                    exportFailure = error as? ApiRequestFailure
+                        ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/research/export.csv", cause = error)
+                }
+            exportLoading = false
+        }
+    }
+
+    LaunchedEffect(initialTab, isAdmin) { selectedTab = initialTab.coerceIn(0, if (isAdmin) 4 else 3) }
 
     suspend fun load() {
         loading = true
+        forecastLoading = true
         failure = null
         noReading = false
-        reading = null
-        history = emptyList()
+        apiReading = null
+        apiHistory = emptyList()
         alerts = emptyList()
+        alertsLoadedFromApi = false
         forecast = null
         nodeHealth = null
+        nodeHealthFailure = null
+        modelPerformance = null
+        modelPerformanceFailure = null
         historyFailure = null
         alertsFailure = null
         forecastFailure = null
 
-        if (isAdmin) api.getNodeHealth(nodeId).onSuccess { nodeHealth = it }
-        api.getLatestReading(nodeId).onSuccess {
-            reading = it
-            connected = true
-        }.onFailure { exception ->
-            val apiFailure = exception as? ApiRequestFailure
-            if (apiFailure?.kind == ApiFailureKind.NO_READING) {
-                noReading = true
+        try {
+            if (isAdmin) api.getNodeHealth(nodeId)
+                .onSuccess { nodeHealth = it }
+                .onFailure { error ->
+                    nodeHealthFailure = error as? ApiRequestFailure
+                        ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId", cause = error)
+                }
+            if (isAdmin) api.getModelPerformance(nodeId)
+                .onSuccess { modelPerformance = it }
+                .onFailure { error ->
+                    modelPerformanceFailure = error as? ApiRequestFailure
+                        ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/model-performance", cause = error)
+                }
+            api.getLatestReading(nodeId).onSuccess {
+                apiReading = it
                 connected = true
+                Log.d("HydroGuardData", "API latest node=$nodeId source=${it.source} timestamp=${it.timestamp}")
+            }.onFailure { exception ->
+                val apiFailure = exception as? ApiRequestFailure
+                if (apiFailure?.kind == ApiFailureKind.NO_READING) {
+                    noReading = true
+                    connected = true
+                } else {
+                    failure = apiFailure ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/readings/latest", cause = exception)
+                    connected = apiFailure?.kind != ApiFailureKind.SERVER_UNREACHABLE
+                }
+                Log.i("HydroGuardData", "API latest unavailable node=$nodeId; Room fallback will be used when present", exception)
+            }
+            val historyResult = api.getHistoricalReadings(nodeId, 1000)
+            val returnedHistory = historyResult.getOrNull()?.readings.orEmpty()
+            apiHistory = returnedHistory
+            historyResult.onSuccess { historyFailure = null }
+                .onFailure { historyFailure = it as? ApiRequestFailure }
+            Log.d("HydroGuardData", "API history node=$nodeId count=${returnedHistory.size} success=${historyResult.isSuccess}")
+            api.getAlerts(nodeId)
+                .onSuccess { response ->
+                    alerts = response.alerts
+                    alertsLoadedFromApi = true
+                    alertsFailure = null
+                    Log.d("HydroGuardAlerts", "API alerts node=$nodeId count=${response.alerts.size}")
+                }
+                .onFailure { error ->
+                    alertsLoadedFromApi = false
+                    alertsFailure = error as? ApiRequestFailure
+                        ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/alerts", cause = error)
+                    Log.i("HydroGuardAlerts", "API alerts unavailable node=$nodeId; using Room fallback when present", error)
+                }
+
+            // Current/history/alerts have their own loading indicator; forecast continues independently.
+            loading = false
+            if (historyResult.isFailure) {
+                forecastFailure = historyResult.exceptionOrNull() as? ApiRequestFailure
+                    ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/readings/history", cause = historyResult.exceptionOrNull())
             } else {
-                failure = apiFailure ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/readings/latest", cause = exception)
-                connected = apiFailure?.kind != ApiFailureKind.SERVER_UNREACHABLE
+                val readiness = assessForecastHistory(returnedHistory)
+                if (BuildConfig.DEBUG) {
+                    Log.w(
+                        "HydroGuardForecast",
+                        "node=$nodeId total=${readiness.totalReadings} recent30=${readiness.recent30Readings} " +
+                            "complete=${readiness.forecastRows.size} source=${readiness.forecastSource} " +
+                            "missingRecent30=${readiness.missingRecent30} invalidTimestamp=${readiness.invalidTimestamps} " +
+                            "future=${readiness.futureTimestamps} duplicate=${readiness.duplicateTimestamps} " +
+                            "required=${ApiRepository.FORECAST_MIN_HISTORY}"
+                    )
+                }
+                if (readiness.forecastRows.size >= ApiRepository.FORECAST_MIN_HISTORY) {
+                    api.generateForecast(nodeId, readiness.forecastRows).onSuccess { forecast = it }
+                        .onFailure { forecastFailure = it as? ApiRequestFailure }
+                } else {
+                    forecastFailure = ApiRequestFailure(
+                        ApiFailureKind.INSUFFICIENT_DATA,
+                        "/api/v1/forecast",
+                        userDetail = readiness.detail
+                    )
+                }
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            forecast = null
+            forecastFailure = error as? ApiRequestFailure
+                ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/forecast", cause = error)
+        } finally {
+            loading = false
+            forecastLoading = false
         }
-        val historyResult = api.getHistoricalReadings(nodeId, 100)
-        val returnedHistory = historyResult.getOrNull()?.readings.orEmpty()
-        history = returnedHistory
-        historyResult.onSuccess { historyFailure = null }
-            .onFailure { historyFailure = it as? ApiRequestFailure }
-        api.getAlerts(nodeId).onSuccess { alerts = it.alerts }
-            .onFailure { alertsFailure = it as? ApiRequestFailure }
-        if (historyResult.isFailure) {
-            forecastFailure = historyResult.exceptionOrNull() as? ApiRequestFailure
-                ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/readings/history", cause = historyResult.exceptionOrNull())
-        } else {
-            val readiness = assessForecastHistory(returnedHistory)
-            if (BuildConfig.DEBUG) {
-                Log.w(
-                    "HydroGuardForecast",
-                    "node=$nodeId total=${readiness.totalReadings} recent30=${readiness.recent30Readings} " +
-                        "complete=${readiness.forecastRows.size} source=${readiness.forecastSource} " +
-                        "missingRecent30=${readiness.missingRecent30} invalidTimestamp=${readiness.invalidTimestamps} " +
-                        "future=${readiness.futureTimestamps} duplicate=${readiness.duplicateTimestamps} " +
-                        "required=${ApiRepository.FORECAST_MIN_HISTORY}"
-                )
-            }
-            if (readiness.forecastRows.size >= ApiRepository.FORECAST_MIN_HISTORY) {
-                api.generateForecast(nodeId, readiness.forecastRows).onSuccess { forecast = it }
-                    .onFailure { forecastFailure = it as? ApiRequestFailure }
-            } else {
-                forecastFailure = ApiRequestFailure(
-                    ApiFailureKind.INSUFFICIENT_DATA,
-                    "/api/v1/forecast",
-                    userDetail = readiness.detail
-                )
-            }
-        }
-        loading = false
     }
     LaunchedEffect(nodeId) { load() }
 
@@ -211,7 +353,7 @@ fun ServerWaterScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { scope.launch { load() } }, enabled = !loading) {
+                        IconButton(onClick = { scope.launch { load() } }, enabled = !loading && !forecastLoading) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh water data")
                         }
                         if (onLogout != null) {
@@ -222,34 +364,12 @@ fun ServerWaterScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
                 )
-                if (isAdmin) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("SERVER", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            ConnectionChip(connected)
-                        }
-                        Column(Modifier.weight(1.35f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("MONITORING NODE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                StatusChip(
-                                    nodeHealth?.status?.replace('_', ' ')?.let { "Node $it" } ?: "Node status unknown",
-                                    tone = nodeHealth?.let { if (it.status.equals("online", true)) StatusTone.HEALTHY else StatusTone.DISCONNECTED } ?: StatusTone.NEUTRAL
-                                )
-                                Text("${nodeHealth?.location ?: "Selected node"} · $nodeId", maxLines = 1, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                }
                 ScrollableTabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = MaterialTheme.colorScheme.background,
                     edgePadding = 16.dp
                 ) {
-                    listOf("Current", "Trends", "Forecast", "Alerts").forEachIndexed { index, label ->
+                    (if (isAdmin) listOf("Current", "Trends", "Forecast", "Alerts", "Performance") else listOf("Current", "Trends", "Forecast", "Alerts")).forEachIndexed { index, label ->
                         Tab(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
@@ -265,8 +385,22 @@ fun ServerWaterScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (loading) item { LoadingState(if (isAdmin) "Refreshing server data" else "Refreshing water data") }
-            failure?.let { requestFailure ->
+            if (isAdmin) {
+                item { SectionHeader("Monitoring node") }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(monitoringNodeOptions) { (optionNodeId, label) ->
+                            FilterChip(
+                                selected = nodeId == optionNodeId,
+                                onClick = { viewModel.selectNode(optionNodeId) },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+            }
+            if (loading && selectedTab != 2) item { LoadingState(if (isAdmin) "Refreshing water monitoring status" else "Refreshing water data") }
+            visibleFailure?.let { requestFailure ->
                 item {
                     ErrorState(
                         title = failureTitle(requestFailure, isAdmin),
@@ -283,30 +417,60 @@ fun ServerWaterScreen(
             when (selectedTab) {
                 0 -> {
                     if (isAdmin) {
-                        item { SectionHeader("Server status", subtitle = "Backend and selected monitoring node") }
+                        item { SectionHeader("Water Monitoring Status") }
+                        nodeHealthFailure?.let { requestFailure ->
+                            item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) }
+                        }
                         item {
+                            val sensorNodeStatus = when (nodeHealth?.status?.trim()?.uppercase()) {
+                                "ONLINE" -> "Online"
+                                "OFFLINE" -> "Offline"
+                                else -> "Unknown"
+                            }
+                            val sensorNodeTone = when (sensorNodeStatus) {
+                                "Online" -> StatusTone.HEALTHY
+                                "Offline" -> StatusTone.DISCONNECTED
+                                else -> StatusTone.NEUTRAL
+                            }
+                            val lastReading = reading?.timestamp?.takeIf(String::isNotBlank)
+                            val lastUpdate = nodeHealth?.last_seen?.takeIf(String::isNotBlank)
                             HydroCard {
                                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Text("SERVER", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            ConnectionChip(connected)
+                                            Text("Backend", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            StatusChip(
+                                                if (connected == true) "Connected" else "Unavailable",
+                                                tone = if (connected == true) StatusTone.HEALTHY else StatusTone.DISCONNECTED
+                                            )
                                         }
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Text("MONITORING NODE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            StatusChip(nodeHealth?.status?.replace('_', ' ')?.let { "Node $it" } ?: "Node status unknown", tone = nodeHealth?.let { if (it.status.equals("online", true)) StatusTone.HEALTHY else StatusTone.DISCONNECTED } ?: StatusTone.NEUTRAL)
+                                            Text("Sensor Node", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            StatusChip(sensorNodeStatus, tone = sensorNodeTone)
                                         }
                                     }
-                                    Text(nodeHealth?.name ?: nodeId, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                    Text("${nodeHealth?.location ?: "Location not reported"} · Last heartbeat ${nodeHealth?.last_seen ?: "not reported"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("Last reading ${reading?.timestamp ?: "not reported"} · ${reading?.let { provenanceLabel(it.source) } ?: "No current reading"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(nodeId, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Last Reading", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(lastReading ?: "Unavailable", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                        StatusChip(
+                                            if (lastReading == null) "Unavailable" else "Available",
+                                            tone = if (lastReading == null) StatusTone.NEUTRAL else StatusTone.HEALTHY
+                                        )
+                                    }
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text("Last Update", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(lastUpdate ?: "Unavailable", style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                             }
                         }
                     } else {
                         item { SectionHeader("Current Water Quality", subtitle = "Latest monitored readings") }
                     }
-                    if (noReading && failure == null) item {
+                    if (noReading && reading == null && visibleFailure == null) item {
                         EmptyState(
                             if (isAdmin) "No sensor data" else "Water data temporarily unavailable",
                             if (isAdmin) "Waiting for the monitoring node to send readings." else "We couldn't load this information right now.",
@@ -323,7 +487,6 @@ fun ServerWaterScreen(
                                         Text("WATER QUALITY", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                                     }
                                     ApplicationIndexSummary(index?.index, index?.category?.displayName)
-                                    if (isAdmin) Text("${provenanceLabel(current.source)} · ${current.timestamp}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -333,6 +496,7 @@ fun ServerWaterScreen(
                                 subtitle = if (isAdmin) "Five-parameter water-quality contract" else null
                             )
                         }
+                        if (usingLocalLatest) item { StatusChip("Local ${localLatestReading?.source ?: "demo"} data", tone = StatusTone.NEUTRAL) }
                         val metrics = currentMetrics(current)
                         metrics.take(4).chunked(2).forEachIndexed { rowIndex, row ->
                             item(key = "current-metrics-$rowIndex") {
@@ -352,8 +516,8 @@ fun ServerWaterScreen(
                                 }
                             }
                         }
-                        metrics.lastOrNull()?.let { metric ->
-                            item(key = "current-optical-colour") {
+                        metrics.drop(4).forEachIndexed { index, metric ->
+                            item(key = "current-metric-${index + 5}") {
                                 MetricCard(
                                     label = metric.label,
                                     value = metric.value,
@@ -365,8 +529,12 @@ fun ServerWaterScreen(
                                 )
                             }
                         }
-                        if (!isAdmin) item {
-                            Text("Last updated · ${current.timestamp}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        item {
+                            Text(
+                                "Last updated · ${current.timestamp} · ${current.source}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                     if (isAdmin) {
@@ -383,7 +551,7 @@ fun ServerWaterScreen(
                         }
                         item { AdminForecastSummary(forecast, forecastFailure, onSignIn) }
                     }
-                    if (reading == null && !noReading && failure == null && !loading) {
+                    if (reading == null && !noReading && visibleFailure == null && !loading) {
                         item {
                             EmptyState(
                                 if (isAdmin) "Current reading unavailable" else "Water data temporarily unavailable",
@@ -395,14 +563,16 @@ fun ServerWaterScreen(
                     }
                 }
                 1 -> {
-                    item { SectionHeader(if (isAdmin) "Historical trends" else "Trends", subtitle = if (isAdmin) "Actual readings returned by the backend" else "Recent water readings") }
-                    historyFailure?.let { requestFailure -> item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) } }
+                    item { SectionHeader(if (isAdmin) "Historical trends" else "Trends", subtitle = if (isAdmin) "Recent water readings" else "Recent water readings") }
+                    visibleHistoryFailure?.let { requestFailure -> item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) } }
                     item {
+                        val visibleTrendFields = trendFields
+                        val selectedFieldIndex = selectedTrendField.coerceIn(0, visibleTrendFields.lastIndex)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(trendFields) { field ->
+                            items(visibleTrendFields) { field ->
                                 FilterChip(
-                                    selected = trendFields[selectedTrendField] == field,
-                                    onClick = { selectedTrendField = trendFields.indexOf(field) },
+                                    selected = visibleTrendFields[selectedFieldIndex] == field,
+                                    onClick = { selectedTrendField = visibleTrendFields.indexOf(field) },
                                     label = { Text(field.label, maxLines = 1, softWrap = false) }
                                 )
                             }
@@ -419,23 +589,25 @@ fun ServerWaterScreen(
                             }
                         }
                     }
-                    val field = trendFields[selectedTrendField]
+                    val visibleTrendFields = trendFields
+                    val field = visibleTrendFields[selectedTrendField.coerceIn(0, visibleTrendFields.lastIndex)]
                     val maxAgeMillis = when (trendPeriods[selectedPeriod]) {
                         "Today" -> 24L * 60 * 60 * 1000
                         "7 Days" -> 7L * 24 * 60 * 60 * 1000
-                        else -> 30L * 24 * 60 * 60 * 1000
+                        "30 Days" -> 30L * 24 * 60 * 60 * 1000
+                        else -> Long.MAX_VALUE
                     }
                     val points = history
-                        .filter { isWithinPeriod(it.timestamp, maxAgeMillis) }
+                        .filter { trendPeriods[selectedPeriod] == "All" || isWithinPeriod(it.timestamp, maxAgeMillis) }
                         .sortedWith(compareBy<HistoricalReadingResponse>({ parseTimestampMillis(it.timestamp) ?: Long.MIN_VALUE }, { it.id }))
                         .mapNotNull { row -> field.value(row)?.let { row.timestamp to it } }
-                    if (historyFailure == null && points.size < 2) item {
+                    if (visibleHistoryFailure == null && points.size < 2) item {
                         EmptyState(
                             "Not enough ${field.label} readings",
                             "At least two actual observations in ${trendPeriods[selectedPeriod].lowercase()} are needed to draw a trend.",
                             icon = Icons.Default.WaterDrop
                         )
-                    } else if (historyFailure == null) {
+                    } else if (visibleHistoryFailure == null) {
                         item {
                             HydroCard {
                                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -443,7 +615,7 @@ fun ServerWaterScreen(
                                         Column {
                                             Text("${field.label} trend", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                                             Text(
-                                                if (isAdmin) "${points.size} backend observations · ${trendPeriods[selectedPeriod]}" else "${points.size} readings · ${trendPeriods[selectedPeriod]}",
+                                                "${points.size} readings · ${trendPeriods[selectedPeriod]}",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -471,21 +643,55 @@ fun ServerWaterScreen(
                 }
                 2 -> {
                     item {
-                        SectionHeader(
-                            if (isAdmin) "Five-parameter forecast" else "Next-Day Forecast",
-                            subtitle = if (isAdmin) "LSTM · PatchTST · TimeMixer · Adaptive Ensemble" else "Estimated changes based on recent readings"
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            SectionHeader(
+                                if (isAdmin) "Five-parameter forecast" else "Next-Day Forecast",
+                                subtitle = if (isAdmin) "LSTM · PatchTST · TimeMixer · Adaptive Ensemble" else "Estimated changes based on recent readings"
+                            )
+                            if (isAdmin) StatusChip(
+                                if (forecast == null) "Forecast Unavailable" else "Forecast Available",
+                                tone = if (forecast == null) StatusTone.NEUTRAL else StatusTone.HEALTHY
+                            )
+                        }
                     }
-                    if (forecastFailure != null && forecast == null) {
+                    if (forecastLoading) item { LoadingState("Loading forecast data") }
+                    if (!forecastLoading && forecastFailure != null && forecast == null) {
                         item {
-                            if (forecastFailure?.kind == ApiFailureKind.INSUFFICIENT_DATA) {
+                            if (isAdmin) {
+                                val requestFailure = requireNotNull(forecastFailure)
                                 EmptyState(
-                                    "Forecast not available yet",
-                                    if (isAdmin) failureDetail(forecastFailure!!, true) else "Not enough complete historical readings are available to generate the next-day forecast.",
-                                    icon = Icons.Default.WaterDrop
+                                    "Forecast Unavailable",
+                                    requestFailure.userDetail ?: when (requestFailure.kind) {
+                                        ApiFailureKind.INSUFFICIENT_DATA -> "More complete water readings are needed before a forecast is available."
+                                        ApiFailureKind.SERVER_UNREACHABLE -> "Backend is unavailable right now."
+                                        ApiFailureKind.AUTHENTICATION -> "The backend rejected the authenticated forecast request. Retry after checking server authentication."
+                                        else -> "A forecast could not be loaded right now."
+                                    },
+                                    icon = Icons.Default.WaterDrop,
+                                    actionLabel = "Retry",
+                                    onAction = { scope.launch { load() }; Unit }
                                 )
                             } else {
-                                FailureSummary(forecastFailure!!, { scope.launch { load() } }, onSignIn, isAdmin)
+                                val requestFailure = requireNotNull(forecastFailure)
+                                if (requestFailure.kind == ApiFailureKind.INSUFFICIENT_DATA) {
+                                    EmptyState(
+                                        "Not enough forecast data",
+                                        "At least 30 complete historical readings from one data source are needed to generate a forecast.",
+                                        icon = Icons.Default.WaterDrop
+                                    )
+                                } else {
+                                    EmptyState(
+                                        "Forecast unavailable",
+                                        requestFailure.userDetail ?: when (requestFailure.kind) {
+                                            ApiFailureKind.SERVER_UNREACHABLE -> "The forecasting backend is unavailable right now."
+                                            ApiFailureKind.AUTHENTICATION -> "The backend rejected the authenticated forecast request. Retry after checking server authentication."
+                                            else -> "A forecast could not be loaded right now."
+                                        },
+                                        icon = Icons.Default.WaterDrop,
+                                        actionLabel = "Retry",
+                                        onAction = { scope.launch { load() }; Unit }
+                                    )
+                                }
                             }
                         }
                     }
@@ -498,18 +704,21 @@ fun ServerWaterScreen(
                                              Text(if (isAdmin) "ADAPTIVE ENSEMBLE" else "FORECAST ESTIMATE", style = MaterialTheme.typography.labelMedium, color = HydroGuardColors.experimental)
                                             Text("${result.forecastHorizonHours}-hour forecast", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                                         }
-                                     if (isAdmin) StatusChip(forecastSourceLabel(result.dataSource), tone = if (isDevelopmentSource(result.dataSource)) StatusTone.AI else StatusTone.NEUTRAL)
                                     }
                                      Text(
-                                         if (isAdmin) "Forecast ${result.forecastDate} · Inputs ${result.inputStart.take(10)} to ${result.inputEnd.take(10)}" else "Forecast for ${result.forecastDate}",
+                                         "Forecast for ${result.forecastDate}",
                                          style = MaterialTheme.typography.bodySmall
                                      )
-                                     if (isAdmin) Text("Weight status: ${result.weightStatus.replace('_', ' ')} · Strategy: ${result.weightStrategy.replace('_', ' ')}", style = MaterialTheme.typography.bodySmall)
+                                     if (isAdmin) Text(
+                                         "${result.dataSource} · ${result.weightStatus}",
+                                         style = MaterialTheme.typography.bodySmall,
+                                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                                     )
                                 }
                             }
                         }
-                        item { SectionHeader(if (isAdmin) "Ensemble prediction" else "Forecast values", subtitle = if (isAdmin) "Values returned by the forecast API" else null) }
-                        forecastMetrics(result).take(4).chunked(2).forEachIndexed { rowIndex, row ->
+                        item { SectionHeader(if (isAdmin) "Adaptive Ensemble" else "Forecast values") }
+                        forecastMetrics(result).chunked(2).forEachIndexed { rowIndex, row ->
                             item(key = "forecast-metrics-$rowIndex") {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     row.forEach { metric ->
@@ -525,7 +734,7 @@ fun ServerWaterScreen(
                             }
                         }
                         if (isAdmin) {
-                            item { SectionHeader("Adaptive model weights", subtitle = "Actual weights returned with this forecast") }
+                            item { SectionHeader("Adaptive model weights") }
                             result.weights.orEmpty().toSortedMap().forEach { (parameter, weights) ->
                                 item(key = "weights-$parameter") {
                                     HydroCard {
@@ -546,7 +755,6 @@ fun ServerWaterScreen(
                                         HydroCard {
                                             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                                 Text(model, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                                result.modelVersions[model]?.let { Text("Model version $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                                                 Text("pH ${formatValue(prediction.pH)} · TDS ${formatValue(prediction.TDS)} ppm", style = MaterialTheme.typography.bodyMedium)
                                                 Text("Turbidity ${formatValue(prediction.turbidity)} NTU · Temperature ${formatValue(prediction.temperature)} °C", style = MaterialTheme.typography.bodyMedium)
                                                 Text("Optical Colour Index ${formatValue(prediction.opticalColourIndex)} · Experimental", style = MaterialTheme.typography.bodySmall, color = HydroGuardColors.experimental)
@@ -559,18 +767,21 @@ fun ServerWaterScreen(
                         item { Text("Optical Colour is for information only and is not a safety measurement.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
-                else -> {
-                    item { SectionHeader("Alerts", subtitle = if (isAdmin) "Alert records returned by the HydroGuard backend" else "Water alerts") }
-                    alertsFailure?.let { requestFailure -> item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) } }
-                    if (isAdmin && alertsFailure == null) item {
+                3 -> {
+                    item { SectionHeader("Alerts", subtitle = "Water alerts") }
+                    visibleAlertsFailure?.let { requestFailure -> item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) } }
+                    if (isAdmin && visibleAlertsFailure == null) item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            item { StatusChip("Active $activeCount", tone = if (activeCount > 0) StatusTone.ATTENTION else StatusTone.HEALTHY) }
-                            item { StatusChip("Acknowledged $acknowledgedCount", tone = StatusTone.NEUTRAL) }
-                            item { StatusChip("Resolved $resolvedCount", tone = StatusTone.HEALTHY) }
+                            val displayActiveCount = alertsForDisplay.count { it.status.equals("ACTIVE", true) }
+                            val displayAcknowledgedCount = alertsForDisplay.count { it.status.equals("ACKNOWLEDGED", true) }
+                            val displayResolvedCount = alertsForDisplay.count { it.status.equals("RESOLVED", true) }
+                            item { StatusChip("Active $displayActiveCount", tone = if (displayActiveCount > 0) StatusTone.ATTENTION else StatusTone.HEALTHY) }
+                            item { StatusChip("Acknowledged $displayAcknowledgedCount", tone = StatusTone.NEUTRAL) }
+                            item { StatusChip("Resolved $displayResolvedCount", tone = StatusTone.HEALTHY) }
                         }
                     }
-                    val visibleAlerts = if (isAdmin) alerts else alerts.filter { it.status.equals("ACTIVE", true) }
-                    if (alertsFailure == null && visibleAlerts.isEmpty() && !loading) item {
+                    val visibleAlerts = if (isAdmin) alertsForDisplay else alertsForDisplay.filter { it.status.equals("ACTIVE", true) }
+                    if (visibleAlertsFailure == null && visibleAlerts.isEmpty() && !loading) item {
                         EmptyState(
                             if (isAdmin) "No alert records" else "No active water alerts",
                             if (isAdmin) "No alerts have been recorded." else "Everything looks good right now.",
@@ -579,6 +790,44 @@ fun ServerWaterScreen(
                     }
                     items(visibleAlerts.sortedByDescending { it.timestamp }, key = { it.id }) { alert ->
                         AlertCard(alert, isAdmin)
+                    }
+                }
+                4 -> if (isAdmin) {
+                    item {
+                        SectionHeader("Model performance", subtitle = "Evaluation metrics from the backend")
+                    }
+                    item {
+                        HydroCard {
+                            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Research data export", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text("Download the backend CSV with its data-source provenance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Button(onClick = ::requestResearchExport, enabled = !exportLoading) {
+                                    Text(if (exportLoading) "Preparing export…" else "Export research CSV")
+                                }
+                                exportFailure?.let { requestFailure ->
+                                    FailureSummary(requestFailure, ::requestResearchExport, onSignIn, true)
+                                }
+                                exportStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            }
+                        }
+                    }
+                    modelPerformanceFailure?.let { requestFailure ->
+                        item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, true) }
+                    }
+                    val records = modelPerformance?.performance.orEmpty()
+                    if (modelPerformanceFailure == null && records.isEmpty() && !loading) item {
+                        EmptyState(
+                            "Model performance unavailable",
+                            "No evaluation metrics are available from the backend yet.",
+                            icon = Icons.Default.WaterDrop,
+                            actionLabel = "Retry",
+                            onAction = { scope.launch { load() } }
+                        )
+                    }
+                    records.groupBy { it.modelName }.toSortedMap().forEach { (model, metrics) ->
+                        item(key = "performance-$model") {
+                            ModelPerformanceCard(model, metrics)
+                        }
                     }
                 }
             }
@@ -595,13 +844,75 @@ private data class DisplayMetric(
     val tone: StatusTone = StatusTone.NEUTRAL
 )
 
+private fun SensorReading.toLatestReadingResponse(): LatestReadingResponse = LatestReadingResponse(
+    nodeId = nodeId,
+    timestamp = toIsoTimestamp(),
+    ph = ph,
+    tds = tds,
+    turbidity = turbidity,
+    temperature = temperature,
+    red = red,
+    green = green,
+    blue = blue,
+    clear = clear,
+    opticalColourIndex = opticalColourIndex,
+    calibrationId = calibrationId,
+    source = source
+)
+
+private fun SensorReading.toHistoricalReadingResponse(): HistoricalReadingResponse {
+    val timestampString = toIsoTimestamp()
+    return HistoricalReadingResponse(
+        id = id.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt(),
+        nodeId = nodeId,
+        timestamp = timestampString,
+        ph = ph,
+        tds = tds,
+        turbidity = turbidity,
+        temperature = temperature,
+        red = red,
+        green = green,
+        blue = blue,
+        clear = clear,
+        opticalColourIndex = opticalColourIndex,
+        calibrationId = calibrationId,
+        source = source,
+        createdAt = timestampString
+    )
+}
+
+private fun RoomAlert.toAlertResponse(): AlertResponse {
+    val timestampString = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }.format(java.util.Date(timestamp))
+    return AlertResponse(
+        id = id.hashCode(),
+        nodeId = nodeId,
+        timestamp = timestampString,
+        parameter = parameterName,
+        value = value,
+        threshold = thresholdLimit,
+        severity = riskLevel,
+        message = listOf(title, recommendation).filter { it.isNotBlank() }.joinToString(" · "),
+        status = if (isResolved) "RESOLVED" else "ACTIVE",
+        createdAt = timestampString
+    )
+}
+
+private fun SensorReading.toIsoTimestamp(): String = SimpleDateFormat(
+    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+    Locale.US
+).apply {
+    timeZone = TimeZone.getTimeZone("UTC")
+}.format(java.util.Date(timestamp))
+
 private fun currentMetrics(reading: LatestReadingResponse): List<DisplayMetric> = listOf(
     DisplayMetric("pH", formatValue(reading.ph), ""),
     DisplayMetric("TDS", formatValue(reading.tds), "ppm"),
     DisplayMetric("Turbidity", formatValue(reading.turbidity), "NTU"),
     DisplayMetric("Temperature", reading.temperature?.let(::formatValue) ?: "—", "°C", if (reading.temperature == null) "Not reported" else null),
     DisplayMetric(
-        "Optical Colour",
+        "Optical Colour Index",
         reading.opticalColourIndex?.let(::formatValue) ?: "—",
         "index",
         if (reading.opticalColourIndex == null) "Not reported" else "Experimental measure",
@@ -617,6 +928,40 @@ private fun forecastMetrics(forecast: ForecastResponse): List<DisplayMetric> = l
     DisplayMetric("Temperature", formatValue(forecast.prediction.temperature), "°C"),
     DisplayMetric("Optical Colour", formatValue(forecast.prediction.opticalColourIndex), "index", "Experimental", "EXPERIMENTAL", StatusTone.AI)
 )
+
+@Composable
+private fun ModelPerformanceCard(model: String, metrics: List<ModelPerformanceRecord>) {
+    HydroCard {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(model, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            metrics.sortedBy { parameterSortOrder(it.parameter) }.forEach { metric ->
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(parameterLabel(metric.parameter), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "MAE ${formatValue(metric.mae)} · RMSE ${formatValue(metric.rmse)}${metric.mape?.let { " · MAPE ${formatValue(it)}%" }.orEmpty()}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Text(
+                        "${metric.count} observations · ${metric.dataSource} · ${metric.horizonHours}h horizon",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun parameterSortOrder(parameter: String): Int = when (parameter.lowercase()) {
+    "ph" -> 0
+    "tds" -> 1
+    "turbidity" -> 2
+    "temperature" -> 3
+    "optical_colour_index" -> 4
+    else -> 5
+}
 
 private data class ForecastHistoryReadiness(
     val totalReadings: Int,
@@ -715,12 +1060,19 @@ private fun WeightRow(model: String, weight: Float) {
 
 @Composable
 private fun AdminForecastSummary(forecast: ForecastResponse?, failure: ApiRequestFailure?, onSignIn: (() -> Unit)?) {
-    SectionHeader("Forecast summary")
+    SectionHeader("Forecast")
     if (forecast == null) {
         HydroCard {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Forecast unavailable", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Text(failure?.let { failureDetail(it, isAdmin = true) } ?: "No forecast response is available.", style = MaterialTheme.typography.bodySmall)
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                StatusChip("Forecast Unavailable", tone = StatusTone.NEUTRAL)
+                Text(
+                    when (failure?.kind) {
+                        ApiFailureKind.INSUFFICIENT_DATA -> "More complete water readings are needed before a forecast is available."
+                        ApiFailureKind.SERVER_UNREACHABLE -> "Backend is unavailable right now."
+                        else -> "A forecast could not be loaded right now."
+                    },
+                    style = MaterialTheme.typography.bodySmall
+                )
                 if (failure?.kind == ApiFailureKind.AUTHENTICATION && failure.statusCode != 403 && onSignIn != null) {
                     androidx.compose.material3.TextButton(onClick = onSignIn) { Text("Sign in") }
                 }
@@ -729,20 +1081,11 @@ private fun AdminForecastSummary(forecast: ForecastResponse?, failure: ApiReques
     } else {
         HydroCard {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                StatusChip(forecastSourceLabel(forecast.dataSource), tone = if (isDevelopmentSource(forecast.dataSource)) StatusTone.AI else StatusTone.NEUTRAL)
-                Text("${forecast.forecastHorizonHours}-hour adaptive forecast · ${forecast.forecastDate}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text("pH ${formatValue(forecast.prediction.pH)} · TDS ${formatValue(forecast.prediction.TDS)} · Turbidity ${formatValue(forecast.prediction.turbidity)} · Temp ${formatValue(forecast.prediction.temperature)} °C", style = MaterialTheme.typography.bodySmall)
-                Text("Optical Colour Index ${formatValue(forecast.prediction.opticalColourIndex)} · Experimental", style = MaterialTheme.typography.bodySmall, color = HydroGuardColors.experimental)
-                Text("Weight status: ${forecast.weightStatus.replace('_', ' ')}", style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        SectionHeader("Model information")
-        HydroCard {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                forecast.modelVersions.toSortedMap().forEach { (name, version) ->
-                    Text("$name · $version", style = MaterialTheme.typography.bodySmall)
-                }
-                Text("Weight strategy: ${forecast.weightStrategy.replace('_', ' ')}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                StatusChip("Forecast Available", tone = StatusTone.HEALTHY)
+                Text("${forecast.forecastHorizonHours}-hour forecast · ${forecast.forecastDate}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text("pH ${formatValue(forecast.prediction.pH)} · TDS ${formatValue(forecast.prediction.TDS)} ppm", style = MaterialTheme.typography.bodySmall)
+                Text("Turbidity ${formatValue(forecast.prediction.turbidity)} NTU · Temperature ${formatValue(forecast.prediction.temperature)} °C", style = MaterialTheme.typography.bodySmall)
+                Text("Optical Colour Index ${formatValue(forecast.prediction.opticalColourIndex)}", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -792,11 +1135,11 @@ private fun failureTitle(failure: ApiRequestFailure, isAdmin: Boolean): String =
     if (failure.kind == ApiFailureKind.AUTHENTICATION && failure.statusCode == 401) "Sign in required"
     else "Water data temporarily unavailable"
 } else when (failure.kind) {
-    ApiFailureKind.SERVER_UNREACHABLE -> "Server unavailable"
+    ApiFailureKind.SERVER_UNREACHABLE -> "Backend unavailable"
     ApiFailureKind.NO_READING -> "No reading yet"
     ApiFailureKind.AUTHENTICATION -> if (failure.statusCode == 403) "Access denied" else "Sign in required"
     ApiFailureKind.API_ERROR -> "Unable to retrieve water data"
-    ApiFailureKind.MALFORMED_RESPONSE -> "Unexpected server response"
+    ApiFailureKind.MALFORMED_RESPONSE -> "Water data unavailable"
     ApiFailureKind.INSUFFICIENT_DATA -> "Not enough historical data"
 }
 
@@ -812,24 +1155,11 @@ private fun failureDetail(failure: ApiRequestFailure, isAdmin: Boolean = false):
         ApiFailureKind.SERVER_UNREACHABLE -> "Check the connection and try again."
         ApiFailureKind.NO_READING -> "Waiting for the monitoring node to send readings."
         ApiFailureKind.AUTHENTICATION -> if (failure.statusCode == 403) "This account does not have access to this service." else "Your session is no longer valid. Please sign in again."
-        ApiFailureKind.API_ERROR -> "The server could not complete this request. Try again shortly."
-        ApiFailureKind.MALFORMED_RESPONSE -> "The server sent data that HydroGuard could not display."
-        ApiFailureKind.INSUFFICIENT_DATA -> failure.userDetail ?: "Forecasting needs at least 30 complete, timestamped observations from the same source."
+        ApiFailureKind.API_ERROR -> "Water data could not be loaded. Try again shortly."
+        ApiFailureKind.MALFORMED_RESPONSE -> "Water data could not be displayed right now."
+        ApiFailureKind.INSUFFICIENT_DATA -> "More complete water readings are needed before a forecast is available."
     }
 }
-
-private fun provenanceLabel(source: String): String = when (source.uppercase()) {
-    "REAL_SENSOR" -> "REAL SENSOR DATA"
-    "DEMO", "HISTORICAL_DEMO" -> "HISTORICAL DEMO DATA"
-    "SIMULATED", "DEVELOPMENT" -> "DEVELOPMENT / SIMULATED DATA"
-    else -> source.uppercase().replace('_', ' ')
-}
-
-private fun isDevelopmentSource(source: String): Boolean =
-    source.uppercase().let { it.contains("SIMULATED") || it.contains("DEVELOPMENT") || it.contains("DEMO") }
-
-private fun forecastSourceLabel(source: String): String =
-    if (isDevelopmentSource(source)) "DEVELOPMENT / SIMULATED" else source.uppercase().replace('_', ' ')
 
 private fun parameterLabel(parameter: String): String = when (parameter.lowercase()) {
     "ph" -> "pH"

@@ -61,10 +61,7 @@ def test_hostel_services_admin_management_feedback_and_moderation(monkeypatch):
         "category": "MAINTENANCE", "priority": "HIGH",
     }
     assert client.post("/api/v1/hostel/notices", json=notice_payload).status_code == 403
-    assert client.post("/api/v1/hostel/events", json={
-        "name": "Orientation", "starts_at": "2026-10-05T10:00:00Z", "location": "Hall",
-        "description": "Hostel orientation", "organizer": "Warden",
-    }).status_code == 403
+    assert client.get("/api/v1/hostel/events").status_code == 404
 
     principal.update(uid="warden-services", role="ADMIN")
     notice = client.post("/api/v1/hostel/notices", json=notice_payload)
@@ -83,6 +80,10 @@ def test_hostel_services_admin_management_feedback_and_moderation(monkeypatch):
     assert client.get("/api/v1/hostel/emergency-contacts").json() == []
 
     principal.update(uid="warden-services", role="ADMIN")
+    invalid_contact = client.post("/api/v1/hostel/emergency-contacts", json={
+        "category": "AMBULANCE", "name": "Unsupported contact", "phone": "+91 12345 67892",
+    })
+    assert invalid_contact.status_code == 422
     contact = client.post("/api/v1/hostel/emergency-contacts", json={
         "category": "WARDEN", "name": "Verified Warden", "phone": "+91 12345 67890", "verified": True,
     })
@@ -91,15 +92,11 @@ def test_hostel_services_admin_management_feedback_and_moderation(monkeypatch):
     principal.update(uid="student-services", role="STUDENT")
     student_contacts = client.get("/api/v1/hostel/emergency-contacts").json()
     assert all(item["verified"] for item in student_contacts)
+    assert all(item["category"] in {"WARDEN", "SECURITY"} for item in student_contacts)
     assert any(item["id"] == contact.json()["id"] for item in student_contacts)
 
     principal.update(uid="warden-services", role="ADMIN")
-    event = client.post("/api/v1/hostel/events", json={
-        "name": "Orientation", "starts_at": "2026-10-05T10:00:00Z", "location": "Hall",
-        "description": "Hostel orientation", "organizer": "Warden",
-    })
-    assert event.status_code == 201
-    assert client.get("/api/v1/hostel/events").json()[0]["name"] == "Orientation"
+    assert client.post("/api/v1/hostel/events", json={}).status_code == 404
 
     submission = client.post("/api/v1/hostel/lost-found", json={
         "kind": "FOUND", "title": "Keys", "description": "Found a key ring.",
@@ -122,7 +119,6 @@ def test_hostel_services_admin_management_feedback_and_moderation(monkeypatch):
     assert client.delete(f"/api/v1/hostel/notices/{notice.json()['id']}").status_code == 204
     assert client.delete(f"/api/v1/hostel/emergency-contacts/{contact.json()['id']}").status_code == 204
     assert client.delete(f"/api/v1/hostel/emergency-contacts/{unverified.json()['id']}").status_code == 204
-    assert client.delete(f"/api/v1/hostel/events/{event.json()['id']}").status_code == 204
 
 
 def test_resolution_feedback_and_reopen_are_reporter_only(monkeypatch):

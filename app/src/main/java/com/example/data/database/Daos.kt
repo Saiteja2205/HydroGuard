@@ -26,14 +26,20 @@ interface HydroDao {
     suspend fun getNodeById(id: String): SensorNode?
 
     // Sensor Readings
-    @Query("SELECT * FROM sensor_readings WHERE nodeId = :nodeId ORDER BY timestamp DESC LIMIT 50")
+    @Query("SELECT * FROM sensor_readings WHERE nodeId = :nodeId ORDER BY timestamp DESC LIMIT 500")
     fun getHistoricalReadings(nodeId: String): Flow<List<SensorReading>>
+
+    @Query("SELECT COUNT(*) FROM sensor_readings WHERE nodeId = :nodeId AND source = :source")
+    suspend fun countReadings(nodeId: String, source: String): Int
 
     @Query("SELECT * FROM sensor_readings WHERE nodeId = :nodeId ORDER BY timestamp DESC LIMIT 1")
     fun getLatestReading(nodeId: String): Flow<SensorReading?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReading(reading: SensorReading)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReadings(readings: List<SensorReading>)
 
     // Predictions
     @Query("SELECT * FROM predictions WHERE nodeId = :nodeId LIMIT 1")

@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -115,6 +115,120 @@ def test_readings_api(monkeypatch):
     assert "No sensor reading" in empty.json()["detail"]
 
     print("\n[OK] Readings API test passed")
+
+
+def test_real_reading_becomes_current_without_replacing_development_history(monkeypatch):
+    init_db()
+    monkeypatch.setenv("HYDROGUARD_SENSOR_API_KEY", "test-sensor-key")
+    client = TestClient(app)
+    node_id = "test_live_overrides_development"
+    now = datetime.now(timezone.utc)
+
+    development_reading = {
+        "node_id": node_id,
+        "timestamp": (now + timedelta(minutes=5)).isoformat(),
+        "ph": 7.0,
+        "tds": 180.0,
+        "turbidity": 1.0,
+        "temperature": 22.0,
+        "red": 10_000,
+        "green": 10_200,
+        "blue": 10_100,
+        "clear": 11_000,
+        "optical_colour_index": 0.08,
+        "source": "SIMULATED_DEVELOPMENT",
+    }
+    response = client.post(
+        "/api/v1/readings",
+        json=development_reading,
+        headers={"X-Sensor-Token": "test-sensor-key"},
+    )
+    assert response.status_code == 200, response.text
+
+    live_reading = {
+        **development_reading,
+        "timestamp": now.isoformat(),
+        "ph": 7.4,
+        "tds": 215.0,
+        "turbidity": 1.6,
+        "temperature": 24.0,
+        "red": 9_600,
+        "green": 10_000,
+        "blue": 10_200,
+        "clear": 11_000,
+        "optical_colour_index": 0.1,
+        "source": "REAL_SENSOR",
+    }
+    response = client.post(
+        "/api/v1/readings",
+        json=live_reading,
+        headers={"X-Sensor-Token": "test-sensor-key"},
+    )
+    assert response.status_code == 200, response.text
+
+    latest = client.get(f"/api/v1/nodes/{node_id}/readings/latest")
+    assert latest.status_code == 200
+    assert latest.json()["source"] == "REAL_SENSOR"
+    assert latest.json()["ph"] == 7.4
+    assert latest.json()["optical_colour_index"] == 0.1
+
+    history = client.get(f"/api/v1/nodes/{node_id}/readings/history")
+    assert history.status_code == 200
+    assert history.json()["count"] == 2
+    assert {row["source"] for row in history.json()["readings"]} == {
+        "REAL_SENSOR",
+        "SIMULATED_DEVELOPMENT",
+    }
+
+
+def test_development_reading_apis_serve_the_canonical_simulated_dataset(monkeypatch):
+    from app.db.seed import seed_development_dataset
+
+    monkeypatch.setenv("HYDROGUARD_ENVIRONMENT", "development")
+    init_db()
+    node_id = "test_200_observation_demo"
+    with get_db_context() as db:
+        seed_development_dataset(db, node_id=node_id)
+
+    client = TestClient(app)
+    latest = client.get(f"/api/v1/nodes/{node_id}/readings/latest")
+    history = client.get(f"/api/v1/nodes/{node_id}/readings/history?limit=1000")
+
+    assert latest.status_code == 200, latest.text
+    assert history.status_code == 200, history.text
+    assert latest.json()["source"] == "SIMULATED_DEVELOPMENT"
+    assert history.json()["count"] == 200
+    assert {row["source"] for row in history.json()["readings"]} == {"SIMULATED_DEVELOPMENT"}
+    assert all(
+        row["temperature"] is not None and row["optical_colour_index"] is not None
+        for row in history.json()["readings"]
+    )
+
+    monkeypatch.setenv("HYDROGUARD_ENABLE_DEV_AUTH", "true")
+    monkeypatch.setenv("HYDROGUARD_DEV_API_TOKEN", "test-local-token")
+    forecast = client.post(
+        "/api/v1/forecast",
+        json={"node_id": node_id},
+        headers={
+            "X-HydroGuard-Development-Token": "test-local-token",
+            "X-HydroGuard-Development-Role": "STUDENT",
+            "X-HydroGuard-Development-Uid": "demo.student@hydroguard.local",
+        },
+    )
+    assert forecast.status_code == 200, forecast.text
+    forecast_data = forecast.json()
+    rows = history.json()["readings"]
+    assert forecast_data["data_source"] == "SIMULATED_DEVELOPMENT"
+    forecast_start = datetime.fromisoformat(forecast_data["input_start"].replace("Z", "+00:00"))
+    forecast_end = datetime.fromisoformat(forecast_data["input_end"].replace("Z", "+00:00"))
+    history_start = datetime.fromisoformat(rows[-30]["timestamp"].replace("Z", "+00:00"))
+    history_end = datetime.fromisoformat(rows[-1]["timestamp"].replace("Z", "+00:00"))
+    assert forecast_start == history_start
+    assert forecast_end == history_end
+    assert set(forecast_data["model_predictions"]) == {"LSTM", "PatchTST", "TimeMixer"}
+    assert set(forecast_data["prediction"]) == {"pH", "TDS", "turbidity", "temperature", "optical_colour_index"}
+    assert set(forecast_data["weights"]) == {"pH", "TDS", "turbidity", "temperature", "optical_colour_index"}
+    assert forecast_data["weight_strategy"] in {"initial", "adaptive"}
 
 
 if __name__ == "__main__":

@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "547157887396",
+    "project_id": "hydroguard-4a606",
+    "storage_bucket": "hydroguard-4a606.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:547157887396:android:ac9597b1552fa7b4349931",
+        "android_client_info": {
+          "package_name": "com.aistudio.hydroguard.wxqpzx"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "547157887396-bieigeagags3jq5pi1j5jouo7hflogg7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.hydroguard.wxqpzx",
+            "certificate_hash": "3e3330ffb05edfca15adc8f7c448b024abfa1959"
+          }
+        },
+        {
+          "client_id": "547157887396-rr721qbo70s3o3qni46rl75vci1hed07.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.hydroguard.wxqpzx",
+            "certificate_hash": "57078a99a3c4e40639cb42664af8054a89d56271"
+          }
+        },
+        {
+          "client_id": "547157887396-usppqmu8huhmtbjiujcnmcf8m9sup2v8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlTVzEDndC59mB1IqiA6J3jGbkqpQIYug"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "547157887396-usppqmu8huhmtbjiujcnmcf8m9sup2v8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

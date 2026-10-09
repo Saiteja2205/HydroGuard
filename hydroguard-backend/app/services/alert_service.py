@@ -41,6 +41,9 @@ class AlertService:
             List of generated alerts
         """
         thresholds = custom_thresholds or AlertService.DEFAULT_THRESHOLDS
+        alert_timestamp = reading_data.get("timestamp")
+        if not isinstance(alert_timestamp, datetime):
+            alert_timestamp = datetime.now(timezone.utc)
         alerts = []
 
         # Evaluate pH
@@ -51,7 +54,7 @@ class AlertService:
                     AlertRepository.create(
                         db=db,
                         node_id=node_id,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=alert_timestamp,
                         parameter="pH",
                         value=ph,
                         threshold=thresholds["ph"]["min"],
@@ -65,7 +68,7 @@ class AlertService:
                     AlertRepository.create(
                         db=db,
                         node_id=node_id,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=alert_timestamp,
                         parameter="pH",
                         value=ph,
                         threshold=thresholds["ph"]["max"],
@@ -83,7 +86,7 @@ class AlertService:
                     AlertRepository.create(
                         db=db,
                         node_id=node_id,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=alert_timestamp,
                         parameter="TDS",
                         value=tds,
                         threshold=thresholds["tds"]["max"],
@@ -101,7 +104,7 @@ class AlertService:
                     AlertRepository.create(
                         db=db,
                         node_id=node_id,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=alert_timestamp,
                         parameter="turbidity",
                         value=turbidity,
                         threshold=thresholds["turbidity"]["max"],
@@ -120,7 +123,7 @@ class AlertService:
                         AlertRepository.create(
                             db=db,
                             node_id=node_id,
-                            timestamp=datetime.now(timezone.utc),
+                            timestamp=alert_timestamp,
                             parameter="temperature",
                             value=temp,
                             threshold=thresholds["temperature"]["min"],
@@ -134,7 +137,7 @@ class AlertService:
                         AlertRepository.create(
                             db=db,
                             node_id=node_id,
-                            timestamp=datetime.now(timezone.utc),
+                            timestamp=alert_timestamp,
                             parameter="temperature",
                             value=temp,
                             threshold=thresholds["temperature"]["max"],

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <style name="Theme.MyApplication" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/hydroguard_blue</item>
+        <item name="colorSecondary">@color/hydroguard_teal</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:statusBarColor">@color/hydroguard_navy</item>
+        <item name="android:navigationBarColor">@color/hydroguard_navy</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

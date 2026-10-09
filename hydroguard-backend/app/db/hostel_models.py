@@ -101,18 +101,6 @@ class LostFoundItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_now)
 
 
-class HostelEvent(Base):
-    __tablename__ = "hostel_events"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(180), nullable=False)
-    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    location: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
-    organizer: Mapped[str] = mapped_column(String(120), nullable=False)
-    author_uid: Mapped[str] = mapped_column(String(128), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_now)
-
-
 class HostelFeedback(Base):
     __tablename__ = "hostel_feedback"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

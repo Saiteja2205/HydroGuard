@@ -1,9 +1,9 @@
 """Pydantic schemas for forecast-related API endpoints."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 
 class ModelPrediction(BaseModel):
@@ -90,6 +90,14 @@ class ForecastRecord(BaseModel):
     lstm_weight_optical_colour_index: float
     patchtst_weight_optical_colour_index: float
     timemixer_weight_optical_colour_index: float
+
+    @field_serializer("created_at", "forecast_date", "input_start", "input_end")
+    def serialize_utc_timestamps(self, value: Optional[datetime]) -> Optional[str]:
+        if value is None:
+            return None
+        if value.tzinfo is None or value.utcoffset() is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 class ForecastListResponse(BaseModel):
     """Response for forecast list endpoint."""

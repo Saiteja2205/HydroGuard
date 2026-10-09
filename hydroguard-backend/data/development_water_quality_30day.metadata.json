@@ -1,0 +1,32 @@
+{
+  "dataset_name": "HydroGuard 30-day development water-quality dataset",
+  "source": "SIMULATED_DEVELOPMENT",
+  "data_provenance": "SIMULATED_DEVELOPMENT",
+  "dataset_type": "DEVELOPMENT",
+  "real_sensor_data": false,
+  "observation_count": 30,
+  "start_timestamp": "2026-09-07T12:00:00Z",
+  "end_timestamp": "2026-10-06T12:00:00Z",
+  "frequency": "daily",
+  "parameters": [
+    "pH",
+    "TDS",
+    "turbidity",
+    "temperature",
+    "optical_colour_index"
+  ],
+  "raw_optical_sensor_fields": [
+    "red",
+    "green",
+    "blue",
+    "clear"
+  ],
+  "optical_colour_index_method": "Derived from normalized RGB channel intensity using a fixed luma weighting. Synthetic development relationship only; not sensor-calibrated or a scientific validity claim.",
+  "generation_method": "Deterministic smooth baseline, independent TDS drift, two quality events, and recovery periods.",
+  "condition_counts": {
+    "GOOD": 18,
+    "NORMAL": 8,
+    "DEGRADED": 4
+  },
+  "csv_sha256": "b31bd81638ad6e091b8b357b5dfbde6ea96d3dacb483bcfc907190102656ab52"
+}

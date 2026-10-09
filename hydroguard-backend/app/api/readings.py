@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -16,14 +17,24 @@ from app.schemas.readings import (
 
 router = APIRouter(tags=["readings"])
 
+
+def _development_data_source() -> str | None:
+    """Keep local development dashboards on the explicitly simulated fixture."""
+    if os.getenv("HYDROGUARD_ENVIRONMENT", "production").strip().lower() in {"development", "dev", "test"}:
+        return "SIMULATED_DEVELOPMENT"
+    return None
+
 def _product_source(source: str) -> str:
     """Normalize previously stored lowercase provenance tags during migration."""
     value = source.strip().upper()
     return {
         "ESP32": "REAL_SENSOR",
+        "THINGSPEAK": "REAL_SENSOR",
         "MANUAL": "HISTORICAL_DATA",
         "HISTORICAL_DEMO": "DEMO",
         "HISTORICAL_OR_SIMULATED": "DEMO",
+        "SIMULATED": "SIMULATED",
+        "SIMULATED_DEVELOPMENT": "SIMULATED_DEVELOPMENT",
     }.get(value, value)
 
 
@@ -45,7 +56,9 @@ def get_latest_reading(
     node = NodeRepository.get_by_node_id(db, node_id)
     if node is None:
         raise HTTPException(status_code=404, detail=f"Node {node_id} not found.")
-    reading = SensorReadingRepository.get_latest_by_node(db, node_id)
+    reading = SensorReadingRepository.get_latest_by_node(
+        db, node_id, data_source=_development_data_source()
+    )
 
     if reading:
         return LatestReadingResponse(
@@ -98,6 +111,14 @@ def create_reading(reading_data: ReadingCreate, db: Session = Depends(get_db), _
         calibration_id=reading_data.calibration_id,
         source=reading_data.source,
     )
+    from app.services.alert_service import AlertService
+    AlertService.evaluate_reading_for_alerts(db, reading.node_id, {
+        "timestamp": reading.timestamp,
+        "ph": float(reading.ph),
+        "tds": float(reading.tds),
+        "turbidity": float(reading.turbidity),
+        "temperature": float(reading.temperature) if reading.temperature is not None else None,
+    })
     from app.services.error_tracking import ErrorTrackingService
     ErrorTrackingService.evaluate_actual_reading(db, reading)
     return reading
@@ -123,5 +144,12 @@ def get_reading_history(
     if node is None:
         raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
 
-    readings = SensorReadingRepository.get_history_by_node(db, node_id, start=start, end=end, limit=limit)
+    readings = SensorReadingRepository.get_history_by_node(
+        db,
+        node_id,
+        start=start,
+        end=end,
+        limit=limit,
+        data_source=_development_data_source(),
+    )
     return HistoryResponse(readings=readings, count=len(readings))

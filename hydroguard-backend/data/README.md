@@ -18,21 +18,25 @@
 
 ### development_water_quality_200_observations.csv
 - Exactly 200 chronologically ordered simulated observations.
-- `source=SIMULATED`, `dataset_type=DEVELOPMENT`, `real_sensor_data=false`.
+- `source=SIMULATED_DEVELOPMENT`, `dataset_type=DEVELOPMENT`, `real_sensor_data=false`.
 - Active model features: pH, TDS, turbidity, temperature, optical_colour_index.
 - Includes simulated TCS34725 raw RGB/clear fields. The optical index is an uncalibrated synthetic feature.
 - This is a **200-observation development dataset**, not real sensor data.
+
+### development_water_quality_30day.csv
+- Exactly 30 daily observations from 2026-09-07 through 2026-10-06.
+- Stored with source=SIMULATED_DEVELOPMENT and matching provenance metadata.
+- Contains pH, TDS, turbidity, temperature, raw RGB/clear counts, and an optical colour index derived from those synthetic channels.
+- Includes good, normal, and degraded periods with deterioration and recovery events.
+- real_sensor_data=false; the optical colour relationship is illustrative and is not sensor-calibrated.
+- Retained as a supplementary fixture; backend development startup seeds the 200-observation dataset above. Real sensor rows are retained in SQLite.
 
 ### Legacy dataset
 `demo_water_quality_200days.csv` is retained as historical test input only. Its old feature columns are not used by the active five-parameter model pipeline.
 
 ## Data Characteristics
 
-The synthetic data simulates:
-- Gradual seasonal trends (temperature increases over time)
-- Correlated parameters (e.g., higher temperature → lower DO)
-- Small daily noise/variation
-- Realistic parameter ranges
+The synthetic data simulates gradual temporal variation, plausible parameter ranges, and correlated turbidity/colour events. It does not add deprecated parameters to the active five-parameter product contract.
 
 ## When Real Data is Available
 

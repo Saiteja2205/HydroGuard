@@ -3,8 +3,27 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
-DataSource = Literal["REAL_SENSOR", "HISTORICAL_DATA", "DEMO", "SIMULATED"]
+DataSource = Literal["REAL_SENSOR", "SIMULATED_DEVELOPMENT", "HISTORICAL_DATA", "DEMO", "SIMULATED"]
 PRODUCT_PARAMETERS = ("pH", "TDS", "turbidity", "temperature", "optical_colour_index")
+
+
+def normalize_data_source(value: str) -> str:
+    return {
+        "esp32": "REAL_SENSOR",
+        "thingspeak": "REAL_SENSOR",
+        "manual": "HISTORICAL_DATA",
+        "historical_demo": "DEMO",
+        "historical_or_simulated": "DEMO",
+        "simulated": "SIMULATED",
+        "simulated_development": "SIMULATED_DEVELOPMENT",
+    }.get(str(value).strip().lower(), str(value).strip().upper())
+
+
+def serialize_utc_timestamp(value: datetime) -> str:
+    """SQLite returns UTC columns as naive datetimes; interpret them as UTC."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class ModelsLoadedStatus(BaseModel):
@@ -44,11 +63,11 @@ class LatestReadingResponse(BaseModel):
     @field_validator("source", mode="before")
     @classmethod
     def normalize_legacy_source(cls, value: str) -> str:
-        return {"esp32": "REAL_SENSOR", "manual": "HISTORICAL_DATA", "historical_demo": "DEMO", "simulated": "SIMULATED"}.get(str(value).lower(), str(value).upper())
+        return normalize_data_source(value)
 
     @field_serializer("timestamp")
     def serialize_timestamp(self, value: datetime) -> str:
-        return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return serialize_utc_timestamp(value)
 
 
 class ReadingCreate(BaseModel):
@@ -69,6 +88,11 @@ class ReadingCreate(BaseModel):
     optical_colour_index: Optional[float] = Field(default=None, allow_inf_nan=False)
     calibration_id: Optional[int] = None
     source: DataSource
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def normalize_legacy_source(cls, value: str) -> str:
+        return normalize_data_source(value)
 
     @field_validator("timestamp")
     @classmethod
@@ -102,15 +126,15 @@ class ReadingResponse(BaseModel):
     @field_validator("source", mode="before")
     @classmethod
     def normalize_legacy_source(cls, value: str) -> str:
-        return {"esp32": "REAL_SENSOR", "manual": "HISTORICAL_DATA", "historical_demo": "DEMO", "simulated": "SIMULATED"}.get(str(value).lower(), str(value).upper())
+        return normalize_data_source(value)
 
     @field_serializer("timestamp")
     def serialize_timestamp(self, value: datetime) -> str:
-        return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return serialize_utc_timestamp(value)
 
     @field_serializer("created_at")
-    def serialize_timestamp(self, value: datetime) -> str:
-        return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    def serialize_created_at(self, value: datetime) -> str:
+        return serialize_utc_timestamp(value)
 
 class HistoryResponse(BaseModel):
     """Response for history endpoint."""
@@ -143,10 +167,18 @@ class ForecastRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     node_id: str = Field(..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
-    readings: list[ForecastReading] = Field(..., min_length=1, max_length=1000)
+    # Omitting readings is supported only in explicit development mode, where
+    # the backend may select its stored SIMULATED_DEVELOPMENT history.
+    readings: Optional[list[ForecastReading]] = Field(default=None, min_length=1, max_length=1000)
+    # A request-level source is useful for selecting stored provenance without
+    # requiring clients to resubmit the observations. It is checked against
+    # every supplied observation and defaults by environment in the route.
+    source: Optional[DataSource] = None
 
     @model_validator(mode="after")
     def timestamps_are_unique_and_ordered(self):
+        if self.readings is None:
+            return self
         parsed = [datetime.fromisoformat(reading.timestamp.replace("Z", "+00:00")) for reading in self.readings]
         if any(value.tzinfo is None for value in parsed):
             raise ValueError("Forecast timestamps must include a timezone.")

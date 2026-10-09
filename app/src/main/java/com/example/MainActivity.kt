@@ -29,6 +29,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.screens.AdminDashboardScreen
 import com.example.ui.screens.AdminHostelOpsScreen
+import com.example.ui.screens.AdminManagementScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.student.HostelHomeScreen
 import com.example.ui.screens.student.MyIssuesScreen
@@ -104,9 +105,18 @@ private fun AdminNavigationWrapper(viewModel: HydroViewModel, onLogout: () -> Un
     var selected by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(containerColor = MaterialTheme.colorScheme.background, bottomBar = {
         NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-            listOf("Water Monitoring", "Hostel Operations").forEachIndexed { index, label ->
+            listOf("Water Monitoring", "Hostel Operations", "Admin Management").forEachIndexed { index, label ->
                 NavigationBarItem(selected == index, onClick = { selected = index },
-                    icon = { Icon(if (index == 0) Icons.Default.WaterDrop else Icons.Default.AdminPanelSettings, contentDescription = label) },
+                    icon = {
+                        Icon(
+                            when (index) {
+                                0 -> Icons.Default.WaterDrop
+                                1 -> Icons.Default.AdminPanelSettings
+                                else -> Icons.Default.PersonOutline
+                            },
+                            contentDescription = label
+                        )
+                    },
                     label = { Text(label, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -118,7 +128,8 @@ private fun AdminNavigationWrapper(viewModel: HydroViewModel, onLogout: () -> Un
     }) { padding ->
         when (selected) {
             0 -> AdminDashboardScreen(viewModel, onLogout, Modifier.padding(padding))
-            else -> AdminHostelOpsScreen(onLogout, Modifier.padding(padding))
+            1 -> AdminHostelOpsScreen(onLogout, Modifier.padding(padding))
+            else -> AdminManagementScreen(viewModel, Modifier.padding(padding))
         }
     }
 }

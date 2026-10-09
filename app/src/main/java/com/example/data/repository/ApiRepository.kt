@@ -1,9 +1,12 @@
 package com.example.data.repository
 
 import android.util.Log
+import com.example.BuildConfig
 import com.example.data.api.*
 import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.JsonEncodingException
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
@@ -26,7 +29,7 @@ class ApiRequestFailure(
     val userDetail: String? = null,
     cause: Throwable? = null
 ) : Exception(
-    when (kind) {
+    userDetail?.takeIf(String::isNotBlank) ?: when (kind) {
         ApiFailureKind.SERVER_UNREACHABLE -> "HydroGuard server is currently unreachable."
         ApiFailureKind.NO_READING -> "No sensor reading has been received from this node yet."
         ApiFailureKind.AUTHENTICATION -> "Your session has expired. Sign in again."
@@ -40,6 +43,26 @@ class ApiRequestFailure(
 class ApiRepository {
 
     private val apiService = RetrofitClient.apiService
+
+    suspend fun bootstrapAccount(): Result<AuthenticatedUserResponse> = request(
+        endpoint = "/api/v1/auth/bootstrap"
+    ) { apiService.bootstrapAccount() }
+
+    suspend fun createDevelopmentDemoStudentSession(): Result<String> = request(
+        endpoint = "/api/v1/auth/development/demo-student-session"
+    ) { apiService.createDevelopmentDemoStudentSession() }.map { it.customToken }
+
+    suspend fun getAdminUsers(): Result<List<AdminUserResponse>> = request(
+        endpoint = "/api/v1/admin/users"
+    ) { apiService.listAdminUsers() }
+
+    suspend fun inviteAdmin(email: String): Result<AdminUserResponse> = request(
+        endpoint = "/api/v1/admin/users/invite"
+    ) { apiService.inviteAdmin(AdminInviteRequest(email = email)) }
+
+    suspend fun updateAdminUserStatus(userId: Int, status: String): Result<AdminUserResponse> = request(
+        endpoint = "/api/v1/admin/users/$userId"
+    ) { apiService.updateAdminUserStatus(userId, AdminUserStatusRequest(status = status)) }
 
     suspend fun getLatestReading(nodeId: String): Result<LatestReadingResponse> = request(
         endpoint = "/api/v1/nodes/$nodeId/readings/latest",
@@ -57,6 +80,27 @@ class ApiRepository {
     suspend fun getAlerts(nodeId: String): Result<AlertListResponse> = request(
         endpoint = "/api/v1/nodes/$nodeId/alerts"
     ) { apiService.getAlerts(nodeId) }
+
+    suspend fun getModelPerformance(nodeId: String): Result<ModelPerformanceResponse> = request(
+        endpoint = "/api/v1/nodes/$nodeId/model-performance"
+    ) { apiService.getModelPerformance(nodeId) }
+
+    suspend fun exportResearchCsv(): Result<ByteArray> = withContext(Dispatchers.IO) {
+        val endpoint = "/api/v1/research/export.csv"
+        try {
+            val response = apiService.exportResearchCsv()
+            if (!response.isSuccessful) return@withContext responseResult(response, endpoint).map { body -> body.use { it.bytes() } }
+            val body = response.body()
+                ?: return@withContext Result.failure(ApiRequestFailure(ApiFailureKind.MALFORMED_RESPONSE, endpoint, response.code()))
+            Result.success(body.use { it.bytes() })
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            val failure = classifyFailure(error, endpoint)
+            Log.e("HydroGuardApi", "${failure.kind} endpoint=${failure.endpoint} type=${error.javaClass.simpleName}")
+            Result.failure(failure)
+        }
+    }
 
     suspend fun getHostelNotices(): Result<List<HostelNoticeResponse>> = request(
         endpoint = "/api/v1/hostel/notices"
@@ -178,9 +222,36 @@ class ApiRepository {
         val kind = when {
             response.code() == 401 || response.code() == 403 -> ApiFailureKind.AUTHENTICATION
             noReadingIsExpected && response.code() == 404 -> ApiFailureKind.NO_READING
+            endpoint == "/api/v1/forecast" && response.code() == 422 -> ApiFailureKind.INSUFFICIENT_DATA
             else -> ApiFailureKind.API_ERROR
         }
-        return Result.failure(ApiRequestFailure(kind, endpoint, response.code()))
+        val detail = response.errorBody()?.use { errorBody -> parseErrorDetail(errorBody.string()) }
+        if (BuildConfig.DEBUG) {
+            Log.w("HydroGuardApi", "HTTP ${response.code()} endpoint=$endpoint detail=${detail ?: "<empty response body>"}")
+        }
+        return Result.failure(ApiRequestFailure(kind, endpoint, response.code(), userDetail = detail))
+    }
+
+    private fun parseErrorDetail(body: String): String? {
+        val raw = body.trim()
+        if (raw.isBlank()) return null
+        val detail = runCatching { JSONObject(raw).opt("detail") }.getOrNull()
+        val message = when (detail) {
+            is String -> detail
+            is JSONArray -> buildList {
+                for (index in 0 until detail.length()) {
+                    val item = detail.optJSONObject(index) ?: continue
+                    val location = item.optJSONArray("loc")?.let { path ->
+                        (0 until path.length()).joinToString(".") { path.optString(it) }
+                    }.orEmpty()
+                    val reason = item.optString("msg").takeIf(String::isNotBlank).orEmpty()
+                    add(listOf(location, reason).filter(String::isNotBlank).joinToString(": "))
+                }
+            }.filter(String::isNotBlank).joinToString("; ").takeIf(String::isNotBlank)
+            null -> raw
+            else -> detail.toString()
+        }
+        return message?.trim()?.take(600)?.takeIf(String::isNotBlank)
     }
 
     private fun classifyFailure(error: Throwable, endpoint: String): ApiRequestFailure = when (error) {

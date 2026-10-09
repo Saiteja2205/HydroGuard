@@ -14,6 +14,7 @@ from app.db.models import (
     EnsembleWeight,
     SensorCalibration,
 )
+from app.db.auth_models import HydroGuardUser
 
 # Import database functions
 from app.db.database import get_db, init_db
@@ -39,6 +40,7 @@ __all__ = [
     "Alert",
     "EnsembleWeight",
     "SensorCalibration",
+    "HydroGuardUser",
     "NodeRepository",
     "SensorReadingRepository",
     "ForecastRepository",

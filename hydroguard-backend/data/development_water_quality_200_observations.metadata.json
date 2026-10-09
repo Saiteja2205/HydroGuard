@@ -1,5 +1,5 @@
 {
-  "source": "SIMULATED",
+  "source": "SIMULATED_DEVELOPMENT",
   "dataset_type": "DEVELOPMENT",
   "real_sensor_data": false,
   "observation_count": 200,

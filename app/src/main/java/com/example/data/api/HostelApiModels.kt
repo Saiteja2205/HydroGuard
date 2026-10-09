@@ -75,17 +75,6 @@ data class EmergencyContactResponse(
     @Json(name = "updated_at") val updatedAt: String
 )
 
-data class HostelEventResponse(
-    val id: Int,
-    val name: String,
-    @Json(name = "starts_at") val startsAt: String,
-    val location: String,
-    val description: String,
-    val organizer: String,
-    @Json(name = "author_uid") val authorUid: String,
-    @Json(name = "created_at") val createdAt: String
-)
-
 data class CreateLostFoundRequest(
     val kind: String,
     val title: String,
@@ -118,14 +107,6 @@ data class HostelFeedbackRecord(
     val rating: Int,
     val comment: String?,
     @Json(name = "created_at") val createdAt: String
-)
-
-data class EventCreateRequest(
-    val name: String,
-    @Json(name = "starts_at") val startsAt: String,
-    val location: String,
-    val description: String,
-    val organizer: String
 )
 
 data class NoticeCreateRequest(

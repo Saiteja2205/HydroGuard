@@ -28,7 +28,6 @@ fun AdminHostelOpsScreen(onLogout: () -> Unit, modifier: Modifier = Modifier) {
     var summary by remember { mutableStateOf<IssueSummaryResponse?>(null) }
     var notices by remember { mutableStateOf(emptyList<HostelNoticeResponse>()) }
     var contacts by remember { mutableStateOf(emptyList<EmergencyContactResponse>()) }
-    var events by remember { mutableStateOf(emptyList<HostelEventResponse>()) }
     var lostFound by remember { mutableStateOf(emptyList<LostFoundResponse>()) }
     var feedback by remember { mutableStateOf(emptyList<HostelFeedbackRecord>()) }
     var resolutionFeedback by remember { mutableStateOf(emptyList<IssueFeedbackResponse>()) }
@@ -46,28 +45,22 @@ fun AdminHostelOpsScreen(onLogout: () -> Unit, modifier: Modifier = Modifier) {
     var contactPhone by remember { mutableStateOf("") }
     var contactCategory by remember { mutableStateOf("WARDEN") }
     var contactVerified by remember { mutableStateOf(false) }
-    var showEvent by remember { mutableStateOf(false) }
-    var editingEventId by remember { mutableStateOf<Int?>(null) }
-    var eventName by remember { mutableStateOf("") }
-    var eventDate by remember { mutableStateOf("") }
-    var eventLocation by remember { mutableStateOf("") }
-    var eventDescription by remember { mutableStateOf("") }
-    var eventOrganizer by remember { mutableStateOf("") }
 
     fun reload() = scope.launch {
         message = "Loading persisted hostel operations…"
         authRequired = false
         runCatching {
             val i = api.getHostelIssues(); val s = api.getIssueSummary(); val n = api.getHostelNotices()
-            val c = api.getEmergencyContacts(); val e = api.getHostelEvents(); val l = api.getLostFoundItems()
+            val c = api.getEmergencyContacts(); val l = api.getLostFoundItems()
             val f = api.getAdminFeedback(); val rf = api.getAdminResolutionFeedback()
-            val failedResponse = listOf(i, s, n, c, e, l, f, rf).firstOrNull { !it.isSuccessful }
+            val failedResponse = listOf(i, s, n, c, l, f, rf).firstOrNull { !it.isSuccessful }
             if (failedResponse != null) {
                 authRequired = failedResponse.code() == 401
                 error(adminResponseFailure(failedResponse.code(), "Could not load hostel operations. Please try again."))
             }
             issues = i.body().orEmpty(); summary = s.body(); notices = n.body().orEmpty()
-            contacts = c.body().orEmpty(); events = e.body().orEmpty(); lostFound = l.body().orEmpty()
+            contacts = c.body().orEmpty().filter { it.category.uppercase() in setOf("WARDEN", "SECURITY") }
+            lostFound = l.body().orEmpty()
             feedback = f.body().orEmpty(); resolutionFeedback = rf.body().orEmpty()
             message = "Data loaded from the configured backend."
         }.onFailure { message = readableAdminFailure(it, "Could not load hostel operations. Please try again.", authRequired) }
@@ -95,7 +88,16 @@ fun AdminHostelOpsScreen(onLogout: () -> Unit, modifier: Modifier = Modifier) {
     if (showContact) AlertDialog(
         onDismissRequest = { showContact = false; editingContactId = null }, title = { Text(if (editingContactId == null) "Add verified emergency contact" else "Edit verified emergency contact") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(contactCategory, { contactCategory = it.uppercase() }, label = { Text("WARDEN / SECURITY / COLLEGE_EMERGENCY / AMBULANCE / FIRE") })
+            Text("Contact type", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("WARDEN", "SECURITY").forEach { category ->
+                    FilterChip(
+                        selected = contactCategory == category,
+                        onClick = { contactCategory = category },
+                        label = { Text(category.lowercase().replaceFirstChar { it.uppercase() }) }
+                    )
+                }
+            }
             OutlinedTextField(contactName, { contactName = it }, label = { Text("Contact name") })
             OutlinedTextField(contactPhone, { contactPhone = it }, label = { Text("Phone") })
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -111,24 +113,6 @@ fun AdminHostelOpsScreen(onLogout: () -> Unit, modifier: Modifier = Modifier) {
                 .onSuccess { showContact = false; editingContactId = null; contactName = ""; contactPhone = ""; reload() }
                 .onFailure { message = readableAdminFailure(it, "Emergency contact could not be saved. Please try again.", authRequired) }
         } }, enabled = contactName.isNotBlank() && contactPhone.isNotBlank()) { Text(if (editingContactId == null) "Save contact" else "Update contact") } }, dismissButton = { TextButton(onClick = { showContact = false; editingContactId = null }) { Text("Cancel") } }
-    )
-
-    if (showEvent) AlertDialog(
-        onDismissRequest = { showEvent = false; editingEventId = null }, title = { Text(if (editingEventId == null) "New hostel event" else "Edit hostel event") },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(eventName, { eventName = it }, label = { Text("Event name") })
-            OutlinedTextField(eventDate, { eventDate = it }, label = { Text("Start time (ISO 8601, e.g. 2026-10-05T10:00:00Z)") })
-            OutlinedTextField(eventLocation, { eventLocation = it }, label = { Text("Location") })
-            OutlinedTextField(eventDescription, { eventDescription = it }, label = { Text("Description") })
-            OutlinedTextField(eventOrganizer, { eventOrganizer = it }, label = { Text("Organizer") })
-        } }, confirmButton = { TextButton(onClick = { scope.launch {
-            runCatching {
-                val request = EventCreateRequest(eventName, eventDate, eventLocation, eventDescription, eventOrganizer)
-                val response = editingEventId?.let { api.updateHostelEvent(it, request) } ?: api.createHostelEvent(request)
-                response.also { if (!it.isSuccessful) { authRequired = it.code() == 401; error(adminResponseFailure(it.code(), "Event could not be saved. Please try again.")) } }
-            }.onSuccess { showEvent = false; editingEventId = null; eventName = ""; reload() }
-                .onFailure { message = readableAdminFailure(it, "Event could not be saved. Please try again.", authRequired) }
-        } }) { Text(if (editingEventId == null) "Create event" else "Save event") } }, dismissButton = { TextButton(onClick = { showEvent = false; editingEventId = null }) { Text("Cancel") } }
     )
 
     LazyColumn(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)) {
@@ -207,18 +191,6 @@ fun AdminHostelOpsScreen(onLogout: () -> Unit, modifier: Modifier = Modifier) {
                 Text("${item.category}: ${item.name} · ${item.phone} · ${if (item.verified) "Verified" else "Unverified"}")
                 TextButton(onClick = { editingContactId = item.id; contactName = item.name; contactPhone = item.phone; contactCategory = item.category; contactVerified = item.verified; showContact = true }) { Text("Edit") }
                 TextButton(onClick = { scope.launch { api.deleteEmergencyContact(item.id); reload() } }) { Text("Deactivate") }
-            } }
-        }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            SectionHeader("Events", modifier = Modifier.weight(1f))
-            TextButton(onClick = { editingEventId = null; eventName = ""; eventDate = ""; eventLocation = ""; eventDescription = ""; eventOrganizer = ""; showEvent = true }) { Text("Add") }
-        } }
-        if (events.isEmpty()) item { EmptyState("No upcoming events", "No events are currently configured.") }
-        items(events, key = { "event-${it.id}" }) { item ->
-            Card { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${item.name} · ${item.startsAt}\n${item.location} · ${item.organizer}", Modifier.weight(1f))
-                TextButton(onClick = { editingEventId = item.id; eventName = item.name; eventDate = item.startsAt; eventLocation = item.location; eventDescription = item.description; eventOrganizer = item.organizer; showEvent = true }) { Text("Edit") }
-                TextButton(onClick = { scope.launch { api.deleteHostelEvent(item.id); reload() } }) { Text("Delete") }
             } }
         }
         item { SectionHeader("Lost & Found moderation") }

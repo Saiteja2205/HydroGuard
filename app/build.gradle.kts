@@ -1,39 +1,35 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 import java.net.URI
+import java.util.Properties
 
 plugins {
   alias(libs.plugins.android.application)
-  alias(libs.plugins.kotlin.compose)
-  alias(libs.plugins.google.devtools.ksp)
-  alias(libs.plugins.roborazzi)
-  alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
 }
 
 val debugApiBaseUrl = providers.gradleProperty("HYDROGUARD_API_BASE_URL")
   .orElse(providers.environmentVariable("HYDROGUARD_API_BASE_URL"))
-  .getOrElse("http://10.0.2.2:8000/")
+  .getOrElse("http://10.0.96.236:8000/")
 val releaseApiBaseUrl = providers.gradleProperty("HYDROGUARD_RELEASE_API_BASE_URL")
   .orElse(providers.environmentVariable("HYDROGUARD_RELEASE_API_BASE_URL"))
   .getOrElse("")
-val localDevApiToken = rootProject.file(".dev-auth.env")
-  .takeIf { it.isFile }
-  ?.useLines { lines ->
-    lines.firstNotNullOfOrNull { line ->
-      val value = line.trim()
-      if (value.startsWith("HYDROGUARD_DEV_API_TOKEN=")) value.substringAfter('=').trim().trim('"') else null
-    }
-  }
-val debugDevApiToken = providers.gradleProperty("HYDROGUARD_DEV_API_TOKEN")
+val developmentApiTokenFromFile = providers.provider {
+  val authFile = rootProject.file(".dev-auth.env")
+  if (!authFile.isFile) "" else Properties().apply {
+    authFile.inputStream().use(::load)
+  }.getProperty("HYDROGUARD_DEV_API_TOKEN", "").trim()
+}
+val developmentApiToken = providers.gradleProperty("HYDROGUARD_DEV_API_TOKEN")
   .orElse(providers.environmentVariable("HYDROGUARD_DEV_API_TOKEN"))
-  .orElse(localDevApiToken ?: "")
+  .orElse(developmentApiTokenFromFile)
   .getOrElse("")
-
-fun buildConfigString(value: String): String =
-  "\"${value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")}\""
+val escapedDevelopmentApiToken = developmentApiToken
+  .replace("\\", "\\\\")
+  .replace("\"", "\\\"")
 
 android {
-  namespace = "com.example"
+  enableKotlin = false
+  namespace = "com.aistudio.hydroguard.wxqpzx"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
@@ -43,9 +39,6 @@ android {
     versionCode = 1
     versionName = "1.0"
     buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
-    buildConfigField("boolean", "ALLOW_DEVELOPMENT_LOGIN", "true")
-    buildConfigField("String", "DEVELOPMENT_API_TOKEN", "\"\"")
-
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
@@ -70,24 +63,22 @@ android {
       isMinifyEnabled = false
       buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
       buildConfigField("boolean", "ALLOW_DEVELOPMENT_LOGIN", "false")
+      buildConfigField("String", "DEVELOPMENT_API_TOKEN", "\"\"")
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfigs.findByName("release")?.let { signingConfig = it }
     }
     debug {
       buildConfigField("boolean", "ALLOW_DEVELOPMENT_LOGIN", "true")
-    buildConfigField("String", "DEVELOPMENT_API_TOKEN", buildConfigString(debugDevApiToken))
-      // Use default debug signing (Android SDK provides debug keystore)
+      buildConfigField("String", "DEVELOPMENT_API_TOKEN", "\"$escapedDevelopmentApiToken\"")
       signingConfig = android.signingConfigs.findByName("debug")
     }
   }
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
-  buildFeatures {
-    compose = true
-    buildConfig = true
-  }
+  buildFeatures { buildConfig = true }
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
@@ -97,7 +88,12 @@ val validateReleaseConfiguration by tasks.registering {
       throw GradleException("Set HYDROGUARD_RELEASE_API_BASE_URL to the production HTTPS API URL before building a release.")
     }
     val releaseApiHost = runCatching { URI(releaseApiBaseUrl).host?.lowercase() }.getOrNull()
-    if (releaseApiHost.isNullOrBlank() || releaseApiHost in setOf("localhost", "127.0.0.1", "10.0.2.2", "10.79.232.152")) {
+    val privateIpv4 = releaseApiHost?.split(".")?.mapNotNull { it.toIntOrNull() }
+    val isLocalOrPrivate = releaseApiHost == null || releaseApiHost == "localhost" || releaseApiHost.endsWith(".local")
+        || releaseApiHost.startsWith("127.") || releaseApiHost.startsWith("10.")
+        || releaseApiHost.startsWith("192.168.")
+        || (releaseApiHost.startsWith("172.") && privateIpv4?.getOrNull(1) in 16..31)
+    if (releaseApiHost.isNullOrBlank() || isLocalOrPrivate) {
       throw GradleException("The release API URL must use a production host, not a local development address.")
     }
     val requiredSigning = listOf("KEYSTORE_PATH", "STORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
@@ -113,74 +109,32 @@ tasks.configureEach {
   if (name == "assembleRelease" || name == "bundleRelease") dependsOn(validateReleaseConfiguration)
 }
 
-// Configure the Secrets Gradle Plugin to use .env and .env.example files
-// to match the convention used in Web projects.
-secrets {
-  propertiesFileName = ".env"
-  defaultPropertiesFileName = ".env.example"
-}
-
 googleServices {
-  missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN
+  missingGoogleServicesStrategy = MissingGoogleServicesStrategy.ERROR
 }
 
-
-// Some unused dependencies are commented out below instead of being removed.
-// This makes it easy to add them back in the future if needed.
 dependencies {
-  implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
-  implementation(libs.accompanist.permissions)
-  implementation(libs.androidx.activity.compose)
-  // implementation(libs.androidx.camera.camera2)
-  // implementation(libs.androidx.camera.core)
-  // implementation(libs.androidx.camera.lifecycle)
-  // implementation(libs.androidx.camera.view)
-  implementation(libs.androidx.compose.material.icons.core)
-  implementation(libs.androidx.compose.material.icons.extended)
-  implementation(libs.androidx.compose.material3)
-  implementation(libs.androidx.compose.ui)
-  implementation(libs.androidx.compose.ui.graphics)
-  implementation(libs.androidx.compose.ui.tooling.preview)
-  implementation(libs.androidx.core.ktx)
-  // implementation(libs.androidx.datastore.preferences)
-  implementation(libs.androidx.lifecycle.runtime.compose)
-  implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.lifecycle.viewmodel.compose)
-  implementation(libs.androidx.navigation.compose)
-  implementation(libs.androidx.room.ktx)
+  implementation("com.google.android.material:material:1.12.0")
+  implementation(libs.androidx.lifecycle.livedata) {
+    exclude(group = "androidx.lifecycle", module = "lifecycle-viewmodel")
+  }
+  implementation(libs.androidx.lifecycle.process)
+  implementation(libs.androidx.lifecycle.runtime.android)
+  implementation(libs.androidx.lifecycle.viewmodel.android)
+  implementation(libs.androidx.lifecycle.common.java8)
   implementation(libs.androidx.room.runtime)
-  implementation(libs.coil.compose)
-  implementation(libs.converter.moshi)
-  // implementation(libs.firebase.ai)
+  annotationProcessor(libs.androidx.room.compiler)
   implementation(libs.firebase.auth)
-  implementation(libs.firebase.appcheck.recaptcha)
-  implementation(libs.kotlinx.coroutines.android)
-  implementation(libs.kotlinx.coroutines.core)
-  implementation(libs.logging.interceptor)
-  implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services.auth)
   implementation(libs.google.id)
-  // implementation(libs.play.services.location)
   implementation(libs.retrofit)
-  testImplementation(libs.androidx.compose.ui.test.junit4)
-  testImplementation(libs.androidx.core)
-  testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)
-  testImplementation(libs.kotlinx.coroutines.test)
-  testImplementation(libs.robolectric)
-  testImplementation(libs.roborazzi)
-  testImplementation(libs.roborazzi.compose)
-  testImplementation(libs.roborazzi.junit.rule)
-  androidTestImplementation(platform(libs.androidx.compose.bom))
-  androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-  androidTestImplementation(libs.androidx.espresso.core)
-  androidTestImplementation(libs.androidx.junit)
-  androidTestImplementation(libs.androidx.runner)
-  debugImplementation(libs.androidx.compose.ui.test.manifest)
-  debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
-  "ksp"(libs.moshi.kotlin.codegen)
+}
+
+configurations.configureEach {
+  exclude(group = "androidx.lifecycle", module = "lifecycle-viewmodel")
+  exclude(group = "androidx.lifecycle", module = "lifecycle-runtime")
 }

@@ -26,7 +26,9 @@ import com.example.data.api.HistoricalReadingResponse
 import com.example.data.api.HistoryResponse
 import com.example.data.api.AlertListResponse
 import com.example.data.api.AlertResponse
+import com.example.data.api.AdminUserResponse
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -34,8 +36,8 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getDatabase(application)
     private val repository = HydroRepository(database.hydroDao(), viewModelScope)
-    private val authRepository = FirebaseAuthRepository(database.hydroDao(), application)
     private val apiRepository = ApiRepository()
+    private val authRepository = FirebaseAuthRepository(database.hydroDao(), application, apiRepository = apiRepository)
 
     // User State
     val currentUser: StateFlow<User?> = authRepository.currentUserFlow
@@ -86,12 +88,20 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
     // Dynamic stream triggers based on selected nodeId
     @OptIn(ExperimentalCoroutinesApi::class)
     val latestReading: StateFlow<SensorReading?> = _selectedNodeId
-        .flatMapLatest { nodeId -> repository.getLatestReading(nodeId) }
+        .flatMapLatest { nodeId ->
+            repository.getLatestReading(nodeId).onEach { reading ->
+                Log.d("HydroViewModel", "Room latest node=$nodeId source=${reading?.source ?: "none"} timestamp=${reading?.timestamp ?: "none"}")
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val historicalReadings: StateFlow<List<SensorReading>> = _selectedNodeId
-        .flatMapLatest { nodeId -> repository.getHistoricalReadings(nodeId) }
+        .flatMapLatest { nodeId ->
+            repository.getHistoricalReadings(nodeId).onEach { readings ->
+                Log.d("HydroViewModel", "Room history node=$nodeId count=${readings.size}")
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -112,6 +122,15 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
     private val _apiAlerts = MutableStateFlow<List<AlertResponse>>(emptyList())
     val apiAlerts: StateFlow<List<AlertResponse>> = _apiAlerts.asStateFlow()
 
+    private val _adminUsers = MutableStateFlow<List<AdminUserResponse>>(emptyList())
+    val adminUsers: StateFlow<List<AdminUserResponse>> = _adminUsers.asStateFlow()
+
+    private val _adminManagementMessage = MutableStateFlow<String?>(null)
+    val adminManagementMessage: StateFlow<String?> = _adminManagementMessage.asStateFlow()
+
+    private val _isAdminManagementLoading = MutableStateFlow(false)
+    val isAdminManagementLoading: StateFlow<Boolean> = _isAdminManagementLoading.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -123,12 +142,13 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectNode(nodeId: String) {
+        Log.i("HydroViewModel", "Selected monitoring node=$nodeId")
         _selectedNodeId.value = nodeId
     }
 
-    // Role comes only from the verified Firebase ID token custom claim.
-    fun signInWithGoogleIdToken(idToken: String) {
-        viewModelScope.launch {
+    // The backend account record determines the role; Firebase claims are refreshed for subsequent API calls.
+    fun signInWithGoogleIdToken(idToken: String): Job {
+        return viewModelScope.launch {
             _loginError.value = null
             authRepository.signInWithGoogleIdToken(idToken).onFailure { exception ->
                 _loginError.value = when (exception) {
@@ -158,6 +178,48 @@ class HydroViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         authRepository.signOut()
+    }
+
+    fun loadAdminUsers() {
+        viewModelScope.launch {
+            _isAdminManagementLoading.value = true
+            apiRepository.getAdminUsers()
+                .onSuccess { _adminUsers.value = it }
+                .onFailure { _adminManagementMessage.value = "Unable to load faculty accounts. Please try again." }
+            _isAdminManagementLoading.value = false
+        }
+    }
+
+    fun inviteAdmin(email: String) {
+        viewModelScope.launch {
+            _isAdminManagementLoading.value = true
+            _adminManagementMessage.value = null
+            apiRepository.inviteAdmin(email.trim())
+                .onSuccess {
+                    _adminManagementMessage.value = "Faculty account added. They can continue with their verified Google account."
+                    apiRepository.getAdminUsers().onSuccess { _adminUsers.value = it }
+                }
+                .onFailure { _adminManagementMessage.value = "Unable to add that faculty account. Check the email and try again." }
+            _isAdminManagementLoading.value = false
+        }
+    }
+
+    fun updateAdminStatus(userId: Int, status: String) {
+        viewModelScope.launch {
+            _isAdminManagementLoading.value = true
+            _adminManagementMessage.value = null
+            apiRepository.updateAdminUserStatus(userId, status)
+                .onSuccess {
+                    _adminManagementMessage.value = "Faculty account updated."
+                    apiRepository.getAdminUsers().onSuccess { _adminUsers.value = it }
+                }
+                .onFailure { _adminManagementMessage.value = "Unable to update that faculty account. Please try again." }
+            _isAdminManagementLoading.value = false
+        }
+    }
+
+    fun clearAdminManagementMessage() {
+        _adminManagementMessage.value = null
     }
 
     // Student operations

@@ -11,6 +11,7 @@ import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.AuthResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,8 +25,15 @@ import kotlin.coroutines.resumeWithException
 class FirebaseAuthRepository(
     private val hydroDao: HydroDao,
     private val context: Context,
-    private val developmentApiToken: String = BuildConfig.DEVELOPMENT_API_TOKEN
+    private val apiRepository: ApiRepository = ApiRepository()
 ) {
+    @Deprecated("Demo sign-in now uses Firebase custom authentication; API tokens are not used.")
+    constructor(
+        hydroDao: HydroDao,
+        context: Context,
+        @Suppress("UNUSED_PARAMETER") legacyDevelopmentApiToken: String
+    ) : this(hydroDao, context, ApiRepository())
+
     private val _currentUserFlow = MutableStateFlow<User?>(null)
     val currentUserFlow: StateFlow<User?> = _currentUserFlow.asStateFlow()
 
@@ -79,18 +87,68 @@ class FirebaseAuthRepository(
         }
     }
 
-    private suspend fun userFromFirebase(firebaseUser: FirebaseUser): User {
-        val email = firebaseUser.email ?: throw SecurityException("The Google account does not provide an email address.")
-        val tokenClaims = firebaseUser.getIdToken(true).await().claims
-        val role = authorizedRole(tokenClaims["role"])
-            ?: throw SecurityException("This Google account has not been assigned a HydroGuard role.")
+    private suspend fun signInWithDevelopmentDemoStudent(): Result<User> {
+        if (!_isFirebaseAvailable.value || firebaseAuth == null) {
+            return Result.failure(IllegalStateException("Firebase authentication is not configured."))
+        }
+        return try {
+            val customToken = apiRepository.createDevelopmentDemoStudentSession().getOrElse { throw it }
+            if (customToken.isBlank()) throw SecurityException("The development sign-in service returned no credential.")
+            val result: AuthResult = firebaseAuth!!.signInWithCustomToken(customToken).await()
+            DevelopmentApiSession.clear()
+            val firebaseUser = result.user
+                ?: throw SecurityException("Firebase did not return an authenticated demo account.")
+            val user = userFromFirebase(firebaseUser)
+            if (user.role != "STUDENT" || !user.email.equals(DEMO_STUDENT_EMAIL, ignoreCase = true)) {
+                firebaseAuth?.signOut()
+                throw SecurityException("The development sign-in service returned an unexpected account.")
+            }
+            _currentUserFlow.value = user
+            Result.success(user)
+        } catch (exception: Exception) {
+            if (exception is SecurityException) firebaseAuth?.signOut()
+            Log.w("FirebaseAuthRepository", "Demo student authentication failed (${exception.javaClass.simpleName}).")
+            Result.failure(exception)
+        }
+    }
 
-        val existing = hydroDao.getUserByEmail(email)
+    private suspend fun userFromFirebase(firebaseUser: FirebaseUser): User {
+        val firebaseEmail = firebaseUser.email
+            ?: throw SecurityException("This account is not authorized for HydroGuard.")
+        firebaseUser.getIdToken(true).await()
+            .token
+            ?.takeIf(String::isNotBlank)
+            ?: throw SecurityException("This account is not authorized for HydroGuard.")
+
+        val serverAccount = apiRepository.bootstrapAccount().getOrElse { error ->
+            if (error is ApiRequestFailure && error.statusCode in setOf(401, 403)) {
+                throw SecurityException("This account is not authorized for HydroGuard.")
+            }
+            throw error
+        }
+        if (serverAccount.uid != firebaseUser.uid || !serverAccount.email.equals(firebaseEmail, ignoreCase = true)) {
+            throw SecurityException("This account is not authorized for HydroGuard.")
+        }
+        val role = authorizedRole(serverAccount.role)
+            ?: throw SecurityException("This account is not authorized for HydroGuard.")
+        if (serverAccount.status != "ACTIVE") {
+            throw SecurityException("This account is not authorized for HydroGuard.")
+        }
+
+        // Bootstrap writes the server-owned role claim. Force a fresh Firebase
+        // ID token before the normal authenticated API session begins.
+        val refreshedClaims = firebaseUser.getIdToken(true).await().claims
+        if (authorizedRole(refreshedClaims["role"]) != role) {
+            throw IllegalStateException("Account permissions are still updating. Please try again.")
+        }
+
+        val existing = hydroDao.getUserByEmail(firebaseEmail)
         val user = User(
-            email = email,
+            email = serverAccount.email,
             name = firebaseUser.displayName?.takeIf(String::isNotBlank)
                 ?: existing?.name?.takeIf(String::isNotBlank)
-                ?: email.substringBefore('@'),
+                ?: serverAccount.displayName.takeIf(String::isNotBlank)
+                ?: serverAccount.email.substringBefore('@'),
             role = role,
             hostelBlock = existing?.hostelBlock.orEmpty(),
             roomNumber = existing?.roomNumber.orEmpty()
@@ -105,26 +163,13 @@ class FirebaseAuthRepository(
         else -> null
     }
 
-    /** Local-only identity for debug demos. The release variant compiles with this disabled. */
+    /** Debug demo users retain their Room identity; the student session also signs in to Firebase. */
     suspend fun loginAsDevelopment(role: String): Result<User> {
-        if (!DevelopmentAuthPolicy.apiBridgeConfigured(
-                BuildConfig.DEBUG,
-                BuildConfig.ALLOW_DEVELOPMENT_LOGIN,
-                developmentApiToken
-            )
-        ) {
-            val message = if (!BuildConfig.DEBUG || !BuildConfig.ALLOW_DEVELOPMENT_LOGIN) {
-                "Development Login is disabled in this build."
-            } else {
-                "Development login is not configured."
-            }
-            return Result.failure(SecurityException(message))
-        }
         if (!DevelopmentAuthPolicy.allows(BuildConfig.DEBUG, BuildConfig.ALLOW_DEVELOPMENT_LOGIN)) {
             return Result.failure(SecurityException("Development Login is disabled in this build."))
         }
+        if (role.equals("STUDENT", ignoreCase = true)) return signInWithDevelopmentDemoStudent()
         val user = when (role.uppercase()) {
-            "STUDENT" -> User("demo.student@hydroguard.local", "Demo Student", "STUDENT", "", "")
             "ADMIN" -> User("demo.admin@hydroguard.local", "Demo Administrator", "ADMIN", "", "")
             else -> return Result.failure(IllegalArgumentException("Unsupported development role."))
         }
@@ -161,5 +206,9 @@ class FirebaseAuthRepository(
             if (task.isSuccessful) continuation.resume(task.result)
             else continuation.resumeWithException(task.exception ?: RuntimeException("Firebase operation failed"))
         }
+    }
+
+    private companion object {
+        const val DEMO_STUDENT_EMAIL = "demo.student@hydroguard.local"
     }
 }

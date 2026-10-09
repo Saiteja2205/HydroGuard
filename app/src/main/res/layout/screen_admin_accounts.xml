@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="24dp">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Faculty access"
+            android:textColor="@color/hydroguard_text"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+        <EditText
+            android:id="@+id/admin_invite_email"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Faculty email"
+            android:inputType="textEmailAddress"
+            android:minHeight="56dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/invite_admin"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Add faculty account"
+            android:textAllCaps="false" />
+        <TextView
+            android:id="@+id/admin_accounts_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/hydroguard_muted"
+            android:textSize="13sp" />
+        <LinearLayout
+            android:id="@+id/admin_accounts_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </LinearLayout>
+</ScrollView>

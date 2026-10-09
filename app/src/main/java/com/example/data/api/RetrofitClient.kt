@@ -9,13 +9,52 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.example.BuildConfig
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
-import com.example.data.repository.DevelopmentApiSession
+import com.google.firebase.auth.FirebaseUser
 import java.io.IOException
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
+
+    private fun currentFirebaseUser(): FirebaseUser? =
+        runCatching { FirebaseAuth.getInstance().currentUser }.getOrNull()
+
+    private fun firebaseIdToken(user: FirebaseUser, forceRefresh: Boolean): String? = try {
+        val token = Tasks.await(user.getIdToken(forceRefresh), TOKEN_WAIT_SECONDS, TimeUnit.SECONDS).token
+        val stillSignedInUser = currentFirebaseUser()
+        token?.takeIf { it.isNotBlank() && stillSignedInUser?.uid == user.uid }
+    } catch (interrupted: InterruptedException) {
+        Thread.currentThread().interrupt()
+        Log.w("HydroGuardApi", "Firebase token acquisition interrupted.")
+        null
+    } catch (error: Exception) {
+        Log.w("HydroGuardApi", "Firebase token acquisition failed (${error.javaClass.simpleName}).")
+        null
+    }
+
+    private val firebaseAuthenticator = okhttp3.Authenticator { _, response ->
+        if (responseCount(response) >= 2) {
+            return@Authenticator null
+        }
+        val user = currentFirebaseUser() ?: return@Authenticator null
+        val refreshedToken = firebaseIdToken(user, forceRefresh = true)
+            ?: return@Authenticator null
+        Log.i("HydroGuardApi", "Retrying authenticated request with a refreshed Firebase token.")
+        response.request.newBuilder()
+            .header("Authorization", "Bearer $refreshedToken")
+            .build()
+    }
+
+    private fun responseCount(response: Response): Int {
+        var current: Response? = response
+        var count = 1
+        while (current?.priorResponse != null) {
+            count++
+            current = current.priorResponse
+        }
+        return count
+    }
 
     private val diagnosticsInterceptor = Interceptor { chain ->
         val request = chain.request()
@@ -37,24 +76,18 @@ object RetrofitClient {
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor { chain ->
-            val firebaseUser = runCatching { FirebaseAuth.getInstance().currentUser }.getOrNull()
-            val token = firebaseUser?.let { user ->
-                runCatching {
-                    val task = user.getIdToken(false)
-                    val completed = CountDownLatch(1)
-                    task.addOnCompleteListener { completed.countDown() }
-                    if (!completed.await(12, TimeUnit.SECONDS) || !task.isSuccessful) null
-                    else task.result?.token
-                }.getOrNull()
+            val firebaseUser = currentFirebaseUser()
+            val token = firebaseUser?.let { firebaseIdToken(it, forceRefresh = false) }
+            if (BuildConfig.DEBUG) {
+                Log.d("HydroGuardApi", "Firebase session present=${firebaseUser != null}, bearer token attached=${!token.isNullOrBlank()}")
             }
             val request = chain.request().newBuilder().apply {
                 if (!token.isNullOrBlank()) header("Authorization", "Bearer $token")
-                DevelopmentApiSession.headers(BuildConfig.DEBUG, BuildConfig.DEVELOPMENT_API_TOKEN)
-                    .forEach { (name, value) -> header(name, value) }
             }.build()
             chain.proceed(request)
         }
         .addInterceptor(diagnosticsInterceptor)
+        .authenticator(firebaseAuthenticator)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -95,4 +128,6 @@ object RetrofitClient {
 
     // Get current base URL for debugging
     fun getCurrentBaseUrl(): String = actualBaseUrl
+
+    private const val TOKEN_WAIT_SECONDS = 12L
 }

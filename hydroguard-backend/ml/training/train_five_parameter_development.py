@@ -119,7 +119,7 @@ def main() -> None:
         checkpoint = {
             "model": name, "model_version": "five-param-v1", "feature_count": 5,
             "parameters": list(PARAMETERS), "dataset_size": 200,
-            "dataset_source": "SIMULATED/DEVELOPMENT", "real_sensor_data": False,
+            "dataset_source": "SIMULATED_DEVELOPMENT", "real_sensor_data": False,
             "training_timestamp": timestamp, "train_observations": train_end,
             "validation_observations": val_end-train_end, "test_observations": len(data)-val_end,
             "window_size": WINDOW, "scaler_mean": mean.tolist(), "scaler_std": std.tolist(),
@@ -142,7 +142,7 @@ def main() -> None:
     ])
     report = {
         "model_version": "five-param-v1", "dataset_size": len(data),
-        "dataset_source": "SIMULATED/DEVELOPMENT", "real_sensor_data": False,
+        "dataset_source": "SIMULATED_DEVELOPMENT", "real_sensor_data": False,
         "parameters": list(PARAMETERS), "split": {"train": train_end, "validation": val_end-train_end, "test": len(data)-val_end},
         "window_size": WINDOW, "training_timestamp": timestamp,
         "training_results": training_results,

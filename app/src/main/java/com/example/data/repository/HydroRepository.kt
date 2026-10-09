@@ -1,6 +1,5 @@
 package com.example.data.repository
 
-import android.content.Context
 import android.util.Log
 import com.example.BuildConfig
 import com.example.data.database.*
@@ -41,9 +40,12 @@ class HydroRepository(
     }
 
     private suspend fun seedInitialDataIfNeeded() = withContext(Dispatchers.IO) {
-        // Check if DB is already seeded by checking users
+        // Existing installs still need the updated DEBUG demo sensor dataset.
         val existingUser = dao.getUserByEmail("admin@hostel.edu")
-        if (existingUser != null) return@withContext
+        if (existingUser != null) {
+            ensureDemoSensorData()
+            return@withContext
+        }
 
         Log.d("HydroRepository", "Database empty. Seeding professional initial data...")
 
@@ -52,71 +54,11 @@ class HydroRepository(
         dao.insertUser(User("student@hostel.edu", "Ananya Verma", "STUDENT", "A", "304"))
         dao.insertUser(User("student2@hostel.edu", "Rahul Sharma", "STUDENT", "B", "112"))
 
-        // 2. Seed Sensor Nodes
-        val nodes = listOf(
-            SensorNode("node_overhead_a", "Block A Overhead Storage", "Block A - Roof", "ONLINE"),
-            SensorNode("node_overhead_b", "Block B Overhead Storage", "Block B - Roof", "ONLINE"),
-            SensorNode("node_mess", "Mess Main Purification Plant", "Dining Hall - GF", "ONLINE")
-        )
-        for (node in nodes) {
-            dao.insertNode(node)
-        }
-
-        // 3. Seed Historical Readings (20 hours of history for each node)
         val now = System.currentTimeMillis()
-        val hourMs = 3600000L
+        val hourMs = 60L * 60L * 1000L
+        ensureDemoSensorData(now)
 
-        // Block A: Safe but slightly shifting
-        for (i in 20 downTo 1) {
-            val ts = now - i * hourMs
-            dao.insertReading(
-                SensorReading(
-                    nodeId = "node_overhead_a",
-                    timestamp = ts,
-                    ph = 7.2f + (-0.1f..0.1f).random(),
-                    turbidity = 1.2f + (-0.2f..0.2f).random(),
-                    tds = 180f + (-5f..5f).random(),
-                    temperature = 22.4f + (-0.5f..0.5f).random(),
-                    source = "DEMO"
-                )
-            )
-        }
-
-        // Block B: Had a high turbidity warning event yesterday
-        for (i in 20 downTo 1) {
-            val ts = now - i * hourMs
-            val phVal = if (i == 8) 6.1f else (7.4f + (-0.1f..0.1f).random())
-            val turbVal = if (i == 12) 6.4f else (1.5f + (-0.2f..0.2f).random())
-            dao.insertReading(
-                SensorReading(
-                    nodeId = "node_overhead_b",
-                    timestamp = ts,
-                    ph = phVal,
-                    turbidity = turbVal,
-                    tds = 220f + (-8f..8f).random(),
-                    temperature = 24.1f + (-0.4f..0.4f).random(),
-                    source = "DEMO"
-                )
-            )
-        }
-
-        // Mess plant: pristine condition
-        for (i in 20 downTo 1) {
-            val ts = now - i * hourMs
-            dao.insertReading(
-                SensorReading(
-                    nodeId = "node_mess",
-                    timestamp = ts,
-                    ph = 7.0f + (-0.05f..0.05f).random(),
-                    turbidity = 0.3f + (-0.05f..0.05f).random(),
-                    tds = 95f + (-3f..3f).random(),
-                    temperature = 19.8f + (-0.3f..0.3f).random(),
-                    source = "DEMO"
-                )
-            )
-        }
-
-        // 4. Seed some Alerts
+        // Seed some alerts
         dao.insertAlert(
             Alert(
                 id = "alert_historical_1",
@@ -134,7 +76,7 @@ class HydroRepository(
             )
         )
 
-        // 5. Seed some Notifications
+        // Seed some notifications
         dao.insertNotification(
             NotificationLog(
                 title = "System Calibrated",
@@ -150,7 +92,7 @@ class HydroRepository(
             )
         )
 
-        // 6. Seed Student Feedback
+        // Seed student feedback
         dao.insertWaterFeedback(
             WaterFeedback(
                 id = "w_fb_1",
@@ -209,7 +151,7 @@ class HydroRepository(
             )
         )
 
-        // 7. Seed explicitly local development summaries
+        // Seed explicitly local development summaries
         dao.insertPrediction(
             Prediction(
                 nodeId = "node_overhead_a",
@@ -250,7 +192,7 @@ class HydroRepository(
             )
         )
 
-        // 8. Seed Water Reports
+        // Seed water reports
         dao.insertReport(
             WaterQualityReport(
                 id = "rep_weekly_1",
@@ -264,6 +206,111 @@ class HydroRepository(
                 totalComplaints = 2
             )
         )
+    }
+
+    /**
+     * DEBUG-only sensor data bootstrap. Counts only DEMO rows and tops up missing rows,
+     * preserving simulator, API, and physical-sensor records already stored in Room.
+     */
+    private suspend fun ensureDemoSensorData(now: Long = System.currentTimeMillis()) {
+        val nodes = listOf(
+            SensorNode("node_overhead_a", "Block A Overhead Storage", "Block A - Roof", "ONLINE"),
+            SensorNode("node_overhead_b", "Block B Overhead Storage", "Block B - Roof", "ONLINE"),
+            SensorNode("node_mess", "Mess Main Purification Plant", "Dining Hall - GF", "ONLINE")
+        )
+        for (node in nodes) dao.insertNode(node)
+
+        val hourMs = 60L * 60L * 1000L
+        var totalDemoReadings = 0
+        for (node in nodes) {
+            val existingCount = dao.countReadings(node.nodeId, DEMO_SOURCE)
+            val missingCount = (DEMO_HISTORY_TARGET - existingCount).coerceAtLeast(0)
+            if (missingCount > 0) {
+                val firstOffset = DEMO_HISTORY_TARGET
+                val lastOffset = DEMO_HISTORY_TARGET - missingCount + 1
+                val readings = (firstOffset downTo lastOffset).map { hoursAgo ->
+                    createDemoReading(node.nodeId, now - hoursAgo * hourMs, hoursAgo)
+                }
+                dao.insertReadings(readings)
+            }
+
+            val missingOpticalValues = dao.getHistoricalReadings(node.nodeId)
+                .firstOrNull()
+                .orEmpty()
+                .filter { it.source in setOf(DEMO_SOURCE, "SIMULATED") && it.opticalColourIndex == null }
+            if (missingOpticalValues.isNotEmpty()) {
+                dao.insertReadings(
+                    missingOpticalValues.map { reading ->
+                        reading.copy(
+                            opticalColourIndex = createDemoOpticalColourIndex(node.nodeId, reading.turbidity)
+                        )
+                    }
+                )
+                Log.i(
+                    "HydroRepository",
+                    "DEBUG demo optical-colour values backfilled node=${node.nodeId} count=${missingOpticalValues.size}"
+                )
+            }
+
+            val finalCount = dao.countReadings(node.nodeId, DEMO_SOURCE)
+            totalDemoReadings += finalCount
+            Log.i(
+                "HydroRepository",
+                "DEBUG demo data node=${node.nodeId} added=$missingCount total=$finalCount target=$DEMO_HISTORY_TARGET"
+            )
+        }
+        Log.i("HydroRepository", "DEBUG demo history ready: $totalDemoReadings DEMO readings across ${nodes.size} nodes")
+    }
+
+    private fun createDemoReading(nodeId: String, timestamp: Long, hoursAgo: Int): SensorReading {
+        val values = when (nodeId) {
+            "node_overhead_b" -> listOf(
+                if (hoursAgo == 8) 6.1f else 7.4f + (-0.1f..0.1f).random(),
+                if (hoursAgo == 12) 6.4f else 1.5f + (-0.2f..0.2f).random(),
+                220f + (-8f..8f).random(),
+                24.1f + (-0.4f..0.4f).random()
+            )
+            "node_mess" -> listOf(
+                7.0f + (-0.05f..0.05f).random(),
+                0.3f + (-0.05f..0.05f).random(),
+                95f + (-3f..3f).random(),
+                19.8f + (-0.3f..0.3f).random()
+            )
+            else -> listOf(
+                7.2f + (-0.1f..0.1f).random(),
+                1.2f + (-0.2f..0.2f).random(),
+                180f + (-5f..5f).random(),
+                22.4f + (-0.5f..0.5f).random()
+            )
+        }
+        val opticalColourIndex = createDemoOpticalColourIndex(nodeId, values[1])
+
+        return SensorReading(
+            nodeId = nodeId,
+            timestamp = timestamp,
+            ph = values[0],
+            turbidity = values[1],
+            tds = values[2],
+            temperature = values[3],
+            opticalColourIndex = opticalColourIndex,
+            source = DEMO_SOURCE
+        )
+    }
+
+    private fun createDemoOpticalColourIndex(nodeId: String, turbidity: Float): Float {
+        val baseline = when (nodeId) {
+            "node_overhead_b" -> 0.105f
+            "node_mess" -> 0.070f
+            else -> 0.080f
+        }
+        val turbidityContribution = turbidity.coerceIn(0f, 10f) * 0.005f
+        return (baseline + turbidityContribution + (-0.008f..0.008f).random())
+            .coerceIn(0.04f, 0.25f)
+    }
+
+    private companion object {
+        const val DEMO_SOURCE = "DEMO"
+        const val DEMO_HISTORY_TARGET = 200
     }
 
     private suspend fun startSensorSimulation() {
@@ -310,6 +357,12 @@ class HydroRepository(
                 Log.d("HydroRepository", "SIMULATOR: Injected water quality alert parameters for $nodeId")
             }
 
+            val baseOpticalColourIndex = latest?.opticalColourIndex
+                ?: createDemoOpticalColourIndex(nodeId, baseTurb)
+            val finalOpticalColourIndex = (
+                baseOpticalColourIndex + (finalTurb - baseTurb) * 0.005f + (-0.004f..0.004f).random()
+            ).coerceIn(0.04f, 0.25f)
+
             val newReading = SensorReading(
                 nodeId = nodeId,
                 timestamp = now,
@@ -317,6 +370,7 @@ class HydroRepository(
                 turbidity = finalTurb,
                 tds = finalTds,
                 temperature = finalTemp,
+                opticalColourIndex = finalOpticalColourIndex,
                 source = "SIMULATED"
             )
 

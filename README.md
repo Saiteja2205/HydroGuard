@@ -1,6 +1,6 @@
 # HydroGuard
 
-HydroGuard is a research prototype for water monitoring and forecasting. The repository contains an Android Kotlin/Jetpack Compose app, a FastAPI backend backed by SQLite, ML forecasting code, and an ESP32 sensor prototype.
+HydroGuard is a research prototype for water monitoring and forecasting. The repository contains a Java/XML Android app, a FastAPI backend backed by SQLite, ML forecasting code, and an ESP32 sensor prototype.
 
 ## Active monitoring contract
 
@@ -20,13 +20,13 @@ The forecast API requires timestamped, complete five-parameter observations (inc
 
 ## Forecasting status
 
-The active five-feature training job uses the exactly 200-row `SIMULATED/DEVELOPMENT` dataset at `hydroguard-backend/data/development_water_quality_200_observations.csv`. New checkpoints use separate `_5param_v1` filenames; the former checkpoints remain untouched. The five-feature development model scores are not real-world accuracy claims. Forecast records preserve input interval, source, model versions, predictions, weights, and initial/adaptive strategy. Later actual readings are matched by node, target day, parameter, and source to record model-specific errors and update persisted parameter-specific weights.
+The active five-feature training job uses the exactly 200-row `SIMULATED_DEVELOPMENT` dataset at `hydroguard-backend/data/development_water_quality_200_observations.csv`. New checkpoints use separate `_5param_v1` filenames; the former checkpoints remain untouched. The five-feature development model scores are not real-world accuracy claims. Forecast records preserve input interval, source, model versions, predictions, weights, and initial/adaptive strategy. Later actual readings are matched by node, target day, parameter, and source to record model-specific errors and update persisted parameter-specific weights.
 
 Training and validation must use chronological splits, with preprocessing fitted on training data only. No field-validation claim is made by this repository.
 
 ## Components
 
-- **Android:** Kotlin, Jetpack Compose, Room cache, Retrofit/Moshi API client.
+- **Android:** Java, XML layouts, Room cache, Retrofit API client, Firebase Authentication.
 - **Backend:** Python FastAPI, Pydantic schemas, SQLAlchemy, SQLite.
 - **Models:** LSTM, PatchTST, TimeMixer, plus a parameter-specific adaptive ensemble.
 - **Sensor prototype:** ESP32 with water-quality sensors and TCS34725 optical colour sensor. Hardware integration and calibration remain experimental.
@@ -35,13 +35,13 @@ Training and validation must use chronological splits, with preprocessing fitted
 
 The student app has HOME, WATER, REPORT, MY ISSUES, and PROFILE destinations. The API persists issue reports and timelines, resolution feedback and reopen requests, notices, verified emergency contacts, events, moderated Lost & Found submissions, and general hostel feedback in SQLite. The admin app has WATER and HOSTEL OPS sections; the latter reads these records from the backend and provides issue workflow, notice creation/deletion, contact creation/deactivation, and Lost & Found moderation.
 
-Backend endpoints require Firebase ID tokens. Student access is the default for authenticated accounts without a role claim; ADMIN access requires a server-managed Firebase `role=ADMIN` custom claim. Sensor ingestion requires `HYDROGUARD_SENSOR_API_KEY`. Authentication fails closed if Firebase or the sensor key is not configured. Android DEBUG builds have local Development Student/Admin demo sessions; the bypass methods are guarded by both `BuildConfig.DEBUG` and a debug-only build flag, and RELEASE compiles with the flag false. Local demo sessions do not grant backend access. No emergency contacts are seeded. Image fields currently accept HTTPS references only; uploads are not implemented.
+Google sign-in bootstraps a persistent backend account using a Firebase ID token. Verified accounts on configured student email domains are provisioned as STUDENT; ADMIN accounts require explicit backend provisioning. The backend database is the role/status source of truth, and Firebase custom role claims are synchronized for Android session routing. Admins can invite faculty, and the database supports an unbounded number of admin records. Configure student domains with `HYDROGUARD_ALLOWED_STUDENT_DOMAINS`; bootstrap the first admin with the backend operator command described in `hydroguard-backend/README.md`. Android debug builds offer local student/admin demos only when the ignored `.dev-auth.env` file configures the development token. The backend accepts those identities only when it is explicitly in development mode; release builds contain no development token or demo sign-in. No emergency contacts are seeded. Image fields currently accept HTTPS references only; uploads are not implemented.
 
 Research export is available to admins at `GET /api/v1/research/export.csv` with optional `node_id`, `start`, and `end` filters. Missing actuals and error metrics remain blank. Alert records are included as event annotations; the export does not infer experimental correlations.
 
 ## Android build configuration
 
-Debug API URL comes from Gradle property or environment variable `HYDROGUARD_API_BASE_URL` (emulator default `http://10.0.2.2:8000/`). Release builds require `HYDROGUARD_RELEASE_API_BASE_URL` using HTTPS and a private signing keystore configured through `KEYSTORE_PATH`, `STORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`. Release logging is disabled. A signed bundle is not configured or published by default. Firebase Android configuration and production backend deployment must be supplied by the deployment owner.
+The debug API URL defaults to `http://10.0.96.236:8000/`, the development computer's verified Wi-Fi address. If that address changes, set Gradle property or environment variable `HYDROGUARD_API_BASE_URL` to the computer's current Wi-Fi IPv4 address. The backend development script binds only to the selected Wi-Fi or Ethernet IPv4 address so a phone on that LAN can connect. Release builds require `HYDROGUARD_RELEASE_API_BASE_URL` using HTTPS and a private signing keystore configured through `KEYSTORE_PATH`, `STORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`. Release logging is disabled. A signed bundle is not configured or published by default. Firebase Android configuration and production backend deployment must be supplied by the deployment owner.
 
 See [hydroguard-backend/README.md](hydroguard-backend/README.md) for backend setup and API details.
 

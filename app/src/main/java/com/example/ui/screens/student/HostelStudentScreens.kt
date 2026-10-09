@@ -1,6 +1,8 @@
 package com.example.ui.screens.student
 
+import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -69,6 +72,8 @@ fun HostelHomeScreen(
     val api = remember { ApiRepository() }
     var notices by remember { mutableStateOf<List<HostelNoticeResponse>>(emptyList()) }
     var serverFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
+    var alertsFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
+    var noticesFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
     var loading by remember { mutableStateOf(false) }
     var currentReading by remember { mutableStateOf<LatestReadingResponse?>(null) }
     var activeAlerts by remember { mutableStateOf<List<AlertResponse>>(emptyList()) }
@@ -77,6 +82,8 @@ fun HostelHomeScreen(
     suspend fun reloadOverview() {
         loading = true
         serverFailure = null
+        alertsFailure = null
+        noticesFailure = null
         api.getLatestReading(node).onSuccess {
             currentReading = it
         }.onFailure { failure ->
@@ -86,10 +93,16 @@ fun HostelHomeScreen(
         }
         api.getAlerts(node).onSuccess { result ->
             activeAlerts = result.alerts.filter { it.status.equals("ACTIVE", ignoreCase = true) }
-        }.onFailure {
+        }.onFailure { failure ->
             activeAlerts = emptyList()
+            alertsFailure = failure as? ApiRequestFailure
+                ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$node/alerts", cause = failure)
         }
-        api.getHostelNotices().onSuccess { notices = it }.onFailure { notices = emptyList() }
+        api.getHostelNotices().onSuccess { notices = it }.onFailure { failure ->
+            notices = emptyList()
+            noticesFailure = failure as? ApiRequestFailure
+                ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/hostel/notices", cause = failure)
+        }
         loading = false
     }
     LaunchedEffect(node) { reloadOverview() }
@@ -162,6 +175,7 @@ fun HostelHomeScreen(
                         if (loading && currentReading == null) LoadingState("Loading water quality")
                     }
                 }
+                currentReading?.let { Text("Source · ${it.source}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
 
             currentReading?.let { reading ->
@@ -214,6 +228,16 @@ fun HostelHomeScreen(
                 }
                 }
             }
+            alertsFailure?.let {
+                item {
+                    ErrorState(
+                        "Alerts unavailable",
+                        "We couldn't load water alerts right now.",
+                        actionLabel = "Retry",
+                        onAction = { scope.launch { reloadOverview() } }
+                    )
+                }
+            }
 
             item { SectionHeader("Quick Actions") }
             item {
@@ -236,6 +260,19 @@ fun HostelHomeScreen(
                             Text(notice.body, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
+                }
+            }
+            noticesFailure?.let { noticeFailure ->
+                item {
+                    ErrorState(
+                        "Notices unavailable",
+                        buildString {
+                            append(noticeFailure.userDetail ?: noticeFailure.message ?: "The notice request failed.")
+                            noticeFailure.statusCode?.let { append(" (HTTP $it)") }
+                        },
+                        actionLabel = "Retry",
+                        onAction = { scope.launch { reloadOverview() } }
+                    )
                 }
             }
         }
@@ -597,6 +634,7 @@ fun StudentProfileScreen(viewModel: HydroViewModel, onLogout: () -> Unit, modifi
     var error by remember { mutableStateOf<String?>(null) }
     var authRequired by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     suspend fun reloadServices() {
         error = null
@@ -657,7 +695,16 @@ fun StudentProfileScreen(viewModel: HydroViewModel, onLogout: () -> Unit, modifi
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(contact.category.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelLarge)
                         Text(contact.name, fontWeight = FontWeight.SemiBold)
-                        Text(contact.phone)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(contact.phone, modifier = Modifier.weight(1f))
+                            TextButton(onClick = {
+                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", contact.phone, null))
+                                runCatching { context.startActivity(dialIntent) }
+                                    .onFailure { Toast.makeText(context, "Calling is unavailable on this device.", Toast.LENGTH_SHORT).show() }
+                            }) {
+                                Text("Call ${contact.category.lowercase().replaceFirstChar { it.uppercase() }}")
+                            }
+                        }
                         contact.details?.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
                 }

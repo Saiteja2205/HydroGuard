@@ -4,13 +4,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.alerts import router as alerts_router
+from app.api.auth import router as auth_router
+from app.api.admin_users import router as admin_users_router
 from app.api.forecast import router as forecast_router
 from app.api.health import router as health_router
 from app.api.hostel import router as hostel_router
 from app.api.nodes import router as nodes_router
 from app.api.readings import router as readings_router
 from app.api.research_export import router as research_export_router
-from app.db.database import init_db
+from app.db.database import get_db_context, init_db
 
 app = FastAPI(
     title="HydroGuard ML API",
@@ -26,6 +28,11 @@ app = FastAPI(
 def initialize_database() -> None:
     """Create current tables and apply additive SQLite compatibility changes."""
     init_db()
+    if development_environment in {"development", "dev"}:
+        from app.db.seed import seed_development_dataset
+
+        with get_db_context() as db:
+            seed_development_dataset(db)
 
 # Local CORS is enabled only in an explicitly non-production environment.
 development_environment = os.getenv("HYDROGUARD_ENVIRONMENT", "production").strip().lower()
@@ -38,7 +45,6 @@ local_development_origins = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8000",
     "http://127.0.0.1:8080",
-    "http://10.0.2.2:8000",
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -54,4 +60,6 @@ app.include_router(forecast_router, prefix="/api/v1")
 app.include_router(nodes_router, prefix="/api/v1")
 app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(hostel_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(admin_users_router, prefix="/api/v1")
 app.include_router(research_export_router, prefix="/api/v1")

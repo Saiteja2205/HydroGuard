@@ -84,9 +84,9 @@ class SensorReading(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
 
     # Four required parameters (current development mode)
-    ph: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    ph: Mapped[float] = mapped_column(Numeric(5, 3), nullable=False)
     tds: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    turbidity: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    turbidity: Mapped[float] = mapped_column(Numeric(10, 3), nullable=False)
     temperature: Mapped[float] = mapped_column(Numeric(5, 2), nullable=True)
 
     # Deprecated legacy columns retained for historical database compatibility.

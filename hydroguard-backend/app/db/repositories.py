@@ -6,7 +6,7 @@ Provides clean data access layer separate from business logic and API routes.
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import and_, desc, func, or_
+from sqlalchemy import and_, case, desc, func, or_
 from sqlalchemy.orm import Session
 
 from app.db.models import Alert, EnsembleWeight, Forecast, ModelError, Node, SensorCalibration, SensorReading
@@ -101,12 +101,26 @@ class SensorReadingRepository:
         return reading
 
     @staticmethod
-    def get_latest_by_node(db: Session, node_id: str) -> Optional[SensorReading]:
-        """Get the latest reading for a node."""
+    def get_latest_by_node(
+        db: Session,
+        node_id: str,
+        data_source: Optional[str] = None,
+    ) -> Optional[SensorReading]:
+        """Prefer real sensor data for CURRENT, then choose its latest sample.
+
+        Development history remains queryable, but a later synthetic timestamp
+        must never mask an ingested physical reading.
+        """
+        source_priority = case(
+            (func.upper(SensorReading.source).in_(("REAL_SENSOR", "THINGSPEAK", "ESP32")), 0),
+            else_=1,
+        )
+        query = db.query(SensorReading).filter(SensorReading.node_id == node_id)
+        if data_source is not None:
+            query = query.filter(SensorReading.source == data_source)
         return (
-            db.query(SensorReading)
-            .filter(SensorReading.node_id == node_id)
-            .order_by(desc(SensorReading.timestamp))
+            query
+            .order_by(source_priority, desc(SensorReading.timestamp), desc(SensorReading.id))
             .first()
         )
 
@@ -117,9 +131,13 @@ class SensorReadingRepository:
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         limit: Optional[int] = None,
+        data_source: Optional[str] = None,
     ) -> list[SensorReading]:
         """Get historical readings for a node."""
         query = db.query(SensorReading).filter(SensorReading.node_id == node_id)
+
+        if data_source is not None:
+            query = query.filter(SensorReading.source == data_source)
 
         if start:
             query = query.filter(SensorReading.timestamp >= start)

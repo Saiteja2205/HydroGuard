@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -41,9 +45,15 @@ import com.example.ui.theme.CobaltBlue
 import com.example.ui.theme.GlassBorderDark
 import com.example.ui.theme.GlassBorderLight
 import com.example.ui.viewmodel.HydroViewModel
-import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 @Composable
 fun LoginScreen(
@@ -68,36 +78,59 @@ fun LoginScreen(
             viewModel.showLoginError("Google Sign-In is currently unavailable.")
             return
         }
-        val clientIdResource = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-        if (clientIdResource == 0) {
-            viewModel.showLoginError("Google Sign-In is currently unavailable.")
+        val activity = context.findActivity()
+        if (activity == null) {
+            viewModel.showLoginError("Google Sign-In couldn't be opened. Please try again.")
             return
         }
-        val googleSignInOption = GetSignInWithGoogleOption.Builder(context.getString(clientIdResource)).build()
-        val request = GetCredentialRequest.Builder()
-            .addCredentialOption(googleSignInOption)
-            .build()
+        val serverClientId = context.getString(R.string.default_web_client_id)
+
         signingIn = true
         scope.launch {
             try {
-                val result = credentialManager.getCredential(context, request)
-                val credential = result.credential
+                val credential = credentialManager.getCredential(
+                    activity,
+                    GetCredentialRequest.Builder()
+                        .addCredentialOption(
+                            GetGoogleIdOption.Builder()
+                                .setServerClientId(serverClientId)
+                                .setFilterByAuthorizedAccounts(false)
+                                .setAutoSelectEnabled(false)
+                                .build()
+                        )
+                        .build()
+                ).credential
                 if (credential !is CustomCredential || credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                     viewModel.showLoginError("Google sign-in couldn't finish. Please try again.")
                     return@launch
                 }
                 val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                viewModel.signInWithGoogleIdToken(googleCredential.idToken)
+                viewModel.signInWithGoogleIdToken(googleCredential.idToken).join()
             } catch (_: GetCredentialCancellationException) {
                 viewModel.clearLoginError()
             } catch (_: NoCredentialException) {
-                viewModel.showLoginError("No Google account is available on this device. Add an account and try again.")
+                if (BuildConfig.DEBUG) Log.w("LoginScreen", "No Google credential available from Credential Manager.")
+                viewModel.showLoginError("No Google account is available. Add a Google account to this device and try again.")
             } catch (_: GoogleIdTokenParsingException) {
                 viewModel.showLoginError("Google sign-in couldn't finish. Please try again.")
-            } catch (_: GetCredentialException) {
-                viewModel.showLoginError("We couldn't connect to Google. Check your connection and try again.")
-            } catch (_: Exception) {
+            } catch (exception: GetCredentialException) {
+                if (BuildConfig.DEBUG) Log.w("LoginScreen", "Credential Manager failed (${exception.javaClass.simpleName}).")
+                viewModel.showLoginError("Google Sign-In couldn't start. Check your Google account and try again.")
+            } catch (exception: Exception) {
+                if (BuildConfig.DEBUG) Log.w("LoginScreen", "Google Sign-In failed (${exception.javaClass.simpleName}).")
                 viewModel.showLoginError("Google sign-in couldn't finish. Please try again.")
+            } finally {
+                signingIn = false
+            }
+        }
+    }
+
+    fun startDevelopmentSignIn(role: String) {
+        viewModel.clearLoginError()
+        signingIn = true
+        scope.launch {
+            try {
+                viewModel.developmentLogin(role)
             } finally {
                 signingIn = false
             }
@@ -218,13 +251,15 @@ fun LoginScreen(
                         Spacer(Modifier.height(10.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             OutlinedButton(
-                                onClick = { viewModel.developmentLogin("STUDENT") },
+                                onClick = { startDevelopmentSignIn("STUDENT") },
+                                enabled = !signingIn,
                                 modifier = Modifier.weight(1f).height(48.dp).testTag("demo_student_btn"),
                                 shape = RoundedCornerShape(10.dp),
                                 border = BorderStroke(1.dp, if (isDark) GlassBorderDark else GlassBorderLight)
                             ) { Text("Continue as Student", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CobaltBlue) }
                             OutlinedButton(
-                                onClick = { viewModel.developmentLogin("ADMIN") },
+                                onClick = { startDevelopmentSignIn("ADMIN") },
+                                enabled = !signingIn,
                                 modifier = Modifier.weight(1f).height(48.dp).testTag("demo_admin_btn"),
                                 shape = RoundedCornerShape(10.dp),
                                 border = BorderStroke(1.dp, if (isDark) GlassBorderDark else GlassBorderLight)

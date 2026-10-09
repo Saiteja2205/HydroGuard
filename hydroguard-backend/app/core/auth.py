@@ -5,10 +5,14 @@ import os
 from typing import Callable
 
 from fastapi import Depends, Header, HTTPException
+from sqlalchemy.orm import Session
+
+from app.db.auth_models import HydroGuardUser
+from app.db.database import get_db
 
 
 def _firebase_app():
-    project_id = os.getenv("HYDROGUARD_FIREBASE_PROJECT_ID")
+    project_id = os.getenv("HYDROGUARD_FIREBASE_PROJECT_ID", "").strip()
     if not project_id:
         raise HTTPException(status_code=503, detail="Firebase authentication is not configured.")
     try:
@@ -16,13 +20,19 @@ def _firebase_app():
         from firebase_admin import credentials
 
         try:
-            return firebase_admin.get_app("hydroguard-api")
+            app = firebase_admin.get_app("hydroguard-api")
         except ValueError:
             return firebase_admin.initialize_app(
                 credentials.ApplicationDefault(),
                 {"projectId": project_id},
                 name="hydroguard-api",
             )
+        if app.project_id != project_id:
+            raise HTTPException(
+                status_code=503,
+                detail="Firebase authentication is configured for a different project.",
+            )
+        return app
     except HTTPException:
         raise
     except Exception as exc:
@@ -54,19 +64,7 @@ def _development_principal(
     return {"uid": normalized_uid, "role": normalized_role, "development": True}
 
 
-def authenticated_principal(
-    authorization: str | None = Header(default=None),
-    x_hydroguard_development_token: str | None = Header(default=None),
-    x_hydroguard_development_role: str | None = Header(default=None),
-    x_hydroguard_development_uid: str | None = Header(default=None),
-) -> dict:
-    local = _development_principal(
-        x_hydroguard_development_token,
-        x_hydroguard_development_role,
-        x_hydroguard_development_uid,
-    )
-    if local is not None:
-        return local
+def _verified_identity(authorization: str | None) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="A Firebase bearer token is required.")
     token = authorization[7:].strip()
@@ -75,11 +73,71 @@ def authenticated_principal(
     try:
         from firebase_admin import auth
 
-        return auth.verify_id_token(token, app=_firebase_app(), check_revoked=True)
+        identity = auth.verify_id_token(token, app=_firebase_app(), check_revoked=True)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=401, detail="Firebase bearer token is invalid or expired.") from exc
+
+    uid = str(identity.get("uid", "")).strip()
+    email = identity.get("email")
+    if not uid or not isinstance(email, str) or not email.strip():
+        raise HTTPException(status_code=401, detail="The Firebase account does not provide a valid identity.")
+    if identity.get("email_verified") is not True:
+        raise HTTPException(status_code=403, detail="Use a verified college Google account to continue.")
+    return {**identity, "uid": uid, "email": email.strip().lower()}
+
+
+def verified_firebase_identity(
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Verify Firebase identity without requiring a role or account record.
+
+    This dependency is reserved for the narrow account bootstrap endpoint.
+    """
+    return _verified_identity(authorization)
+
+
+def _database_principal(identity: dict, db: Session) -> dict:
+    account = (
+        db.query(HydroGuardUser)
+        .filter_by(firebase_uid=identity["uid"])
+        .one_or_none()
+    )
+    if account is None:
+        raise HTTPException(status_code=403, detail="This account is not authorized for HydroGuard.")
+    if account.email != identity["email"]:
+        raise HTTPException(status_code=403, detail="The verified email does not match this HydroGuard account.")
+    if account.status != "ACTIVE":
+        raise HTTPException(status_code=403, detail="This HydroGuard account is not active.")
+    role = str(account.role).strip().upper()
+    if role not in {"STUDENT", "ADMIN"}:
+        raise HTTPException(status_code=403, detail="This account is not authorized for HydroGuard.")
+    return {
+        **identity,
+        "uid": account.firebase_uid,
+        "email": account.email,
+        "role": role,
+        "name": account.display_name,
+    }
+
+
+def authenticated_principal(
+    authorization: str | None = Header(default=None),
+    x_hydroguard_development_token: str | None = Header(default=None),
+    x_hydroguard_development_role: str | None = Header(default=None),
+    x_hydroguard_development_uid: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> dict:
+    local = _development_principal(
+        x_hydroguard_development_token,
+        x_hydroguard_development_role,
+        x_hydroguard_development_uid,
+    )
+    if local is not None:
+        return local
+    identity = _verified_identity(authorization)
+    return _database_principal(identity, db)
 
 
 def require_roles(*allowed_roles: str) -> Callable:
@@ -95,12 +153,11 @@ def require_roles(*allowed_roles: str) -> Callable:
 
 
 def require_student_or_admin(principal: dict = Depends(authenticated_principal)) -> dict:
-    # An authenticated Firebase account without a custom role claim is a
-    # student. ADMIN is granted only through a server-managed custom claim.
-    role = str(principal.get("role", "STUDENT")).upper()
+    # Roles resolved from the persistent HydroGuard account record are authoritative.
+    role = str(principal.get("role", "")).strip().upper()
     if role not in {"STUDENT", "ADMIN"}:
-        raise HTTPException(status_code=403, detail="A STUDENT or ADMIN role claim is required.")
-    return principal
+        raise HTTPException(status_code=403, detail="An active STUDENT or ADMIN HydroGuard account is required.")
+    return {**principal, "role": role}
 
 
 def require_sensor_key(x_sensor_token: str | None = Header(default=None)) -> None:

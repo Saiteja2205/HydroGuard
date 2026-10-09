@@ -9,8 +9,28 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.PUT
 import retrofit2.http.DELETE
+import retrofit2.http.Streaming
+import okhttp3.ResponseBody
 
 interface HydroGuardApiService {
+    @POST("api/v1/auth/bootstrap")
+    suspend fun bootstrapAccount(): Response<AuthenticatedUserResponse>
+
+    @POST("api/v1/auth/development/demo-student-session")
+    suspend fun createDevelopmentDemoStudentSession(): Response<DevelopmentSessionResponse>
+
+    @GET("api/v1/admin/users")
+    suspend fun listAdminUsers(): Response<List<AdminUserResponse>>
+
+    @POST("api/v1/admin/users/invite")
+    suspend fun inviteAdmin(@Body request: AdminInviteRequest): Response<AdminUserResponse>
+
+    @PATCH("api/v1/admin/users/{user_id}")
+    suspend fun updateAdminUserStatus(
+        @Path("user_id") userId: Int,
+        @Body request: AdminUserStatusRequest
+    ): Response<AdminUserResponse>
+
     @GET("api/v1/nodes/{node_id}")
     suspend fun getNodeHealth(@Path("node_id") nodeId: String): Response<NodeHealthResponse>
 
@@ -35,6 +55,15 @@ interface HydroGuardApiService {
     suspend fun getAlerts(
         @Path("node_id") nodeId: String
     ): Response<AlertListResponse>
+
+    @GET("api/v1/nodes/{node_id}/model-performance")
+    suspend fun getModelPerformance(
+        @Path("node_id") nodeId: String
+    ): Response<ModelPerformanceResponse>
+
+    @Streaming
+    @GET("api/v1/research/export.csv")
+    suspend fun exportResearchCsv(): Response<ResponseBody>
 
     @GET("api/v1/hostel/issues")
     suspend fun getHostelIssues(): Response<List<HostelIssueResponse>>
@@ -68,9 +97,6 @@ interface HydroGuardApiService {
 
     @GET("api/v1/hostel/emergency-contacts")
     suspend fun getEmergencyContacts(): Response<List<EmergencyContactResponse>>
-
-    @GET("api/v1/hostel/events")
-    suspend fun getHostelEvents(): Response<List<HostelEventResponse>>
 
     @GET("api/v1/hostel/lost-found")
     suspend fun getLostFoundItems(): Response<List<LostFoundResponse>>
@@ -111,12 +137,4 @@ interface HydroGuardApiService {
     @DELETE("api/v1/hostel/emergency-contacts/{contact_id}")
     suspend fun deleteEmergencyContact(@Path("contact_id") contactId: Int): Response<Unit>
 
-    @POST("api/v1/hostel/events")
-    suspend fun createHostelEvent(@Body request: EventCreateRequest): Response<HostelEventResponse>
-
-    @PUT("api/v1/hostel/events/{event_id}")
-    suspend fun updateHostelEvent(@Path("event_id") eventId: Int, @Body request: EventCreateRequest): Response<HostelEventResponse>
-
-    @DELETE("api/v1/hostel/events/{event_id}")
-    suspend fun deleteHostelEvent(@Path("event_id") eventId: Int): Response<Unit>
 }

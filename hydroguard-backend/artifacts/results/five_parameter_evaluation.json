@@ -1,7 +1,7 @@
 {
   "model_version": "five-param-v1",
   "dataset_size": 200,
-  "dataset_source": "SIMULATED/DEVELOPMENT",
+  "dataset_source": "SIMULATED_DEVELOPMENT",
   "real_sensor_data": false,
   "parameters": [
     "pH",

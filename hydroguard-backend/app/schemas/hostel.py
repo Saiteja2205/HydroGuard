@@ -97,7 +97,7 @@ class NoticeRecord(NoticeCreate):
 
 
 class EmergencyContactCreate(StrictInput):
-    category: Literal["WARDEN", "SECURITY", "COLLEGE_EMERGENCY", "AMBULANCE", "FIRE"]
+    category: Literal["WARDEN", "SECURITY"]
     name: str = Field(min_length=2, max_length=120)
     phone: str = Field(min_length=4, max_length=40, pattern=r"^\+?[0-9][0-9 ()-]{2,38}$")
     details: str | None = Field(default=None, max_length=500)
@@ -146,21 +146,6 @@ class LostFoundRecord(BaseModel):
 
 class LostFoundModeration(StrictInput):
     moderation_status: Literal["APPROVED", "REJECTED", "REMOVED"]
-
-
-class EventCreate(StrictInput):
-    name: str = Field(min_length=2, max_length=180)
-    starts_at: datetime
-    location: str = Field(min_length=2, max_length=255)
-    description: str = Field(min_length=2, max_length=5000)
-    organizer: str = Field(min_length=2, max_length=120)
-
-
-class EventRecord(EventCreate):
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
-    id: int
-    author_uid: str
-    created_at: datetime
 
 
 class HostelFeedbackCreate(StrictInput):

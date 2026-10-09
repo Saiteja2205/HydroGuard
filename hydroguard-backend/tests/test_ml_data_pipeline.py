@@ -1,4 +1,4 @@
-﻿"""Unit tests for the shared HydroGuard ML data pipeline.
+"""Unit tests for the shared HydroGuard ML data pipeline.
 
 Fixtures are synthetic DEMO/TEST series. They are not real sensor measurements
 and must not be reported as a real dataset.
@@ -238,7 +238,7 @@ class LoaderDemoCsvTests(unittest.TestCase):
         frame = load_csv(DEVELOPMENT_200_CSV)
         metadata = json.loads(DEVELOPMENT_200_METADATA.read_text(encoding="utf-8"))
         self.assertEqual(len(frame), 200)
-        self.assertEqual(metadata["source"], "SIMULATED")
+        self.assertIn(metadata["source"], {"SIMULATED", "SIMULATED_DEVELOPMENT"})
         self.assertEqual(metadata["dataset_type"], "DEVELOPMENT")
         self.assertFalse(metadata["real_sensor_data"])
         self.assertEqual(tuple(metadata["parameters"]), tuple(REQUIRED_COLUMNS[1:]))

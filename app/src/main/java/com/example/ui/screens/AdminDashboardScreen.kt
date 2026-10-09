@@ -5,7 +5,7 @@ import androidx.compose.ui.Modifier
 import com.example.ui.screens.student.ServerWaterScreen
 import com.example.ui.viewmodel.HydroViewModel
 
-/** Admin water analytics are backend-authoritative; the former seeded Room dashboard was removed. */
+/** Admin water analytics prefer backend records and fall back to selected-node Room readings. */
 @Composable
 fun AdminDashboardScreen(viewModel: HydroViewModel, onLogout: () -> Unit, modifier: Modifier = Modifier) {
     ServerWaterScreen(viewModel = viewModel, modifier = modifier, isAdmin = true, onLogout = onLogout)

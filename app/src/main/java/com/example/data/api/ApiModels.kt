@@ -122,3 +122,23 @@ data class NodeHealthResponse(
     val status: String,
     val last_seen: String?
 )
+
+@JsonClass(generateAdapter = true)
+data class ModelPerformanceResponse(
+    @Json(name = "node_id") val nodeId: String,
+    val performance: List<ModelPerformanceRecord>
+)
+
+@JsonClass(generateAdapter = true)
+data class ModelPerformanceRecord(
+    @Json(name = "model_name") val modelName: String,
+    val parameter: String,
+    val mae: Float,
+    val rmse: Float,
+    val count: Int,
+    @Json(name = "data_source") val dataSource: String,
+    @Json(name = "horizon_hours") val horizonHours: Int,
+    @Json(name = "evaluation_start") val evaluationStart: String?,
+    @Json(name = "evaluation_end") val evaluationEnd: String?,
+    val mape: Float?
+)
