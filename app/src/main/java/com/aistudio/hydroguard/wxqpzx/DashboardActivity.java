@@ -23,7 +23,8 @@ import com.aistudio.hydroguard.wxqpzx.data.api.ApiFailure;
 import com.aistudio.hydroguard.wxqpzx.data.api.ApiRepository;
 import com.aistudio.hydroguard.wxqpzx.data.repository.DevelopmentAuthPolicy;
 import com.aistudio.hydroguard.wxqpzx.data.repository.HydroRepository;
-import com.aistudio.hydroguard.wxqpzx.data.service.WaterQualityIndexService;
+import com.aistudio.hydroguard.wxqpzx.data.service.AlertNotifier;
+import com.aistudio.hydroguard.wxqpzx.ui.WaterScreen;
 import com.aistudio.hydroguard.wxqpzx.ui.viewmodel.HydroViewModel;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
@@ -42,8 +43,7 @@ public class DashboardActivity extends ComponentActivity {
     public static final String EXTRA_ROLE = "role";
     public static final String EXTRA_EMAIL = "email";
     public static final String EXTRA_NAME = "name";
-    private static final String[] NODE_IDS = {"node_overhead_a", "node_overhead_b", "node_mess"};
-    private static final String[] NODE_NAMES = {"Block A overhead tank", "Block B overhead tank", "Mess ground water"};
+    private static final String[] NODE_IDS = {"node_overhead_a", "node_overhead_b", "node_mess_ground"};
     private static final String[] ISSUE_CATEGORIES = {"Water", "Plumbing", "Electrical", "Room/Furniture", "Cleaning", "Bathroom", "Wi-Fi", "Other"};
     private static final String[] ISSUE_SEVERITIES = {"LOW", "MEDIUM", "HIGH", "URGENT"};
     private final ApiRepository api = new ApiRepository();
@@ -56,6 +56,8 @@ public class DashboardActivity extends ComponentActivity {
     private String displayName;
     private String selectedNode = NODE_IDS[0];
     private boolean isAdmin;
+    private AlertNotifier alertNotifier;
+    private WaterScreen waterScreen;
 
     @Override protected void onCreate(@Nullable Bundle state) {
         super.onCreate(state);
@@ -70,6 +72,8 @@ public class DashboardActivity extends ComponentActivity {
         }
         viewModel = new ViewModelProvider(this).get(HydroViewModel.class);
         hydro = viewModel.hydro();
+        alertNotifier = new AlertNotifier(this);
+        requestNotificationPermissionIfNeeded();
         setContentView(R.layout.activity_dashboard);
         navigation = findViewById(R.id.bottom_navigation);
         navigation.inflateMenu(isAdmin ? R.menu.admin_navigation : R.menu.student_navigation);
@@ -132,163 +136,20 @@ public class DashboardActivity extends ComponentActivity {
     }
 
     private void renderWater(View screen) {
-        Spinner nodes = screen.findViewById(R.id.node_selector);
-        nodes.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, NODE_NAMES));
-        for (int i = 0; i < NODE_IDS.length; i++) if (NODE_IDS[i].equals(selectedNode)) nodes.setSelection(i);
-        nodes.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                selectedNode = NODE_IDS[position];
-                loadWater(screen);
-            }
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
-        });
-        screen.findViewById(R.id.refresh_water).setOnClickListener(view -> loadWater(screen));
-        screen.findViewById(R.id.load_forecast).setOnClickListener(view -> loadForecast(screen));
+        waterScreen = new WaterScreen(this, api, hydro, alertNotifier, isAdmin, selectedNode);
+        waterScreen.attach(screen);
     }
 
-    private void loadWater(View screen) {
-        TextView status = screen.findViewById(R.id.reading_status);
-        if (status != null) status.setText("Loading the latest server reading…");
-        hydro.loadLatest(selectedNode, new HydroRepository.DataCallback() {
-            @Override public void onSuccess(String json, boolean cached, ApiFailure warning) {
-                if (activeScreen != screen) return;
-                try {
-                    JSONObject reading = new JSONObject(json);
-                    renderReading(screen, reading, cached, warning);
-                } catch (JSONException error) {
-                    if (status != null) status.setText("The server returned an unexpected reading.");
-                }
-            }
-            @Override public void onFailure(ApiFailure failure) {
-                if (activeScreen == screen && status != null) status.setText(failure.getMessage());
-            }
-        });
-        TextView forecastStatus = screen.findViewById(R.id.forecast_status);
-        if (forecastStatus != null) forecastStatus.setText("Loading reading history…");
-        hydro.loadHistory(selectedNode, 500, new HydroRepository.DataCallback() {
-            @Override public void onSuccess(String json, boolean cached, ApiFailure warning) {
-                if (activeScreen != screen) return;
-                try {
-                    JSONObject history = new JSONObject(json);
-                    int count = history.optInt("count", history.optJSONArray("readings") == null ? 0 : history.optJSONArray("readings").length());
-                    String label = count + " historical readings" + (cached ? " · saved on this device" : "");
-                    if (warning != null && cached) label += "\n" + warning.getMessage();
-                    forecastStatus.setText(label);
-                } catch (JSONException error) {
-                    forecastStatus.setText("Reading history is unavailable.");
-                }
-            }
-            @Override public void onFailure(ApiFailure failure) {
-                if (activeScreen == screen) forecastStatus.setText(failure.getMessage());
-            }
-        });
-        api.getAlerts(selectedNode, new ApiCallback() {
-            @Override public void onSuccess(String json) { if (activeScreen == screen) renderAlerts(screen, json); }
-            @Override public void onFailure(ApiFailure failure) {
-                if (activeScreen == screen) renderAlertFailure(screen, failure.getMessage());
-            }
-        });
+    private void requestNotificationPermissionIfNeeded() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return;
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);
     }
 
-    private void renderReading(View screen, JSONObject reading, boolean cached, ApiFailure warning) {
-        LinearLayout container = screen.findViewById(R.id.reading_container);
-        container.removeAllViews();
-        addText(container, NODE_NAMES[nodeIndex(selectedNode)], 17, getColor(R.color.hydroguard_text), true);
-        if (cached) addText(container, "Saved reading · " + (warning == null ? "offline" : warning.getMessage()),
-                12, getColor(R.color.hydroguard_orange), false);
-        float ph = (float) reading.optDouble("ph", 0);
-        float tds = (float) reading.optDouble("tds", 0);
-        float turbidity = (float) reading.optDouble("turbidity", 0);
-        float temperature = (float) reading.optDouble("temperature", 0);
-        addMetric(container, "pH", format(ph), WaterQualityIndexService.getParameterStatus("ph", ph));
-        addMetric(container, "TDS", format(tds) + " ppm", WaterQualityIndexService.getParameterStatus("tds", tds));
-        addMetric(container, "Turbidity", format(turbidity) + " NTU", WaterQualityIndexService.getParameterStatus("turbidity", turbidity));
-        addMetric(container, "Temperature", format(temperature) + " °C", WaterQualityIndexService.getParameterStatus("temperature", temperature));
-        if (!reading.isNull("optical_colour_index")) {
-            addMetric(container, "Optical colour index", format(reading.optDouble("optical_colour_index")) + " · Experimental", "Not used in the application index");
-        }
-        WaterQualityIndexService.Result index = WaterQualityIndexService.calculate(ph, tds, turbidity, temperature);
-        addText(container, "HydroGuard index  " + index.index + "/100 · " + index.category.displayName,
-                15, index.index >= 75 ? getColor(R.color.hydroguard_green) : getColor(R.color.hydroguard_orange), true);
-        addText(container, "Application indicator only; it is not a drinking-water safety standard.",
-                12, getColor(R.color.hydroguard_muted), false);
-        addText(container, "Source: " + reading.optString("source", "unknown") + " · " + reading.optString("timestamp", ""),
-                12, getColor(R.color.hydroguard_muted), false);
-    }
-
-    private void addMetric(LinearLayout parent, String label, String value, String status) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, dp(9), 0, dp(9));
-        TextView left = new TextView(this);
-        left.setText(label);
-        left.setTextColor(getColor(R.color.hydroguard_muted));
-        left.setTextSize(14);
-        row.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        TextView right = new TextView(this);
-        right.setText(value + (status.isEmpty() ? "" : "\n" + status));
-        right.setGravity(android.view.Gravity.END);
-        right.setTextColor(getColor(R.color.hydroguard_text));
-        right.setTextSize(14);
-        row.addView(right);
-        parent.addView(row);
-    }
-
-    private void renderAlerts(View screen, String json) {
-        LinearLayout alerts = screen.findViewById(R.id.alerts_container);
-        alerts.removeAllViews();
-        try {
-            JSONArray rows = new JSONObject(json).optJSONArray("alerts");
-            if (rows == null || rows.length() == 0) {
-                addCard(alerts, "No alerts are currently recorded for this node.");
-                return;
-            }
-            for (int i = 0; i < rows.length(); i++) {
-                JSONObject row = rows.optJSONObject(i);
-                if (row == null) continue;
-                String severity = row.optString("severity", "INFO");
-                String text = severity + " · " + row.optString("parameter", "Water") + "\n"
-                        + row.optString("message", "Water quality alert") + "\nStatus: " + row.optString("status", "ACTIVE");
-                addCard(alerts, text);
-            }
-        } catch (JSONException error) { addCard(alerts, "The server returned an invalid alert list."); }
-    }
-
-    private void renderAlertFailure(View screen, String message) {
-        LinearLayout alerts = screen.findViewById(R.id.alerts_container);
-        alerts.removeAllViews();
-        addCard(alerts, message);
-    }
-
-    private void loadForecast(View screen) {
-        TextView status = screen.findViewById(R.id.forecast_status);
-        status.setText("Checking complete reading history and generating a 24-hour forecast…");
-        screen.findViewById(R.id.load_forecast).setEnabled(false);
-        api.generateForecast(selectedNode, new ApiCallback() {
-            @Override public void onSuccess(String json) {
-                if (activeScreen != screen) return;
-                screen.findViewById(R.id.load_forecast).setEnabled(true);
-                try {
-                    JSONObject result = new JSONObject(json);
-                    JSONObject prediction = result.getJSONObject("prediction");
-                    status.setText("24-hour forecast · " + result.optString("forecast_date", "")
-                            + "\nData source: " + result.optString("data_source", "unknown")
-                            + "\nStrategy: " + result.optString("weight_strategy", "") + " · " + result.optString("weight_status", "")
-                            + "\npH " + format(prediction.optDouble("pH"))
-                            + " · TDS " + format(prediction.optDouble("TDS")) + " ppm"
-                            + "\nTurbidity " + format(prediction.optDouble("turbidity")) + " NTU"
-                            + " · Temperature " + format(prediction.optDouble("temperature")) + " °C"
-                            + "\nOptical colour index " + format(prediction.optDouble("optical_colour_index")) + " · Experimental");
-                } catch (JSONException error) { status.setText("The server returned an invalid forecast."); }
-            }
-            @Override public void onFailure(ApiFailure failure) {
-                if (activeScreen == screen) {
-                    screen.findViewById(R.id.load_forecast).setEnabled(true);
-                    status.setText(failure.getMessage());
-                }
-            }
-        });
-    }
+    private final androidx.activity.result.ActivityResultLauncher<String> notificationPermissionLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+                    granted -> { });
 
     private void renderHome(View screen) {
         LinearLayout content = screen.findViewById(R.id.content_container);
@@ -864,11 +725,6 @@ public class DashboardActivity extends ComponentActivity {
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, values);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         return adapter;
-    }
-
-    private int nodeIndex(String id) {
-        for (int i = 0; i < NODE_IDS.length; i++) if (NODE_IDS[i].equals(id)) return i;
-        return 0;
     }
 
     private String safeName() {

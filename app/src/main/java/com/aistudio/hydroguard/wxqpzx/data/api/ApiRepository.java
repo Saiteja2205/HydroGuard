@@ -54,6 +54,27 @@ public class ApiRepository {
         enqueue(api.updateAlertStatus(id, status), "/api/v1/alerts/" + id, callback);
     }
 
+    public void getNodes(ApiCallback callback) {
+        enqueue(api.getNodes(), "/api/v1/nodes", callback);
+    }
+
+    public void updateNodeStatus(String nodeId, String status, ApiCallback callback) {
+        enqueue(api.updateNodeStatus(nodeId, status), "/api/v1/nodes/" + nodeId + "/status", callback);
+    }
+
+    public void getReadingHistoryRange(String nodeId, String startIso, String endIso, int limit, ApiCallback callback) {
+        enqueue(api.getReadingHistoryRange(nodeId, startIso, endIso, limit),
+                "/api/v1/nodes/" + nodeId + "/readings/history", callback);
+    }
+
+    public void getThresholds(ApiCallback callback) {
+        enqueue(api.getThresholds(), "/api/v1/thresholds", callback);
+    }
+
+    public void updateThresholds(JSONObject payload, ApiCallback callback) {
+        enqueue(api.updateThresholds(jsonBody(payload)), "/api/v1/thresholds", callback);
+    }
+
     public void generateForecast(String nodeId, ApiCallback callback) {
         getReadingHistory(nodeId, 500, new ApiCallback() {
             @Override public void onSuccess(String json) {

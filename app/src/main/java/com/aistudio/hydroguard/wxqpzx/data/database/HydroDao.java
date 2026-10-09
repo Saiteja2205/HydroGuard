@@ -74,6 +74,12 @@ public interface HydroDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertNotification(NotificationLog notification);
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    long insertNotificationIfAbsent(NotificationLog notification);
+
+    @Query("SELECT COUNT(*) FROM notifications WHERE dedupeKey = :dedupeKey")
+    int countNotificationsWithKey(String dedupeKey);
+
     @Query("UPDATE notifications SET isRead = 1 WHERE id = :id")
     void markNotificationAsRead(long id);
 

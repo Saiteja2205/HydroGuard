@@ -12,7 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
         User.class, SensorNode.class, SensorReading.class, Prediction.class, Alert.class,
         NotificationLog.class, WaterFeedback.class, HostelFeedback.class,
         WaterQualityReport.class, AuditLog.class
-}, version = 2, exportSchema = false)
+}, version = 3, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     public abstract HydroDao hydroDao();
 
@@ -30,13 +30,22 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    private static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+        @Override public void migrate(SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE notifications ADD COLUMN dedupeKey TEXT NOT NULL DEFAULT ''");
+            // Give legacy rows distinct keys so the unique index below cannot reject them.
+            db.execSQL("UPDATE notifications SET dedupeKey = 'legacy-' || id");
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_notifications_dedupeKey ON notifications(dedupeKey)");
+        }
+    };
+
     public static AppDatabase getDatabase(Context context) {
         if (instance == null) {
             synchronized (AppDatabase.class) {
                 if (instance == null) {
                     instance = Room.databaseBuilder(context.getApplicationContext(), AppDatabase.class,
                                     "hydroguard_database")
-                            .addMigrations(MIGRATION_1_2)
+                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                             .fallbackToDestructiveMigration()
                             .build();
                 }

@@ -20,13 +20,21 @@ public interface HydroGuardApiService {
     @POST("api/v1/auth/development/demo-student-session") Call<ResponseBody> createDemoStudentSession();
     @POST("api/v1/auth/development/demo-admin-session") Call<ResponseBody> createDemoAdminSession();
 
+    @GET("api/v1/nodes") Call<ResponseBody> getNodes();
     @GET("api/v1/nodes/{node_id}") Call<ResponseBody> getNode(@Path("node_id") String nodeId);
+    @PATCH("api/v1/nodes/{node_id}/status") Call<ResponseBody> updateNodeStatus(
+            @Path("node_id") String nodeId, @Query("status") String status);
     @GET("api/v1/nodes/{node_id}/readings/latest") Call<ResponseBody> getLatestReading(@Path("node_id") String nodeId);
     @GET("api/v1/nodes/{node_id}/readings/history") Call<ResponseBody> getReadingHistory(
             @Path("node_id") String nodeId, @Query("limit") int limit);
+    @GET("api/v1/nodes/{node_id}/readings/history") Call<ResponseBody> getReadingHistoryRange(
+            @Path("node_id") String nodeId, @Query("start") String start, @Query("end") String end,
+            @Query("limit") int limit);
     @GET("api/v1/nodes/{node_id}/alerts") Call<ResponseBody> getAlerts(@Path("node_id") String nodeId);
     @PATCH("api/v1/alerts/{alert_id}") Call<ResponseBody> updateAlertStatus(
             @Path("alert_id") int alertId, @Query("status") String status);
+    @GET("api/v1/thresholds") Call<ResponseBody> getThresholds();
+    @PATCH("api/v1/thresholds") Call<ResponseBody> updateThresholds(@Body RequestBody body);
     @GET("api/v1/nodes/{node_id}/model-performance") Call<ResponseBody> getModelPerformance(@Path("node_id") String nodeId);
     @POST("api/v1/forecast") Call<ResponseBody> generateForecast(@Body RequestBody body);
 
