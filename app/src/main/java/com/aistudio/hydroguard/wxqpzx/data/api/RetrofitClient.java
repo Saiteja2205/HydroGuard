@@ -23,6 +23,7 @@ import retrofit2.Retrofit;
 public final class RetrofitClient {
     private static final String BASE_URL = BuildConfig.API_BASE_URL;
     private static final long TOKEN_WAIT_SECONDS = 10L;
+    private static volatile android.content.Context appContext;
     private static final OkHttpClient CLIENT = createClient();
     private static final Retrofit RETROFIT = new Retrofit.Builder()
             .baseUrl(BASE_URL)
@@ -32,6 +33,15 @@ public final class RetrofitClient {
 
     private RetrofitClient() { }
 
+    /**
+     * Called once from HydroGuardApplication. Kept optional so plain JVM unit tests
+     * can load this class without an Android context; without it the client uses
+     * default routing, exactly as before.
+     */
+    public static void attach(android.content.Context context) {
+        appContext = context.getApplicationContext();
+    }
+
     private static OkHttpClient createClient() {
         if (!(BASE_URL.startsWith("https://") || (BuildConfig.DEBUG && BASE_URL.startsWith("http://")))) {
             throw new IllegalStateException("Release builds require an HTTPS HydroGuard API URL.");
@@ -39,14 +49,21 @@ public final class RetrofitClient {
         if (!BASE_URL.endsWith("/")) {
             throw new IllegalStateException("HYDROGUARD_API_BASE_URL must end with '/'.");
         }
-        return new OkHttpClient.Builder()
+        OkHttpClient.Builder builder = new OkHttpClient.Builder()
                 .addInterceptor(RetrofitClient::authenticateRequest)
                 .addInterceptor(RetrofitClient::logRequest)
                 .authenticator(RetrofitClient::refreshFirebaseToken)
                 .connectTimeout(12, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                .build();
+                .writeTimeout(30, TimeUnit.SECONDS);
+        if (appContext != null && LanApiRoute.isLanApiHost(BASE_URL)) {
+            builder.socketFactory(LanApiRoute.wifiSocketFactory());
+        }
+        OkHttpClient client = builder.build();
+        if (appContext != null && LanApiRoute.isLanApiHost(BASE_URL)) {
+            LanApiRoute.setRouteLostListener(() -> client.connectionPool().evictAll());
+        }
+        return client;
     }
 
     private static Response authenticateRequest(Interceptor.Chain chain) throws IOException {
@@ -79,7 +96,9 @@ public final class RetrofitClient {
             }
             return response;
         } catch (IOException error) {
-            if (BuildConfig.DEBUG) Log.e("HydroGuardApi", "network failure " + error.getClass().getSimpleName() + " " + endpoint);
+            if (BuildConfig.DEBUG) {
+                Log.e("HydroGuardApi", "Network request failed: " + error.getMessage() + " " + endpoint, error);
+            }
             throw error;
         }
     }

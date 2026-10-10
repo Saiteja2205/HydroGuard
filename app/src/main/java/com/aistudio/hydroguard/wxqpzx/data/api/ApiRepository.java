@@ -8,8 +8,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -283,7 +281,10 @@ public class ApiRepository {
 
             @Override public void onFailure(Call<ResponseBody> ignored, Throwable error) {
                 ApiFailure failure = classifyNetworkError(endpoint, error);
-                if (BuildConfig.DEBUG) Log.w("HydroGuardApi", failure.getMessage());
+                if (BuildConfig.DEBUG) {
+                    Log.w("HydroGuardApi", failure.getMessage());
+                    Log.e("HydroGuardApi", "Network request failed: " + error.getMessage(), error);
+                }
                 callback.onFailure(failure);
             }
         });
@@ -294,22 +295,37 @@ public class ApiRepository {
         while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
             rootCause = rootCause.getCause();
         }
-        String baseUrl = RetrofitClient.baseUrl();
-        String message;
-        if (rootCause instanceof UnknownHostException) {
-            message = "The HydroGuard API host could not be resolved at " + baseUrl
-                    + " Verify the development computer's current Wi-Fi IPv4 address and rebuild the debug app.";
-        } else if (rootCause instanceof ConnectException) {
-            message = "A connection to the HydroGuard API at " + baseUrl + " was refused or blocked. "
-                    + "Verify that the backend is running on the development computer's LAN address on port 8000 and that Windows Firewall allows the phone on this network.";
-        } else if (rootCause instanceof SocketTimeoutException) {
-            message = "The HydroGuard API at " + baseUrl + " did not respond before the request timed out. "
-                    + "Check that the backend finished starting and that the phone and computer share Wi-Fi.";
-        } else {
-            message = "The network request to the HydroGuard API at " + baseUrl
-                    + " failed before the server returned a response. Check the phone's Wi-Fi and the backend's LAN connection.";
+        return new ApiFailure(ApiFailure.Kind.SERVER_UNREACHABLE, endpoint, null,
+                failureMessage(rootCause, RetrofitClient.baseUrl(), LanApiRoute.isWifiConnected()), error);
+    }
+
+    static String failureMessage(Throwable rootCause, String baseUrl, boolean wifiConnected) {
+        if (rootCause instanceof LanApiRoute.LanRouteUnavailableException) {
+            return rootCause.getMessage();
         }
-        return new ApiFailure(ApiFailure.Kind.SERVER_UNREACHABLE, endpoint, null, message, error);
+        boolean lanBackend = LanApiRoute.isLanApiHost(baseUrl);
+        if (rootCause instanceof UnknownHostException) {
+            return "The HydroGuard API host could not be resolved at " + baseUrl
+                    + " Verify the development computer's current Wi-Fi IPv4 address and rebuild the debug app.";
+        }
+        if (rootCause instanceof java.net.SocketTimeoutException) {
+            if (lanBackend && wifiConnected) {
+                return "The HydroGuard backend at " + baseUrl + " did not respond even though the phone is on Wi-Fi. "
+                        + "Check that the backend terminal is still running and that Windows Firewall allows inbound port 8000 on this network.";
+            }
+            return "The HydroGuard API at " + baseUrl + " did not respond before the request timed out. "
+                    + "Check that the backend finished starting and that the phone and computer share Wi-Fi.";
+        }
+        if (rootCause instanceof java.net.ConnectException) {
+            if (lanBackend && !wifiConnected) {
+                return "The phone is not connected to Wi-Fi, so the HydroGuard backend at " + baseUrl
+                        + " cannot be reached over mobile data. Connect Wi-Fi and try again.";
+            }
+            return "A connection to the HydroGuard API at " + baseUrl + " was refused or blocked. "
+                    + "Verify that the backend is running on the development computer's LAN address on port 8000 and that Windows Firewall allows the phone on this network.";
+        }
+        return "The network request to the HydroGuard API at " + baseUrl
+                + " failed before the server returned a response. Check the phone's Wi-Fi and the backend's LAN connection.";
     }
 
     private ApiFailure classifyResponse(int status, String endpoint, String body) {
