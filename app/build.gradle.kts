@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.io.StringReader
 import java.net.URI
 import java.util.Properties
 
@@ -7,12 +8,14 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
-val devAuthProperties = providers.provider {
-  val authFile = rootProject.file(".dev-auth.env")
-  Properties().apply {
-    if (authFile.isFile) authFile.inputStream().use(::load)
+// fileContents is a tracked configuration input, so a LAN address written by
+// scripts/run-development.ps1 invalidates the cache instead of being reused stale.
+// The BOM written by Windows PowerShell is stripped so the first key stays readable.
+val devAuthProperties = providers.fileContents(rootProject.layout.projectDirectory.file(".dev-auth.env"))
+  .asText.map { raw ->
+    Properties().apply { load(StringReader(raw.removePrefix("\uFEFF"))) }
   }
-}
+  .orElse(Properties())
 val debugApiBaseUrl = providers.gradleProperty("HYDROGUARD_API_BASE_URL")
   .orElse(providers.environmentVariable("HYDROGUARD_API_BASE_URL"))
   .orElse(providers.provider { devAuthProperties.get().getProperty("HYDROGUARD_API_BASE_URL", "").trim() })

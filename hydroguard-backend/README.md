@@ -26,7 +26,7 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-For this repository's Android development setup, run `.\scripts\run-development.ps1` from the backend folder. It loads the ignored project-root `.dev-auth.env`, enables the development-only demo identity bridge, and binds Uvicorn to the selected Wi-Fi or Ethernet IPv4 address on port 8000 so a physical phone on that LAN can connect. Never commit `.dev-auth.env`.
+For this repository's Android development setup, run `.\scripts\run-development.ps1` from the backend folder. It loads the ignored project-root `.dev-auth.env`, enables the development-only demo identity bridge, and starts Uvicorn on `0.0.0.0:8000` so a physical phone on the LAN can connect. Never commit `.dev-auth.env`.
 
 `scripts/run-development.ps1` detects the active LAN IPv4 address, prints the URL, and writes `HYDROGUARD_API_BASE_URL` back into `.dev-auth.env` so the next Android debug build targets the same address automatically. The Android debug URL is resolved in this order: Gradle property `HYDROGUARD_API_BASE_URL`, environment variable `HYDROGUARD_API_BASE_URL`, `.dev-auth.env`, then the built-in default `http://10.0.2.2:8000/` (the Android Studio emulator alias for the host machine). To target a physical phone explicitly, rebuild with the detected LAN address:
 

@@ -7,7 +7,10 @@ if (-not (Test-Path -LiteralPath $authSettingsPath -PathType Leaf)) {
     throw "Missing ignored development settings file: $authSettingsPath"
 }
 
-$authSettings = Get-Content -LiteralPath $authSettingsPath -Raw | ConvertFrom-StringData
+# Windows PowerShell 5.1 writes a UTF-8 BOM; strip it or the first key is unreadable.
+$authRaw = Get-Content -LiteralPath $authSettingsPath -Raw
+if ($authRaw.Length -gt 0 -and $authRaw[0] -eq [char]0xFEFF) { $authRaw = $authRaw.Substring(1) }
+$authSettings = $authRaw | ConvertFrom-StringData
 if ($authSettings.HYDROGUARD_ENVIRONMENT -notin @('development', 'dev')) {
     throw 'The backend development script requires HYDROGUARD_ENVIRONMENT=development.'
 }
@@ -58,17 +61,24 @@ if ([string]::IsNullOrWhiteSpace($lanAddress)) {
 # (app/build.gradle.kts reads HYDROGUARD_API_BASE_URL from .dev-auth.env).
 # Emulators on this computer can instead use http://10.0.2.2:8000/.
 $appBaseUrl = "http://${lanAddress}:8000/"
-$envLines = @(Get-Content -LiteralPath $authSettingsPath) |
-    Where-Object { $_ -notmatch '^\s*HYDROGUARD_API_BASE_URL=' } +
+$envLines = @($authRaw -split "\r?\n" |
+    Where-Object { $_ -notmatch '^\s*HYDROGUARD_API_BASE_URL\s*=' -and $_ -match '\S' }) +
     @("HYDROGUARD_API_BASE_URL=$appBaseUrl")
-Set-Content -LiteralPath $authSettingsPath -Value $envLines -Encoding utf8
+[System.IO.File]::WriteAllLines($authSettingsPath, $envLines, (New-Object System.Text.UTF8Encoding($false)))
+Write-Host "Detected LAN IPv4 $lanAddress on '$($networkInterface.Name)'."
 Write-Host "Android debug builds will use API base URL: $appBaseUrl (emulator alternative: http://10.0.2.2:8000/)"
-Write-Host "Starting HydroGuard on $($lanAddress):8000. The API will accept connections through this LAN interface only."
+Write-Host 'Rebuild the debug APK after this script runs, then install it on the phone.'
+Write-Host 'If the phone cannot connect, allow inbound TCP 8000 for python in Windows Defender Firewall.'
+Write-Host 'Starting HydroGuard on 0.0.0.0:8000 so phones on the LAN can reach it.'
 Write-Host 'Keep this terminal open while the Android phone uses the API.'
+
+# Uvicorn binds 0.0.0.0 (all interfaces); $lanAddress above is only used for the client URL.
+$python = Join-Path $backendRoot '.venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { $python = 'python' }
 
 Push-Location $backendRoot
 try {
-    python -m uvicorn app.main:app --host $lanAddress --port 8000
+    & $python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 }
 finally {
     Pop-Location
