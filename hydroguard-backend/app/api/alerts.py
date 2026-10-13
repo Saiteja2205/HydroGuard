@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.core.auth import require_roles
+from app.core.auth import authenticated_principal, require_roles
 from app.db.repositories import AlertRepository, NodeRepository
 from app.schemas.alerts import Alert, AlertCreate, AlertListResponse
 
@@ -26,6 +26,7 @@ def get_alerts(
     status: Optional[str] = Query(None, description="Filter by status (ACTIVE, ACKNOWLEDGED, RESOLVED)"),
     limit: Optional[int] = Query(None, ge=1, le=1000, description="Maximum number of alerts to return"),
     db: Session = Depends(get_db),
+    principal: dict = Depends(authenticated_principal),
 ) -> AlertListResponse:
     """Get alerts for a node."""
     # Ensure node exists

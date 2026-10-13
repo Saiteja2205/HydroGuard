@@ -1,8 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Student bottom navigation: Home / Water / Report / My Issues / Profile.
+
+  Same five destinations, same ids and same routes as before — only the icons
+  change. The previous set (@android:drawable/ic_menu_view, ic_menu_info_details,
+  ic_menu_edit, ic_menu_recent_history, ic_menu_myplaces) is the platform's
+  Holo-era menu art: inconsistent optical sizes, heavier strokes than anything
+  else in the app, and two of them (info-details, myplaces) meaning nothing at
+  their assigned destination. The HydroGuard set is drawn on one 24dp grid.
+
+  Titles are unchanged on purpose — each label names what the tab actually does
+  in this app, and none of them can be swapped for the references' wording
+  ("Operations", "Lost & Found") without inventing a route that does not exist.
+-->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/nav_home" android:icon="@android:drawable/ic_menu_view" android:title="Home" />
-    <item android:id="@+id/nav_water" android:icon="@android:drawable/ic_menu_info_details" android:title="Water" />
-    <item android:id="@+id/nav_report" android:icon="@android:drawable/ic_menu_edit" android:title="Report" />
-    <item android:id="@+id/nav_issues" android:icon="@android:drawable/ic_menu_recent_history" android:title="My Issues" />
-    <item android:id="@+id/nav_profile" android:icon="@android:drawable/ic_menu_myplaces" android:title="Profile" />
+    <item android:id="@+id/nav_home" android:icon="@drawable/ic_hydroguard_home" android:title="Home" />
+    <item android:id="@+id/nav_water" android:icon="@drawable/ic_hydroguard_water" android:title="Water" />
+    <item android:id="@+id/nav_report" android:icon="@drawable/ic_hydroguard_report" android:title="Report" />
+    <item android:id="@+id/nav_issues" android:icon="@drawable/ic_hydroguard_issues" android:title="My Issues" />
+    <item android:id="@+id/nav_profile" android:icon="@drawable/ic_hydroguard_profile" android:title="Profile" />
 </menu>

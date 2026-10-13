@@ -21,9 +21,42 @@ if ($authSettings.HYDROGUARD_ENABLE_DEV_AUTH -ne 'true' -or [string]::IsNullOrWh
 $env:HYDROGUARD_ENVIRONMENT = 'development'
 $env:HYDROGUARD_ENABLE_DEV_AUTH = 'true'
 $env:HYDROGUARD_DEV_API_TOKEN = $authSettings.HYDROGUARD_DEV_API_TOKEN
+
+# Optional backend settings carried by the same file. These used to be parsed
+# into $authSettings and then silently dropped, so the backend read an empty
+# student-domain allowlist and rejected every registration with HTTP 403
+# ("College email domain not approved. Approved domains are: .") even though
+# .dev-auth.env had configured the domains. A missing allowlist is now loud
+# instead of silently disabling Create Account and college-domain sign-in.
+$allowedStudentDomains = $authSettings.HYDROGUARD_ALLOWED_STUDENT_DOMAINS
+if (-not [string]::IsNullOrWhiteSpace($allowedStudentDomains)) {
+    $env:HYDROGUARD_ALLOWED_STUDENT_DOMAINS = $allowedStudentDomains
+} else {
+    Write-Warning 'HYDROGUARD_ALLOWED_STUDENT_DOMAINS is empty in .dev-auth.env. Student registration and college-domain sign-in will be rejected until it is set (comma-separated, e.g. vrsec.ac.in,siddhartha.edu.in).'
+}
 if ([string]::IsNullOrWhiteSpace($env:HYDROGUARD_FIREBASE_PROJECT_ID)) {
     $env:HYDROGUARD_FIREBASE_PROJECT_ID = 'hydroguard-4a606'
 }
+
+# Firebase Admin resolves its service-account key lazily, so a missing key used
+# to let the backend start normally and only fail later with an opaque HTTP 503
+# on the first sign-in. Resolve it here and stop with a clear message instead.
+if ([string]::IsNullOrWhiteSpace($env:GOOGLE_APPLICATION_CREDENTIALS)) {
+    $credentialCandidates = @(
+        (Join-Path $env:USERPROFILE '.firebase\hydroguard-admin.json'),
+        (Join-Path $backendRoot 'firebase-service-account.json'),
+        (Join-Path $backendRoot 'serviceAccountKey.json')
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
+    if ($credentialCandidates.Count -gt 0) {
+        $env:GOOGLE_APPLICATION_CREDENTIALS = $credentialCandidates[0]
+    }
+}
+if ([string]::IsNullOrWhiteSpace($env:GOOGLE_APPLICATION_CREDENTIALS) -or
+    -not (Test-Path -LiteralPath $env:GOOGLE_APPLICATION_CREDENTIALS -PathType Leaf)) {
+    throw 'GOOGLE_APPLICATION_CREDENTIALS does not point at a Firebase service-account key file. Registration, login and account bootstrap all return HTTP 503 without it. Set GOOGLE_APPLICATION_CREDENTIALS to the key file and re-run this script.'
+}
+Write-Host "Using Firebase service-account key: $env:GOOGLE_APPLICATION_CREDENTIALS"
+Write-Host 'No password, token or key material is ever written to the log.'
 
 $upInterfaces = [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces() |
     Where-Object { $_.OperationalStatus -eq 'Up' -and $_.NetworkInterfaceType -ne 'Loopback' }

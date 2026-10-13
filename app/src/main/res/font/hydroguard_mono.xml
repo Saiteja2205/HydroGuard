@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  JetBrains Mono: reserved for telemetry, per DESIGN.md "Fonts: JetBrains Mono
+  (all telemetry/numeric data)".
+
+  Tabular figures are the point: the five water metrics, the range chips and the
+  historical table all hold their column alignment when a value ticks over, which
+  is what makes a readings screen read as instrument output rather than prose.
+  Nothing non-numeric uses this family.
+
+  Weights shipped: 400 (table rows), 500 (metric values), 600 (primary readings).
+-->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <font
+        android:font="@font/jetbrains_mono_regular"
+        android:fontStyle="normal"
+        android:fontWeight="400"
+        app:font="@font/jetbrains_mono_regular"
+        app:fontStyle="normal"
+        app:fontWeight="400" />
+
+    <font
+        android:font="@font/jetbrains_mono_medium"
+        android:fontStyle="normal"
+        android:fontWeight="500"
+        app:font="@font/jetbrains_mono_medium"
+        app:fontStyle="normal"
+        app:fontWeight="500" />
+
+    <font
+        android:font="@font/jetbrains_mono_semibold"
+        android:fontStyle="normal"
+        android:fontWeight="600"
+        app:font="@font/jetbrains_mono_semibold"
+        app:fontStyle="normal"
+        app:fontWeight="600" />
+</font-family>

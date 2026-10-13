@@ -148,3 +148,29 @@ def test_resolution_feedback_and_reopen_are_reporter_only(monkeypatch):
     assert reopened.json()["status"] == "REOPENED"
     timeline = client.get(f"/api/v1/hostel/issues/{issue_id}/timeline").json()
     assert timeline[-1]["to_status"] == "REOPENED"
+
+
+def test_lost_found_repeat_submission_does_not_create_duplicates(monkeypatch):
+    init_db()
+    principal = {"uid": "lost-found-owner", "role": "STUDENT"}
+    monkeypatch.setitem(app.dependency_overrides, authenticated_principal, lambda: principal)
+    client = TestClient(app)
+
+    payload = {
+        "kind": "LOST",
+        "title": "Blue calculator",
+        "description": "Left it in the morning lab.",
+        "category": "Electronics",
+        "location": "Block A corridor",
+        "item_date": "2026-10-05T11:30:00Z",
+    }
+    first = client.post("/api/v1/hostel/lost-found", json=payload)
+    second = client.post("/api/v1/hostel/lost-found", json=payload)
+
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201, second.text
+    assert first.json()["id"] == second.json()["id"]
+
+    listed = client.get("/api/v1/hostel/lost-found").json()
+    matching = [row for row in listed if row["title"] == "Blue calculator"]
+    assert len(matching) == 1, matching

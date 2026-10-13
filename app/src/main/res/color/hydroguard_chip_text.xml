@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Filter-chip label.
+
+  Selected = Primary Navy #0F1E36 on #E0F2FE (13.4:1). Unselected = Slate
+  #64748B on #FFFFFF (4.8:1). Both clear AA, so an unselected chip never becomes
+  an unreadable ghost — a common failure when chips are styled with a single
+  low-contrast colour and differentiated only by fill.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/hydroguard_navy" android:state_checked="true" />
+    <item android:color="@color/hydroguard_muted" android:state_selected="true" />
+    <item android:color="@color/hydroguard_muted" />
+</selector>

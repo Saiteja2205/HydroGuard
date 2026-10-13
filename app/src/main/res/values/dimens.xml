@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spacing, sizing and corner-scale tokens for the HydroGuard Precision System.
+
+  The spec is deliberately restrained: a 4/8/12/16/24/32/40 dp ladder, 16dp screen
+  margins, 12-16dp card padding, 8dp gaps and 24dp between major sections. The
+  corner scale is intentionally small — 8dp structural cards, 6dp controls,
+  4dp chips and inputs — because oversized pills and 20dp bubbles are what made
+  the previous layout read as generic. Status pills (fully rounded) are the one
+  exception and are allowed only on short status labels.
+
+  Touch targets stay at the 48dp platform minimum even where the drawn control is
+  smaller; where that would change layout (icon buttons, tabs) min-width/min-height
+  is used instead of padding so the visual rhythm is not disturbed.
+-->
+<resources>
+    <!-- Spacing ladder. -->
+    <dimen name="space_1">4dp</dimen>
+    <dimen name="space_2">8dp</dimen>
+    <dimen name="space_3">12dp</dimen>
+    <dimen name="space_4">16dp</dimen>
+    <dimen name="space_6">24dp</dimen>
+    <dimen name="space_8">32dp</dimen>
+    <dimen name="space_10">40dp</dimen>
+
+    <!-- Screen chrome. -->
+    <dimen name="screen_margin">16dp</dimen>
+    <dimen name="screen_margin_wide">20dp</dimen>
+    <dimen name="section_gap">24dp</dimen>
+
+    <!-- Surfaces. -->
+    <dimen name="card_padding">16dp</dimen>
+    <dimen name="card_padding_compact">12dp</dimen>
+    <dimen name="card_gap">8dp</dimen>
+
+    <!-- Corner scale: structural 8, controls 6, inputs/chips 4. -->
+    <dimen name="corner_card">8dp</dimen>
+    <dimen name="corner_control">6dp</dimen>
+    <dimen name="corner_input">4dp</dimen>
+    <dimen name="corner_chip">4dp</dimen>
+    <dimen name="corner_pill">20dp</dimen>
+
+    <!-- Borders. -->
+    <dimen name="border_hairline">1dp</dimen>
+    <dimen name="border_focus">2dp</dimen>
+    <dimen name="stripe_width">4dp</dimen>
+
+    <!-- Typography scale (dp-safe sp values from DESIGN.md §Typography). -->
+    <dimen name="type_display">34sp</dimen>
+    <dimen name="type_title">24sp</dimen>
+    <dimen name="type_subtitle">18sp</dimen>
+    <dimen name="type_body">14sp</dimen>
+    <dimen name="type_label">12sp</dimen>
+    <dimen name="type_micro">11sp</dimen>
+
+    <!-- Primary telemetry numerals: 28sp JetBrains Mono. -->
+    <dimen name="type_reading">28sp</dimen>
+    <dimen name="type_reading_small">20sp</dimen>
+    <dimen name="type_table_row">14sp</dimen>
+
+    <!-- Touch targets. -->
+    <dimen name="touch_target">48dp</dimen>
+    <dimen name="control_height">44dp</dimen>
+    <dimen name="control_height_tall">48dp</dimen>
+
+    <!-- Segmented control (time horizon) segment height: shorter than a button,
+         but the 4dp track inset around it keeps the hit area near 44dp. -->
+    <dimen name="segment_height">36dp</dimen>
+
+    <!-- Bottom navigation. -->
+    <dimen name="bottom_nav_height">64dp</dimen>
+
+    <!-- Top application bar: navy, drawn behind the status bar (see SystemInsets). -->
+    <dimen name="top_bar_height">56dp</dimen>
+
+    <!-- Water dashboard: 2-column metric grid (1080px screen / 340dpi -> ~480px columns). -->
+    <dimen name="metric_column_gap">8dp</dimen>
+    <dimen name="metric_min_height">96dp</dimen>
+
+    <!-- Chart. -->
+    <dimen name="chart_height">220dp</dimen>
+</resources>

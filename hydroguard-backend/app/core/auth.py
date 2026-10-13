@@ -1,6 +1,7 @@
 """Fail-closed authentication dependencies for Firebase ID tokens and sensors."""
 
 import hmac
+import logging
 import os
 from typing import Callable
 
@@ -10,33 +11,80 @@ from sqlalchemy.orm import Session
 from app.db.auth_models import HydroGuardUser
 from app.db.database import get_db
 
+logger = logging.getLogger("hydroguard.auth")
+
+# Safe, actionable text shown to clients. It names the configuration that is
+# missing without ever echoing credential contents, tokens or key material.
+FIREBASE_UNAVAILABLE_DETAIL = (
+    "Firebase authentication is not configured on this server. Set "
+    "GOOGLE_APPLICATION_CREDENTIALS to a Firebase service-account key file and "
+    "HYDROGUARD_FIREBASE_PROJECT_ID, then restart the backend."
+)
+
 
 def _firebase_app():
+    """Return the named Firebase app, validating credentials eagerly.
+
+    ``credentials.ApplicationDefault()`` resolves credentials lazily, so
+    ``initialize_app()`` succeeds even when no service-account key is
+    available. Without the eager check below the backend looks healthy and
+    every later auth call fails on first use with ``DefaultCredentialsError``,
+    which callers historically turned into a generic HTTP 503.
+    """
     project_id = os.getenv("HYDROGUARD_FIREBASE_PROJECT_ID", "").strip()
     if not project_id:
-        raise HTTPException(status_code=503, detail="Firebase authentication is not configured.")
+        logger.error("Firebase disabled: HYDROGUARD_FIREBASE_PROJECT_ID is not set.")
+        raise HTTPException(status_code=503, detail=FIREBASE_UNAVAILABLE_DETAIL)
+
     try:
         import firebase_admin
         from firebase_admin import credentials
+    except Exception as exc:  # pragma: no cover - depends on the deployment image
+        logger.error("firebase_admin import failed (%s: %s)", type(exc).__name__, exc)
+        raise HTTPException(status_code=503, detail=FIREBASE_UNAVAILABLE_DETAIL) from exc
 
-        try:
-            app = firebase_admin.get_app("hydroguard-api")
-        except ValueError:
-            return firebase_admin.initialize_app(
-                credentials.ApplicationDefault(),
-                {"projectId": project_id},
-                name="hydroguard-api",
-            )
+    try:
+        app = firebase_admin.get_app("hydroguard-api")
+    except ValueError:
+        app = None
+
+    if app is not None:
         if app.project_id != project_id:
             raise HTTPException(
                 status_code=503,
                 detail="Firebase authentication is configured for a different project.",
             )
         return app
-    except HTTPException:
-        raise
+
+    try:
+        import google.auth
+
+        # Forces credential resolution now so a misconfigured server fails on
+        # startup of the first request instead of inside an unrelated handler.
+        credentials_info, resolved_project = google.auth.default()
     except Exception as exc:
-        raise HTTPException(status_code=503, detail="Firebase authentication could not initialize.") from exc
+        logger.error(
+            "Firebase credentials could not be resolved (%s: %s). Set "
+            "GOOGLE_APPLICATION_CREDENTIALS to a Firebase service-account key file.",
+            type(exc).__name__,
+            exc,
+        )
+        raise HTTPException(status_code=503, detail=FIREBASE_UNAVAILABLE_DETAIL) from exc
+
+    try:
+        logger.info(
+            "Initializing Firebase app for project %s with credential type %s.",
+            project_id,
+            type(credentials_info).__name__,
+        )
+        return firebase_admin.initialize_app(
+            credentials.ApplicationDefault(),
+            {"projectId": project_id},
+            name="hydroguard-api",
+        )
+    except Exception as exc:
+        logger.error("Firebase app initialization failed (%s: %s)", type(exc).__name__, exc)
+        raise HTTPException(status_code=503, detail=FIREBASE_UNAVAILABLE_DETAIL) from exc
 
 
 def _development_principal(

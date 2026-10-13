@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hostel Operations destination icon: the building block.
+
+  The deployment is one building, one block, one tank, so a single block glyph
+  is literal rather than decorative — and it keeps Operations visually distinct
+  from Water, which is where the tank itself lives.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M17,11V3H7v4H3v14h8v-4h2v4h8V11h-4zM7,19H5v-2h2v2zM7,15H5v-2h2v2zM7,11H5V9h2v2zM11,19H9v-2h2v2zM11,15H9v-2h2v2zM11,11H9V9h2v2zM15,19h-2v-2h2v2zM15,15h-2v-2h2v2zM15,11h-2V9h2v2z" />
+</vector>

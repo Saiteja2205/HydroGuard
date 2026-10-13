@@ -1,25 +1,54 @@
 """Nodes API endpoints for HydroGuard."""
 
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.core.auth import require_roles
+from app.core.auth import authenticated_principal, require_roles
+from app.db.models import Node as NodeModel
 from app.db.repositories import NodeRepository
 from app.schemas.nodes import Node, NodeCreate, NodeListResponse
 
 router = APIRouter(tags=["nodes"])
 
+FIXTURE_NODE_PREFIXES = tuple(
+    prefix
+    for prefix in (
+        value.strip().lower()
+        for value in os.getenv("HYDROGUARD_FIXTURE_NODE_PREFIXES", "test_,contract_").split(",")
+    )
+    if prefix
+)
+
+
+def is_test_fixture(node: NodeModel) -> bool:
+    """Test and contract fixtures stay queryable for tooling but never surface to students."""
+    identifier = (node.node_id or "").strip().lower()
+    return any(identifier.startswith(prefix) for prefix in FIXTURE_NODE_PREFIXES)
+
 
 @router.get("/nodes", response_model=NodeListResponse)
 def list_nodes(
     limit: Optional[int] = Query(None, ge=1, le=1000, description="Maximum number of nodes to return"),
+    include_fixtures: bool = Query(
+        False, description="Include development test/contract fixture nodes."
+    ),
     db: Session = Depends(get_db),
+    principal: dict = Depends(authenticated_principal),
 ) -> NodeListResponse:
-    """List all nodes."""
-    nodes = NodeRepository.list_all(db)
+    """List configured nodes.
+
+    Development fixtures (``test_*``, ``contract_*``) are excluded by default so
+    student-facing node pickers only show configured hostel nodes. Tooling can
+    still retrieve them with ``include_fixtures=true``.
+    """
+    nodes = [
+        node for node in NodeRepository.list_all(db)
+        if include_fixtures or not is_test_fixture(node)
+    ]
     if limit:
         nodes = nodes[:limit]
     return NodeListResponse(nodes=nodes, count=len(nodes))
@@ -35,6 +64,7 @@ def get_node(
         description="Node identifier",
     ),
     db: Session = Depends(get_db),
+    principal: dict = Depends(authenticated_principal),
 ) -> Node:
     """Get a node by ID."""
     node = NodeRepository.get_by_node_id(db, node_id)

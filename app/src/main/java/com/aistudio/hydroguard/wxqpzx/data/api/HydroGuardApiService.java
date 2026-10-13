@@ -20,6 +20,9 @@ public interface HydroGuardApiService {
     @POST("api/v1/auth/development/demo-student-session") Call<ResponseBody> createDemoStudentSession();
     @POST("api/v1/auth/development/demo-admin-session") Call<ResponseBody> createDemoAdminSession();
 
+    @POST("api/v1/auth/student/register") Call<ResponseBody> studentRegister(@Body RequestBody body);
+    @POST("api/v1/auth/student/login") Call<ResponseBody> studentLogin(@Body RequestBody body);
+
     @GET("api/v1/nodes") Call<ResponseBody> getNodes();
     @GET("api/v1/nodes/{node_id}") Call<ResponseBody> getNode(@Path("node_id") String nodeId);
     @PATCH("api/v1/nodes/{node_id}/status") Call<ResponseBody> updateNodeStatus(
@@ -38,7 +41,10 @@ public interface HydroGuardApiService {
     @GET("api/v1/nodes/{node_id}/model-performance") Call<ResponseBody> getModelPerformance(@Path("node_id") String nodeId);
     @POST("api/v1/forecast") Call<ResponseBody> generateForecast(@Body RequestBody body);
 
+    @GET("api/v1/hostel/configuration") Call<ResponseBody> getHostelConfiguration();
+    @GET("api/v1/hostel/issues/workflow") Call<ResponseBody> getIssueWorkflow();
     @GET("api/v1/hostel/issues") Call<ResponseBody> getHostelIssues();
+    @GET("api/v1/hostel/issues/{issue_id}") Call<ResponseBody> getHostelIssue(@Path("issue_id") String issueId);
     @POST("api/v1/hostel/issues") Call<ResponseBody> createHostelIssue(@Body RequestBody body);
     @GET("api/v1/hostel/issues/{issue_id}/timeline") Call<ResponseBody> getIssueTimeline(@Path("issue_id") String issueId);
     @PATCH("api/v1/hostel/issues/{issue_id}/status") Call<ResponseBody> updateIssueStatus(
@@ -62,6 +68,8 @@ public interface HydroGuardApiService {
     @POST("api/v1/hostel/lost-found") Call<ResponseBody> createLostFoundItem(@Body RequestBody body);
     @PATCH("api/v1/hostel/lost-found/{item_id}/moderation") Call<ResponseBody> moderateLostFoundItem(
             @Path("item_id") String itemId, @Body RequestBody body);
+    @POST("api/v1/hostel/lost-found/photos") Call<ResponseBody> uploadLostFoundPhoto(@Body RequestBody body);
+    @GET("api/v1/hostel/lost-found/photos/{key}") Call<ResponseBody> getLostFoundPhoto(@Path("key") String key);
     @POST("api/v1/hostel/feedback") Call<ResponseBody> submitHostelFeedback(@Body RequestBody body);
     @GET("api/v1/hostel/admin/issues/summary") Call<ResponseBody> getIssueSummary();
     @GET("api/v1/hostel/admin/feedback") Call<ResponseBody> getAdminFeedback();

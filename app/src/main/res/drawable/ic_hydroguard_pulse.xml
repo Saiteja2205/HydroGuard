@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sync / link-health pulse for the navy top application bar.
+
+  Drawn as a stroke, not a fill: the ECG-style trace is only legible as a line,
+  and it reads as "the stream is alive" without claiming a reading the app has
+  not actually received. It never carries the word ONLINE on its own — the bar's
+  text is what states the connection state.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M3,12h4l3,-9,4,18,3,-9h4"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+</vector>

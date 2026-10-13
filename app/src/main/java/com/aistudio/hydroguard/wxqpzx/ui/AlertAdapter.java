@@ -57,7 +57,8 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.AlertHolder>
         holder.severity.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         holder.message.setText(alert.optString("message", "Water quality alert"));
         holder.meta.setText("Reading " + alert.optDouble("value", 0) + " · limit "
-                + alert.optDouble("threshold", 0) + "\n" + alert.optString("timestamp", ""));
+                + alert.optDouble("threshold", 0) + "\n"
+                + Timestamps.readable(alert.optString("timestamp", "")));
         boolean showAcknowledge = admin && "ACTIVE".equals(status);
         holder.acknowledge.setVisibility(showAcknowledge ? View.VISIBLE : View.GONE);
         if (showAcknowledge) {

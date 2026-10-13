@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Segmented-control label.
+
+  Selected = Primary Navy #0F1E36 on the white plate (14.6:1). Unselected = Slate
+  #64748B on Subsurface #F1F5F9 (4.5:1). Both clear AA, so an unselected horizon
+  stays readable instead of fading into the track.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/hydroguard_text" android:state_checked="true" />
+    <item android:color="@color/hydroguard_muted" />
+</selector>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Water destination icon: the droplet.
+
+  The one place a literal water metaphor is correct — it is the destination the
+  whole product is about, and it is the icon the approved references use for the
+  Water tab. Drawn on the same 24dp grid as the rest of the set.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2C12,2,4,10.5,4,15.5C4,19.64,7.58,22,12,22C16.42,22,20,19.64,20,15.5C20,10.5,12,2,12,2Z" />
+</vector>

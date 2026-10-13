@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  My-issues destination icon: list.
+
+  Represents the submitted-ticket list; deliberately not a clipboard, because
+  students read and track here rather than administer.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,5h2v2H3V5zM3,9h2v2H3V9zM3,13h2v2H3V13zM3,17h2v2H3V17zM7,5h14v2H7V5zM7,9h14v2H7V9zM7,13h14v2H7V13zM7,17h14v2H7V17z" />
+</vector>

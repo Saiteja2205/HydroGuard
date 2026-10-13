@@ -1,12 +1,246 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  HydroGuard themes.
+
+  Two things are happening here beyond colour:
+
+  1. Every Material3 token that defaults to the library's baseline purple is
+     re-pointed at the approved palette. colourPrimary -> Primary Navy #0F1E36
+     (so a filled button is navy, per DESIGN.md "Primary action: solid background
+     #0F1E36"), colourSecondary -> Secondary Cerulean #0284C7 for interactive
+     accents, and the six surface-container tokens are flattened to neutral
+     whites/slates so no card, chip or sheet picks up a lilac cast.
+
+  2. The corner scale is pulled in from the library's 12-16dp defaults to the
+     spec's restrained 6dp controls / 8dp cards. Oversized radii plus purple fills
+     were the two loudest signals that the old UI was generated rather than
+     designed.
+
+  Status-bar colour stays light because both activities are edge-to-edge light
+  screens; the dashboard's navy bar draws behind the status bar itself (see
+  SystemInsets.applyForTopBar), which is what Android 15 forces anyway.
+-->
 <resources>
 
     <style name="Theme.MyApplication" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/hydroguard_blue</item>
-        <item name="colorSecondary">@color/hydroguard_teal</item>
-        <item name="android:fontFamily">sans</item>
-        <item name="android:statusBarColor">@color/hydroguard_navy</item>
-        <item name="android:navigationBarColor">@color/hydroguard_navy</item>
-        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Typography: Inter everywhere by default; telemetry opts into
+             @font/hydroguard_mono per-view. -->
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="fontFamily">@font/hydroguard_sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- Primary Navy: structure and primary actions. -->
+        <item name="colorPrimary">@color/hydroguard_navy</item>
+        <item name="colorOnPrimary">@color/hydroguard_navy_on</item>
+        <item name="colorPrimaryContainer">@color/hydroguard_navy_container</item>
+        <item name="colorOnPrimaryContainer">@color/hydroguard_navy_on</item>
+
+        <!-- Secondary Cerulean: interactive accent, active states, links. -->
+        <item name="colorSecondary">@color/hydroguard_cerulean</item>
+        <item name="colorOnSecondary">@color/hydroguard_navy_on</item>
+        <item name="colorSecondaryContainer">@color/hydroguard_blue_container</item>
+        <item name="colorOnSecondaryContainer">@color/hydroguard_navy</item>
+
+        <!-- Tertiary Teal: confirmation, telemetry, safe-state emphasis. -->
+        <item name="colorTertiary">@color/hydroguard_teal</item>
+        <item name="colorOnTertiary">@color/hydroguard_navy_on</item>
+        <item name="colorTertiaryContainer">@color/hydroguard_green_surface</item>
+        <item name="colorOnTertiaryContainer">@color/hydroguard_safe_text</item>
+
+        <!-- Neutral canvas: Elevated #FFFFFF, Canvas #F8FAFC, Subsurface #F1F5F9.
+             Deliberately un-tinted so cards never read as a hue variant of the page. -->
+        <item name="colorSurface">@color/hydroguard_surface</item>
+        <item name="colorSurfaceDim">@color/hydroguard_subsurface</item>
+        <item name="colorSurfaceBright">@color/hydroguard_surface</item>
+        <item name="colorSurfaceContainerLowest">@color/hydroguard_surface</item>
+        <item name="colorSurfaceContainerLow">@color/hydroguard_surface</item>
+        <item name="colorSurfaceContainer">@color/hydroguard_background</item>
+        <item name="colorSurfaceContainerHigh">@color/hydroguard_subsurface</item>
+        <item name="colorSurfaceContainerHighest">@color/hydroguard_subsurface</item>
+        <item name="colorSurfaceVariant">@color/hydroguard_subsurface</item>
+
+        <!-- Text. -->
+        <item name="colorOnSurface">@color/hydroguard_text</item>
+        <item name="colorOnSurfaceVariant">@color/hydroguard_muted</item>
+        <item name="android:colorBackground">@color/hydroguard_background</item>
+        <item name="colorOnBackground">@color/hydroguard_text</item>
+
+        <!-- Outlines: hairline #E2E8F0, medium emphasis #CBD5E1. -->
+        <item name="colorOutline">@color/hydroguard_outline</item>
+        <item name="colorOutlineVariant">@color/hydroguard_divider</item>
+
+        <!-- Error. -->
+        <item name="colorError">@color/hydroguard_critical</item>
+        <item name="colorOnError">@color/hydroguard_navy_on</item>
+        <item name="colorErrorContainer">@color/hydroguard_critical_surface</item>
+        <item name="colorOnErrorContainer">@color/hydroguard_critical_text</item>
+
+        <!-- Window: the inset strips beside the status and gesture bars show the
+             screen background, and dark status icons stay legible on it. -->
+        <item name="android:windowBackground">@color/hydroguard_background</item>
+        <item name="android:statusBarColor">@color/hydroguard_background</item>
+        <item name="android:navigationBarColor">@color/hydroguard_background</item>
+
+        <!-- Corner scale: controls 6dp, structural cards 8dp. -->
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.HydroGuard.Control</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.HydroGuard.Card</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.HydroGuard.Card</item>
+
+        <!-- Primary action button: solid navy, 6dp, 12/16dp internal padding. -->
+        <item name="materialButtonStyle">@style/Widget.HydroGuard.Button</item>
+        <item name="materialIconButtonStyle">@style/Widget.HydroGuard.IconButton</item>
     </style>
+
+    <!-- ============================ Corner scale ============================ -->
+
+    <!-- 8dp: structural cards, sheets, tiles. Never a pill. -->
+    <style name="ShapeAppearance.HydroGuard.Card" parent="ShapeAppearance.Material3.Corner.Small">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/corner_card</item>
+    </style>
+
+    <!-- 6dp: buttons, segmented controls, icon containers. -->
+    <style name="ShapeAppearance.HydroGuard.Control" parent="ShapeAppearance.Material3.Corner.Medium">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/corner_control</item>
+    </style>
+
+    <!-- 4dp: text inputs and chips. -->
+    <style name="ShapeAppearance.HydroGuard.Input" parent="ShapeAppearance.Material3.Corner.ExtraSmall">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/corner_input</item>
+    </style>
+
+    <!-- ============================ Controls ============================ -->
+
+    <style name="Widget.HydroGuard.Button" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/hydroguard_navy</item>
+        <item name="android:textColor">@color/hydroguard_navy_on</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minHeight">@dimen/control_height_tall</item>
+        <item name="cornerRadius">@dimen/corner_control</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.HydroGuard.Control</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="Widget.HydroGuard.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">@color/hydroguard_blue_container</item>
+        <item name="android:textColor">@color/hydroguard_navy</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minHeight">@dimen/control_height_tall</item>
+        <item name="cornerRadius">@dimen/corner_control</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.HydroGuard.Control</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="Widget.HydroGuard.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/hydroguard_blue</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:minHeight">@dimen/touch_target</item>
+        <item name="cornerRadius">@dimen/corner_control</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="Widget.HydroGuard.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textColor">@color/hydroguard_text</item>
+        <item name="strokeColor">@color/hydroguard_outline</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minHeight">@dimen/control_height_tall</item>
+        <item name="cornerRadius">@dimen/corner_control</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.HydroGuard.Control</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <!-- Touch target stays 48dp via min sizes rather than padding, so the bar's
+         internal rhythm (icon 24dp, label 11sp below) is not disturbed. -->
+    <style name="Widget.HydroGuard.IconButton" parent="Widget.Material3.Button.IconButton">
+        <item name="iconTint">@color/hydroguard_navy_on</item>
+        <item name="android:minWidth">@dimen/touch_target</item>
+        <item name="android:minHeight">@dimen/touch_target</item>
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.HydroGuard.Control</item>
+    </style>
+
+    <!-- Text field: 4dp, hairline outline, cerulean focus. -->
+    <style name="Widget.HydroGuard.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/hydroguard_cerulean</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="hintTextColor">@color/hydroguard_cerulean</item>
+        <item name="boxCornerRadiusTopStart">@dimen/corner_input</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/corner_input</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/corner_input</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/corner_input</item>
+        <item name="boxBackgroundColor">@color/hydroguard_surface</item>
+        <item name="android:textColorHint">@color/hydroguard_muted</item>
+        <item name="errorTextColor">@color/hydroguard_critical_text</item>
+    </style>
+
+    <!-- Filter / range chips: the selected chip is an active indicator, not a
+         purple pill. Size and behaviour stay the library's. -->
+    <style name="Widget.HydroGuard.Chip" parent="Widget.Material3.Chip.Filter">
+        <item name="chipBackgroundColor">@color/hydroguard_chip_tint</item>
+        <item name="android:textColor">@color/hydroguard_chip_text</item>
+        <item name="chipStrokeColor">@color/hydroguard_outline</item>
+        <item name="chipStrokeWidth">1dp</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.HydroGuard.Input</item>
+        <item name="chipMinHeight">36dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="checkedIconVisible">false</item>
+    </style>
+
+    <!-- Segmented control: the time horizon on the Water screen.
+
+         Deliberately not a second row of filter chips. The parameter chips are
+         a *choice among peers* (any of the five may be selected and the choice
+         persists); the horizon is a *single view switch* on one parameter, and
+         the reference draws those two differently — chips versus a plate on a
+         track. Only the fill and label are state-driven (colour state lists),
+         because a Material button's checked appearance comes from its background
+         tint state rather than from a second style. -->
+    <style name="Widget.HydroGuard.Segment" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/hydroguard_segment_text</item>
+        <item name="android:textFontWeight">500</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:minHeight">@dimen/segment_height</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="backgroundTint">@color/hydroguard_segment_tint</item>
+        <item name="cornerRadius">@dimen/corner_chip</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.HydroGuard.Input</item>
+    </style>
+
+    <!-- Provenance / status badge: a short status label only, per the corner
+         scale's one permitted exception to "never a pill". -->
+    <style name="Widget.HydroGuard.Pill" parent="">
+        <item name="android:background">@drawable/hydroguard_pill</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:paddingTop">3dp</item>
+        <item name="android:paddingBottom">3dp</item>
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:letterSpacing">0.06</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- Material3's default active indicator resolves to its baseline purple
+         (#E8DEF8), which is off-palette in this blue/teal app. Re-tint it with the
+         brand container colour while keeping the library's size and shape. -->
+    <style name="Widget.HydroGuard.BottomNavigationView.ActiveIndicator"
+        parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/hydroguard_blue_container</item>
+    </style>
+
 </resources>

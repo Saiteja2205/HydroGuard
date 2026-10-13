@@ -9,8 +9,6 @@ import java.util.Map;
 
 public final class DevelopmentAuthPolicy {
     private static final String PREFS = "hydroguard_debug_session";
-    private static final String EMAIL_KEY = "email";
-    private static final String ROLE_KEY = "role";
     private static volatile String email;
     private static volatile String role;
 
@@ -25,26 +23,22 @@ public final class DevelopmentAuthPolicy {
     }
 
     public static synchronized void restore(Context context, boolean debugBuild, boolean enabled, String token) {
+        // A development identity is never reloaded from disk. Demo sign-in has to be
+        // invoked explicitly by the user on every app launch, so anything left over
+        // from a previous run is discarded here and only legacy storage is migrated.
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply();
         if (!apiBridgeConfigured(debugBuild, enabled, token)) {
-            clear(context);
-            return;
-        }
-        SharedPreferences preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        String savedEmail = preferences.getString(EMAIL_KEY, null);
-        String savedRole = preferences.getString(ROLE_KEY, null);
-        if (validIdentity(savedEmail, savedRole)) {
-            email = savedEmail;
-            role = savedRole;
+            email = null;
+            role = null;
         }
     }
 
     public static synchronized void set(Context context, String newEmail, String newRole) {
         String normalizedRole = newRole == null ? "" : newRole.trim().toUpperCase(java.util.Locale.ROOT);
         if (!validIdentity(newEmail, normalizedRole)) throw new IllegalArgumentException("Unsupported development identity.");
+        // Session-scoped only: kept in memory so it never authenticates a later app launch.
         email = newEmail.trim().toLowerCase(java.util.Locale.ROOT);
         role = normalizedRole;
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-                .putString(EMAIL_KEY, email).putString(ROLE_KEY, role).apply();
     }
 
     public static synchronized void clear(Context context) {

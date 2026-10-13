@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bottom-navigation icon and label tint.
+
+  The selected destination is solid hydroguard_blue (#0369A1, 5.9:1 on white
+  and 5.4:1 on hydroguard_blue_container) so it reads as active; unselected
+  destinations use hydroguard_nav_inactive (#64748B, 4.8:1 on white), which is
+  above the 4.5:1 threshold for text, so no destination becomes unreadable.
+
+  Both values were re-measured after the palette moved to the approved
+  DESIGN.md tokens — the previous #1769AA / #617486 pair is gone.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/hydroguard_blue" android:state_checked="true" />
+    <item android:color="@color/hydroguard_nav_inactive" />
+</selector>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Metric tile surface.
+
+  Elevated Surface #FFFFFF with a 1dp outline over the #F8FAFC canvas, at the
+  spec's 8dp structural radius. Outline (not elevation) is deliberate: DESIGN.md
+  specifies card separation through outlines, and on a screen of five adjacent
+  tiles a drop shadow per tile reads as noise and darkens the canvas.
+
+  Tiles sit directly on the page rather than inside a larger white card, which
+  is how the reference lays telemetry out: five discrete measurements, not one
+  container with five rows in it.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/hydroguard_surface" />
+    <stroke
+        android:width="@dimen/border_hairline"
+        android:color="@color/hydroguard_divider" />
+    <corners android:radius="@dimen/corner_card" />
+</shape>

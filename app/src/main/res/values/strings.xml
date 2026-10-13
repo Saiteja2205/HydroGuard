@@ -1,6 +1,16 @@
 <resources>
     <string name="app_name">HydroGuard</string>
-    <string name="login_title">HydroGuard AI</string>
-    <string name="login_subtitle">Smart hostel water intelligence</string>
-    <string name="development_login_label">Development sign-in</string>
+    <string name="login_title">Welcome to HydroGuard</string>
+    <string name="login_subtitle">Monitor water quality. Stay informed.</string>
+    <string name="full_name">Full name</string>
+    <string name="college_email">College email</string>
+    <string name="password">Password</string>
+    <string name="confirm_password">Confirm password</string>
+    <string name="sign_in">Sign In</string>
+    <string name="create_account">Create Account</string>
+    <string name="dont_have_account">Dont have an account? Register</string>
+    <string name="register_heading">Create Your Account</string>
+    <string name="password_requirements">Password must be at least 8 characters and contain at least one lowercase letter, one uppercase letter, one digit, and one special character.</string>
+    <string name="forgot_password">Forgot password</string>
+    <string name="sign_in_with_google">Sign in with Google</string>
 </resources>

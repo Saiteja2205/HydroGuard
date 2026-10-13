@@ -27,6 +27,25 @@ public class ApiRepository {
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
     private final HydroGuardApiService api = RetrofitClient.api();
 
+    /** Hands a fetched photograph back as raw bytes plus the media type the server declared. */
+    public interface PhotoCallback {
+        void onPhoto(byte[] bytes, String contentType);
+
+        void onFailure(ApiFailure failure);
+    }
+
+    /**
+     * Photographs are fetched with {@code .execute()} on this pool rather than
+     * through {@code enqueue}, so both the socket read and the body decode stay
+     * off the main thread — the same failure that produced
+     * {@code NetworkOnMainThreadException} in the CSV export path.
+     */
+    private static final java.util.concurrent.ExecutorService PHOTO_EXECUTOR =
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+
+    private final android.os.Handler mainHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+
     public interface ForecastCallback extends ApiCallback { }
 
     public void checkHealth(ApiCallback callback) {
@@ -54,6 +73,11 @@ public class ApiRepository {
 
     public void getNodes(ApiCallback callback) {
         enqueue(api.getNodes(), "/api/v1/nodes", callback);
+    }
+
+    /** The authoritative deployment: one building, one block, one water tank. */
+    public void getHostelConfiguration(ApiCallback callback) {
+        enqueue(api.getHostelConfiguration(), "/api/v1/hostel/configuration", callback);
     }
 
     public void updateNodeStatus(String nodeId, String status, ApiCallback callback) {
@@ -152,6 +176,20 @@ public class ApiRepository {
     }
 
     public void getIssues(ApiCallback callback) { enqueue(api.getHostelIssues(), "/api/v1/hostel/issues", callback); }
+
+    /** Re-read a single report, e.g. after a status change returned an odd body. */
+    public void getIssue(String issueId, ApiCallback callback) {
+        enqueue(api.getHostelIssue(issueId), "/api/v1/hostel/issues/" + issueId, callback);
+    }
+
+    /**
+     * Fetch the authoritative issue transition graph. The response is handed to
+     * {@code IssueWorkflow.applyServerJson} by the caller so the buttons on
+     * Hostel Operations always match what the backend will accept.
+     */
+    public void getIssueWorkflow(ApiCallback callback) {
+        enqueue(api.getIssueWorkflow(), "/api/v1/hostel/issues/workflow", callback);
+    }
     public void getNotices(ApiCallback callback) { enqueue(api.getNotices(), "/api/v1/hostel/notices", callback); }
     public void getEmergencyContacts(ApiCallback callback) { enqueue(api.getEmergencyContacts(), "/api/v1/hostel/emergency-contacts", callback); }
     public void getLostFoundItems(ApiCallback callback) { enqueue(api.getLostFoundItems(), "/api/v1/hostel/lost-found", callback); }
@@ -167,6 +205,26 @@ public class ApiRepository {
         try { json.put("email", email.trim()); } catch (JSONException ignored) { }
         enqueue(api.inviteAdmin(jsonBody(json)), "/api/v1/admin/users/invite", callback);
     }
+    public void studentRegister(String fullName, String email, String password, ApiCallback callback) {
+        JSONObject json = new JSONObject();
+        try {
+            // Never send a JSON null: the backend derives a display name from the
+            // college email when no full name is provided.
+            json.put("full_name", fullName == null ? "" : fullName.trim());
+            json.put("email", email);
+            json.put("password", password);
+        } catch (JSONException ignored) { }
+        enqueue(api.studentRegister(jsonBody(json)), "/api/v1/auth/student/register", callback);
+    }
+    public void studentLogin(String email, String password, ApiCallback callback) {
+        JSONObject json = new JSONObject();
+        try {
+            json.put("email", email);
+            json.put("password", password);
+        } catch (JSONException ignored) { }
+        enqueue(api.studentLogin(jsonBody(json)), "/api/v1/auth/student/login", callback);
+    }
+
     public void updateAdminStatus(int id, String status, ApiCallback callback) {
         JSONObject json = new JSONObject();
         try { json.put("status", status); } catch (JSONException ignored) { }
@@ -182,14 +240,30 @@ public class ApiRepository {
         } catch (JSONException ignored) { }
         enqueue(api.createHostelIssue(jsonBody(json)), "/api/v1/hostel/issues", callback);
     }
-    public void updateIssueStatus(String issueId, String status, String resolution, ApiCallback callback) {
+    /**
+     * Persist a status transition. {@code comment} is the reason shown in the
+     * issue timeline (waiting reason, acknowledgement note); {@code resolution}
+     * is the summary the backend requires for RESOLVED. Both are trimmed and
+     * capped to the backend's field limits so a long note fails locally with a
+     * clear message instead of a bare 422.
+     */
+    public void updateIssueStatus(String issueId, String status, String comment, String resolution,
+                                  ApiCallback callback) {
         JSONObject json = new JSONObject();
         try {
             json.put("status", status);
-            json.put("comment", "Updated in HydroGuard Android app");
-            if (resolution != null && !resolution.trim().isEmpty()) json.put("resolution", resolution.trim());
+            String note = trim(comment, 2000);
+            json.put("comment", note.isEmpty() ? "Updated in HydroGuard Android app" : note);
+            String summary = trim(resolution, 5000);
+            if (!summary.isEmpty()) json.put("resolution", summary);
         } catch (JSONException ignored) { }
         enqueue(api.updateIssueStatus(issueId, jsonBody(json)), "/api/v1/hostel/issues/" + issueId + "/status", callback);
+    }
+
+    private static String trim(String value, int limit) {
+        if (value == null) return "";
+        String trimmed = value.trim();
+        return trimmed.length() <= limit ? trimmed : trimmed.substring(0, limit);
     }
     public void submitHostelFeedback(String category, int rating, String comment, ApiCallback callback) {
         JSONObject json = new JSONObject();
@@ -214,7 +288,7 @@ public class ApiRepository {
         enqueue(api.reopenIssue(issueId, jsonBody(json)), "/api/v1/hostel/issues/" + issueId + "/reopen", callback);
     }
     public void submitLostFound(String kind, String title, String description, String category,
-                                String location, String itemDate, ApiCallback callback) {
+                                String location, String itemDate, String imageUrl, ApiCallback callback) {
         JSONObject json = new JSONObject();
         try {
             json.put("kind", kind);
@@ -223,8 +297,66 @@ public class ApiRepository {
             json.put("category", category);
             json.put("location", location.trim());
             json.put("item_date", itemDate);
+            if (imageUrl != null && !imageUrl.isEmpty()) json.put("image_url", imageUrl);
         } catch (JSONException ignored) { }
         enqueue(api.createLostFoundItem(jsonBody(json)), "/api/v1/hostel/lost-found", callback);
+    }
+
+    /**
+     * Uploads prepared photograph bytes and hands back the server-issued
+     * reference.
+     *
+     * <p>The upload is a separate round trip on purpose: if it fails the caller
+     * must not file the listing anyway, otherwise the app would claim a photo
+     * is attached when nothing left the device.</p>
+     */
+    public void uploadLostFoundPhoto(final byte[] data, String mediaType, ApiCallback callback) {
+        final MediaType type = MediaType.parse(
+                mediaType == null || mediaType.isEmpty() ? "application/octet-stream" : mediaType);
+        RequestBody body = new RequestBody() {
+            @Override public MediaType contentType() { return type; }
+
+            @Override public void writeTo(okio.BufferedSink sink) throws IOException {
+                sink.write(data);
+            }
+        };
+        enqueue(api.uploadLostFoundPhoto(body), LostFoundPhotos.REFERENCE_PREFIX, callback);
+    }
+
+    /**
+     * Fetches a stored photograph on a worker thread.
+     *
+     * <p>Only references this server issued are requested; the storage key is
+     * validated here as well as on the server so a malformed {@code image_url}
+     * never becomes a request.</p>
+     */
+    public void fetchLostFoundPhoto(String imageUrl, final PhotoCallback callback) {
+        final String key = LostFoundPhotos.keyOf(imageUrl);
+        final String endpoint = LostFoundPhotos.REFERENCE_PREFIX + (key == null ? "" : key);
+        if (key == null) {
+            callback.onFailure(new ApiFailure(ApiFailure.Kind.MALFORMED_RESPONSE, imageUrl, null,
+                    "This photo reference was not issued by the HydroGuard server.", null));
+            return;
+        }
+        PHOTO_EXECUTOR.execute(() -> {
+            try {
+                Response<ResponseBody> response = api.getLostFoundPhoto(key).execute();
+                if (!response.isSuccessful() || response.body() == null) {
+                    final ApiFailure failure = classifyResponse(response.code(), endpoint, read(response.errorBody()));
+                    mainHandler.post(() -> callback.onFailure(failure));
+                    return;
+                }
+                try (ResponseBody body = response.body()) {
+                    final byte[] bytes = body.bytes();
+                    final String contentType = body.contentType() == null
+                            ? "image/*" : body.contentType().toString();
+                    mainHandler.post(() -> callback.onPhoto(bytes, contentType));
+                }
+            } catch (IOException error) {
+                final ApiFailure failure = classifyNetworkError(endpoint, error);
+                mainHandler.post(() -> callback.onFailure(failure));
+            }
+        });
     }
     public void moderateLostFound(String itemId, String status, ApiCallback callback) {
         JSONObject json = new JSONObject();
@@ -271,6 +403,9 @@ public class ApiRepository {
     private void enqueue(Call<ResponseBody> call, String endpoint, ApiCallback callback) {
         call.enqueue(new retrofit2.Callback<ResponseBody>() {
             @Override public void onResponse(Call<ResponseBody> ignored, Response<ResponseBody> response) {
+                // Any HTTP response — including 4xx/5xx — proves the server answered, so the
+                // app bar's link state is measured here rather than assumed.
+                ServerLink.recordResponseReceived();
                 String body = read(response.isSuccessful() ? response.body() : response.errorBody());
                 if (response.isSuccessful()) {
                     callback.onSuccess(body);
@@ -280,6 +415,9 @@ public class ApiRepository {
             }
 
             @Override public void onFailure(Call<ResponseBody> ignored, Throwable error) {
+                // No response was produced at all: the link is down, regardless of what the
+                // Wi-Fi radio reports about association.
+                ServerLink.recordTransportFailure();
                 ApiFailure failure = classifyNetworkError(endpoint, error);
                 if (BuildConfig.DEBUG) {
                     Log.w("HydroGuardApi", failure.getMessage());

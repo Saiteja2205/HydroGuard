@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Segmented-control fill (time horizon).
+
+  Selected = raised white plate on the subsurface track, which is how the
+  approved reference distinguishes a horizon switch from the filter chips above
+  it. Unselected = the track shows through, so a segment reads as inert rather
+  than as a second unselected chip.
+
+  Square by default because the 4dp track inset plus the shared corner shape
+  already keep the outer corners inside the 8dp structural radius.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/hydroguard_surface" android:state_checked="true" />
+    <item android:color="@android:color/transparent" />
+</selector>

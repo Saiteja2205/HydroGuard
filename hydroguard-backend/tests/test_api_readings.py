@@ -14,7 +14,7 @@ from app.db.database import init_db, get_db_context
 from app.db.repositories import NodeRepository, SensorReadingRepository
 
 
-def test_readings_api(monkeypatch):
+def test_readings_api(monkeypatch, authenticated_client):
     """Test readings API endpoints."""
     print("\n" + "=" * 70)
     print("TEST: Readings API")
@@ -23,7 +23,7 @@ def test_readings_api(monkeypatch):
     # Initialize database
     init_db()
 
-    client = TestClient(app)
+    client = authenticated_client
     monkeypatch.delenv("HYDROGUARD_SENSOR_API_KEY", raising=False)
 
     # Create test node (use get_or_create to avoid conflicts)
@@ -117,10 +117,10 @@ def test_readings_api(monkeypatch):
     print("\n[OK] Readings API test passed")
 
 
-def test_real_reading_becomes_current_without_replacing_development_history(monkeypatch):
+def test_real_reading_becomes_current_without_replacing_development_history(monkeypatch, authenticated_client):
     init_db()
     monkeypatch.setenv("HYDROGUARD_SENSOR_API_KEY", "test-sensor-key")
-    client = TestClient(app)
+    client = authenticated_client
     node_id = "test_live_overrides_development"
     now = datetime.now(timezone.utc)
 
@@ -181,7 +181,7 @@ def test_real_reading_becomes_current_without_replacing_development_history(monk
     }
 
 
-def test_development_reading_apis_serve_the_canonical_simulated_dataset(monkeypatch):
+def test_development_reading_apis_serve_the_canonical_simulated_dataset(monkeypatch, authenticated_client):
     from app.db.seed import seed_development_dataset
 
     monkeypatch.setenv("HYDROGUARD_ENVIRONMENT", "development")
@@ -190,7 +190,7 @@ def test_development_reading_apis_serve_the_canonical_simulated_dataset(monkeypa
     with get_db_context() as db:
         seed_development_dataset(db, node_id=node_id)
 
-    client = TestClient(app)
+    client = authenticated_client
     latest = client.get(f"/api/v1/nodes/{node_id}/readings/latest")
     history = client.get(f"/api/v1/nodes/{node_id}/readings/history?limit=1000")
 
@@ -229,6 +229,108 @@ def test_development_reading_apis_serve_the_canonical_simulated_dataset(monkeypa
     assert set(forecast_data["prediction"]) == {"pH", "TDS", "turbidity", "temperature", "optical_colour_index"}
     assert set(forecast_data["weights"]) == {"pH", "TDS", "turbidity", "temperature", "optical_colour_index"}
     assert forecast_data["weight_strategy"] in {"initial", "adaptive"}
+
+
+def _reading_payload(node_id: str, timestamp: datetime, source: str) -> dict:
+    return {
+        "node_id": node_id,
+        "timestamp": timestamp.isoformat(),
+        "ph": 7.4,
+        "tds": 180.0,
+        "turbidity": 1.0,
+        "temperature": 22.0,
+        "red": 10_000,
+        "green": 10_200,
+        "blue": 10_100,
+        "clear": 11_000,
+        "optical_colour_index": 0.1,
+        "source": source,
+    }
+
+
+def test_latest_reading_rule_holds_in_development_environment(monkeypatch, authenticated_client):
+    """Regression: provenance ordering, not an env-driven exclusion filter.
+
+    Previously ``HYDROGUARD_ENVIRONMENT=development`` made the latest and
+    history endpoints filter ``source == "SIMULATED_DEVELOPMENT"``, which
+    hid every other stored reading (404) and let a future-dated simulated
+    row stand in for live data. The rule must not depend on the shell.
+    """
+    monkeypatch.setenv("HYDROGUARD_ENVIRONMENT", "development")
+    monkeypatch.setenv("HYDROGUARD_SENSOR_API_KEY", "test-sensor-key")
+    init_db()
+    client = authenticated_client
+    headers = {"X-Sensor-Token": "test-sensor-key"}
+    now = datetime.now(timezone.utc)
+
+    live_node = "test_reg_live_provenance"
+    stored_only_node = "test_reg_stored_readable"
+    with get_db_context() as db:
+        NodeRepository.get_or_create(db, live_node, "Live Provenance Node", "Test Location")
+        NodeRepository.get_or_create(db, stored_only_node, "Stored Only Node", "Test Location")
+
+    # Future-dated simulated sample (inside tolerated clock skew).
+    future_simulated = client.post(
+        "/api/v1/readings",
+        json=_reading_payload(live_node, now + timedelta(hours=6), "SIMULATED_DEVELOPMENT"),
+        headers=headers,
+    )
+    assert future_simulated.status_code == 200, future_simulated.text
+
+    live = client.post(
+        "/api/v1/readings",
+        json=_reading_payload(live_node, now, "REAL_SENSOR"),
+        headers=headers,
+    )
+    assert live.status_code == 200, live.text
+
+    # A stored sample with unrelated provenance must stay retrievable.
+    stored_only = client.post(
+        "/api/v1/readings",
+        json=_reading_payload(stored_only_node, now, "DEMO"),
+        headers=headers,
+    )
+    assert stored_only.status_code == 200, stored_only.text
+
+    latest = client.get(f"/api/v1/nodes/{live_node}/readings/latest")
+    assert latest.status_code == 200, latest.text
+    assert latest.json()["source"] == "REAL_SENSOR"
+    assert latest.json()["ph"] == 7.4
+
+    readable = client.get(f"/api/v1/nodes/{stored_only_node}/readings/latest")
+    assert readable.status_code == 200, readable.text
+    assert readable.json()["source"] == "DEMO"
+
+    # Development history is preserved, not rewritten or hidden.
+    history = client.get(f"/api/v1/nodes/{live_node}/readings/history")
+    assert history.status_code == 200
+    assert history.json()["count"] == 2
+    assert {row["source"] for row in history.json()["readings"]} == {
+        "REAL_SENSOR",
+        "SIMULATED_DEVELOPMENT",
+    }
+
+
+def test_reading_rejects_implausibly_future_timestamp(monkeypatch, authenticated_client):
+    """A mis-set sensor clock must not publish readings from the future."""
+    monkeypatch.setenv("HYDROGUARD_ENVIRONMENT", "development")
+    monkeypatch.setenv("HYDROGUARD_SENSOR_API_KEY", "test-sensor-key")
+    init_db()
+    client = authenticated_client
+    node_id = "test_reg_future_rejected"
+    with get_db_context() as db:
+        NodeRepository.get_or_create(db, node_id, "Future Rejected Node", "Test Location")
+
+    response = client.post(
+        "/api/v1/readings",
+        json=_reading_payload(node_id, datetime.now(timezone.utc) + timedelta(days=3), "REAL_SENSOR"),
+        headers={"X-Sensor-Token": "test-sensor-key"},
+    )
+    assert response.status_code == 422, response.text
+    assert "future" in response.text
+
+    latest = client.get(f"/api/v1/nodes/{node_id}/readings/latest")
+    assert latest.status_code == 404
 
 
 if __name__ == "__main__":

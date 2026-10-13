@@ -109,26 +109,37 @@ class SensorReadingRepository:
         db.refresh(reading)
         return reading
 
+    #: Provenance tags that originate from physical hardware ingestion.
+    LIVE_SOURCES = ("REAL_SENSOR", "THINGSPEAK", "ESP32")
+
     @staticmethod
     def get_latest_by_node(
         db: Session,
         node_id: str,
-        data_source: Optional[str] = None,
+        preferred_source: Optional[str] = None,
     ) -> Optional[SensorReading]:
-        """Prefer real sensor data for CURRENT, then choose its latest sample.
+        """Resolve CURRENT for a node using one deterministic provenance rule.
 
-        Development history remains queryable, but a later synthetic timestamp
-        must never mask an ingested physical reading.
+        The rule is ordered, and it never excludes rows, so any reading that
+        was successfully stored stays retrievable from this query:
+
+        1. Trusted live provenance wins over every other source. Because the
+           trust tier is evaluated *before* the timestamp, a future-dated
+           simulated sample can never mask a legitimate live reading.
+        2. ``preferred_source`` only breaks ties among non-live sources, so a
+           development dashboard lands on the canonical simulated fixture
+           when no physical sensor has reported. It is a preference, not a
+           filter.
+        3. The most recent timestamp, then the highest id, keep the result
+           stable when several readings share a tier.
         """
-        source_priority = case(
-            (func.upper(SensorReading.source).in_(("REAL_SENSOR", "THINGSPEAK", "ESP32")), 0),
-            else_=1,
-        )
-        query = db.query(SensorReading).filter(SensorReading.node_id == node_id)
-        if data_source is not None:
-            query = query.filter(SensorReading.source == data_source)
+        tiers = [(func.upper(SensorReading.source).in_(SensorReadingRepository.LIVE_SOURCES), 0)]
+        if preferred_source:
+            tiers.append((SensorReading.source == preferred_source, 1))
+        source_priority = case(*tiers, else_=2)
         return (
-            query
+            db.query(SensorReading)
+            .filter(SensorReading.node_id == node_id)
             .order_by(source_priority, desc(SensorReading.timestamp), desc(SensorReading.id))
             .first()
         )

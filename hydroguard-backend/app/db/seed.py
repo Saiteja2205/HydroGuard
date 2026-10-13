@@ -12,6 +12,13 @@ from pathlib import Path
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.hostel_config import (
+    CANONICAL_NODE_ID,
+    TANKS,
+    block_name,
+    canonical_node_location,
+    canonical_node_name,
+)
 from app.db.database import get_db_context
 from app.db.models import Alert, Node, SensorReading
 from app.db.repositories import NodeRepository, SensorReadingRepository
@@ -19,9 +26,9 @@ from app.db.repositories import NodeRepository, SensorReadingRepository
 
 def seed_demo_data(
     db: Session,
-    node_id: str = "node_overhead_a",
-    node_name: str = "Overhead Tank A",
-    node_location: str = "Hostel Block A",
+    node_id: str = CANONICAL_NODE_ID,
+    node_name: str = canonical_node_name(),
+    node_location: str = canonical_node_location(),
     days: int = 30,
 ) -> int:
     """Seed demo water quality data for development.
@@ -36,7 +43,6 @@ def seed_demo_data(
     Returns:
         Number of readings created
     """
-    # Create node
     NodeRepository.get_or_create(
         db=db,
         node_id=node_id,
@@ -45,33 +51,18 @@ def seed_demo_data(
         status="offline",
     )
 
-    # Check if data file exists
     backend_root = Path(__file__).resolve().parents[2]
-    # Prefer the checked-in five-parameter development fixture. The older
-    # 200-day CSV contains only pH/TDS/turbidity/temperature plus legacy EC/DO.
     data_file = backend_root / "data" / "development_water_quality_200_observations.csv"
-    if not data_file.exists():
-        data_file = backend_root / "data" / "demo_water_quality_200days.csv"
 
     readings_created = 0
 
     if data_file.exists():
-        # Load from the canonical fixture, ignoring its provenance comments.
         with open(data_file, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(line for line in f if not line.lstrip().startswith("#"))
             for i, row in enumerate(reader):
                 if i >= days:
                     break
-
-                # Generate timestamp (going back from now)
                 timestamp = datetime.now(timezone.utc) - timedelta(days=days - i)
-
-                optical_colour_index = row.get("optical_colour_index")
-                if optical_colour_index in (None, ""):
-                    # Synthetic legacy fallback only; the primary fixture has
-                    # explicit, varying optical-index values.
-                    optical_colour_index = 0.12 + ((i * 7) % 23) / 100
-
                 SensorReadingRepository.create(
                     db=db,
                     node_id=node_id,
@@ -84,24 +75,19 @@ def seed_demo_data(
                     green=int(row.get("rgb_green") or row.get("green")) if row.get("rgb_green") or row.get("green") else None,
                     blue=int(row.get("rgb_blue") or row.get("blue")) if row.get("rgb_blue") or row.get("blue") else None,
                     clear=int(row.get("rgb_clear") or row.get("clear")) if row.get("rgb_clear") or row.get("clear") else None,
-                    optical_colour_index=float(optical_colour_index),
-                    source="DEMO",  # Synthetic dataset; never represented as field data.
+                    optical_colour_index=float(row.get("optical_colour_index", "0.12")),
+                    source="SIMULATED_DEVELOPMENT",
                 )
                 readings_created += 1
     else:
-        # Generate synthetic data if CSV not available
         base_time = datetime.now(timezone.utc) - timedelta(days=days)
-
         for i in range(days):
             timestamp = base_time + timedelta(days=i)
-
-            # Generate values with some variation
             ph = 7.0 + (i % 10) * 0.1
             tds = 200.0 + (i % 20) * 10.0
             turbidity = 1.0 + (i % 5) * 0.2
             temperature = 22.0 + (i % 10) * 0.5
             optical_colour_index = 0.12 + ((i * 7) % 23) / 100
-
             SensorReadingRepository.create(
                 db=db,
                 node_id=node_id,
@@ -119,35 +105,21 @@ def seed_demo_data(
 
 
 def seed_multiple_nodes(db: Session) -> dict:
-    """Seed demo data for multiple nodes.
+    """Seed demo data for the deployed hostel.
 
-    Args:
-        db: Database session
-
-    Returns:
-        Dictionary with node_id as key and count of readings as value
+    The deployment has one building, one block and one water tank, so this
+    seeds exactly the canonical tank. It used to seed three example tanks
+    ("Block A", "Block B", "Mess") that do not exist in the real hostel.
     """
     nodes_config = [
         {
-            "node_id": "node_overhead_a",
-            "node_name": "Overhead Tank A",
-            "node_location": "Hostel Block A",
+            "node_id": tank["node_id"],
+            "node_name": tank["name"],
+            "node_location": canonical_node_location(),
             "days": 30,
-        },
-        {
-            "node_id": "node_overhead_b",
-            "node_name": "Overhead Tank B",
-            "node_location": "Hostel Block B",
-            "days": 30,
-        },
-        {
-            "node_id": "node_mess_ground",
-            "node_name": "Mess Ground Water",
-            "node_location": "Mess Area",
-            "days": 30,
-        },
+        }
+        for tank in TANKS
     ]
-
     results = {}
     for config in nodes_config:
         count = seed_demo_data(
@@ -158,7 +130,6 @@ def seed_multiple_nodes(db: Session) -> dict:
             days=config["days"],
         )
         results[config["node_id"]] = count
-
     return results
 
 
@@ -176,99 +147,69 @@ def seed_development_dataset(db: Session, node_id: str = "node_overhead_a") -> i
     if len(rows) != 200:
         raise ValueError("The development dataset must contain exactly 200 simulated observations.")
 
-    def field(row: dict[str, str], *names: str) -> str:
+    def field(row, *names):
         for name in names:
             if row.get(name) not in (None, ""):
                 return row[name]
         raise ValueError(f"Development observation is missing {names[0]}.")
 
-    NodeRepository.get_or_create(
+    # The deployed tank always carries the canonical deployment labels, even if
+    # an earlier ingestion run auto-created the row with placeholder text.
+    canonical = node_id == CANONICAL_NODE_ID
+    node_name = canonical_node_name() if canonical else "Overhead Tank A"
+    node_location = canonical_node_location() if canonical else "Hostel Block A"
+    node = NodeRepository.get_or_create(
         db=db,
         node_id=node_id,
-        name="Overhead Tank A",
-        location="Hostel Block A",
+        name=node_name,
+        location=node_location,
         status="offline",
     )
+    placeholder_names = {"", "unknown", node_id.lower(), f"node {node_id}".lower()}
+    if canonical:
+        _ensure_labels(db, node, node_name, node_location)
+    else:
+        # Earlier ingestion runs auto-create nodes with placeholder labels;
+        # repair them so the demo node presents a real name and location.
+        if (node.name or "").strip().lower() in placeholder_names:
+            node.name = node_name
+        if (node.location or "").strip().lower() in {"", "unknown", "test"}:
+            node.location = node_location
+        db.commit()
 
-    # Keep the checked-in values and order stable while rolling their database
-    # timestamps forward. The model fixture remains reproducible; the API's
-    # development history always has a usable recent window.
-    seed_anchor = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(minutes=1)
-    expected = list(rows)
-    existing = (
-        db.query(SensorReading)
-        .filter_by(node_id=node_id, source="SIMULATED_DEVELOPMENT")
-        .order_by(SensorReading.timestamp.asc())
-        .all()
-    )
-
-    def matches_dataset() -> bool:
-        if len(existing) != len(expected):
-            return False
-        now = datetime.now(timezone.utc)
-        recent_cutoff = now - timedelta(days=30)
-        recent_timestamps: set[datetime] = set()
-        for reading in existing:
-            timestamp = reading.timestamp
-            if timestamp.tzinfo is None or timestamp.utcoffset() is None:
-                timestamp = timestamp.replace(tzinfo=timezone.utc)
-            else:
-                timestamp = timestamp.astimezone(timezone.utc)
-            if recent_cutoff <= timestamp <= now and all(
-                value is not None and math.isfinite(float(value))
-                for value in (
-                    reading.ph,
-                    reading.tds,
-                    reading.turbidity,
-                    reading.temperature,
-                    reading.optical_colour_index,
-                )
-            ):
-                recent_timestamps.add(timestamp)
-        if len(recent_timestamps) < 30:
-            return False
-
-        for reading, row in zip(existing, expected):
-            values = (
-                (("pH", "ph"), reading.ph), (("TDS", "tds"), reading.tds),
-                (("turbidity",), reading.turbidity), (("temperature",), reading.temperature),
-                (("optical_colour_index",), reading.optical_colour_index),
-            )
-            if any(
-                actual is None or not math.isclose(float(actual), float(field(row, *keys)), abs_tol=0.0001)
-                for keys, actual in values
-            ):
-                return False
-            raw_fields = (("rgb_red", "red"), ("rgb_green", "green"), ("rgb_blue", "blue"), ("rgb_clear", "clear"))
-            if any(getattr(reading, name) != int(field(row, *keys)) for (keys, name) in zip(raw_fields, ("red", "green", "blue", "clear"))):
-                return False
-        return True
-
-    if matches_dataset():
-        return 0
+    # Idempotency check: if 200+ SIMULATED_DEVELOPMENT readings already exist, skip
+    existing_count = db.query(SensorReading).filter(
+        SensorReading.node_id == node_id,
+        SensorReading.source == "SIMULATED_DEVELOPMENT",
+    ).count()
+    if existing_count >= 200:
+        return 0  # Dataset already seeded
 
     legacy_development_sources = (
         "DEMO", "SIMULATED", "HISTORICAL_DEMO", "HISTORICAL_OR_SIMULATED",
         "SIMULATED_DEVELOPMENT",
     )
-    db.query(SensorReading).filter(
-        SensorReading.node_id == node_id,
-        func.upper(SensorReading.source).in_(legacy_development_sources),
-    ).delete(synchronize_session=False)
-
-    # Existing primary-node alerts in this local database were generated by
-    # its demo readings. Retain them if any real sensor rows have arrived.
-    has_real_readings = db.query(SensorReading.id).filter(
+    real_readings_exist = db.query(SensorReading).filter(
         SensorReading.node_id == node_id,
         func.upper(SensorReading.source).in_(("REAL_SENSOR", "THINGSPEAK", "ESP32")),
     ).first() is not None
-    if not has_real_readings:
-        db.query(Alert).filter(Alert.node_id == node_id).delete(synchronize_session=False)
+    if real_readings_exist:
+        db.query(SensorReading).filter(
+            SensorReading.node_id == node_id,
+            func.upper(SensorReading.source).in_(legacy_development_sources),
+        ).delete(synchronize_session=False)
+    else:
+        db.query(SensorReading).filter(
+            SensorReading.node_id == node_id,
+            func.upper(SensorReading.source).in_(legacy_development_sources),
+        ).delete(synchronize_session=False)
 
-    # Clear detached rows loaded above before SQLite can reuse their primary keys.
+    db.query(Alert).filter(Alert.node_id == node_id).delete(synchronize_session=False)
     db.expunge_all()
 
     inserted = []
+    seed_anchor = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(minutes=1)
+    expected = list(rows)
     for index, row in enumerate(expected):
         timestamp = seed_anchor - timedelta(days=len(expected) - index - 1)
         inserted.append(SensorReading(
@@ -300,13 +241,55 @@ def seed_development_dataset(db: Session, node_id: str = "node_overhead_a") -> i
     return len(inserted)
 
 
+def _ensure_labels(db: Session, node: Node, name: str, location: str) -> Node:
+    """Keep a configured node's display labels in sync with the deployment.
+
+    ``get_or_create`` intentionally leaves an existing row alone, so an
+    earlier auto-created row could keep a placeholder or an example label
+    such as "Overhead Tank B". Seeding is the point where the configured
+    labels are authoritative.
+    """
+    changed = False
+    if (node.name or "").strip() != name:
+        node.name = name
+        changed = True
+    if (node.location or "").strip() != location:
+        node.location = location
+        changed = True
+    if changed:
+        db.commit()
+    return node
+
+
+def seed_devices(db: Session) -> dict:
+    """Seed the deployed tank with NO readings (status only).
+
+    Only the canonical hostel tank is created; the old Block B and Mess
+    example nodes are not part of the deployment.
+    """
+    results = {}
+    for tank in TANKS:
+        location = block_name(tank["block_id"])
+        node = NodeRepository.get_or_create(
+            db=db,
+            node_id=tank["node_id"],
+            name=tank["name"],
+            location=location,
+            status="offline",
+        )
+        _ensure_labels(db, node, tank["name"], location)
+        results[tank["node_id"]] = "node reset"
+    return results
+
+
 def main():
-    """Seed the canonical 200-observation review dataset on the primary demo node."""
+    """Seed the canonical 200-observation development data on the primary demo node."""
     print("Seeding HydroGuard 200-observation development data...")
     print("=" * 70)
 
     with get_db_context() as db:
         count = seed_development_dataset(db)
+        seed_devices(db)
 
         print(f"\nSeeding complete: {count} readings created.")
         print("\n" + "=" * 70)

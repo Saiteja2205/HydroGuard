@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Admin bottom navigation: Water / Hostel Ops / Admin Accounts.
+
+  Three destinations by design — an administrator's job here is the tank and
+  the issue queue, both of which live behind these two entries. Same ids, same
+  routes and same order as before; only the icons are the new HydroGuard set.
+-->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/nav_water" android:icon="@android:drawable/ic_menu_info_details" android:title="Water" />
-    <item android:id="@+id/nav_hostel" android:icon="@android:drawable/ic_menu_manage" android:title="Hostel Ops" />
-    <item android:id="@+id/nav_accounts" android:icon="@android:drawable/ic_menu_myplaces" android:title="Admin Accounts" />
+    <item android:id="@+id/nav_water" android:icon="@drawable/ic_hydroguard_water" android:title="Water" />
+    <item android:id="@+id/nav_hostel" android:icon="@drawable/ic_hydroguard_hostel" android:title="Hostel Ops" />
+    <item android:id="@+id/nav_accounts" android:icon="@drawable/ic_hydroguard_accounts" android:title="Admin Accounts" />
 </menu>

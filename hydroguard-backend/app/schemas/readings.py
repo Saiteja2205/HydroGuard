@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
-from typing import Literal, Optional
+from datetime import datetime, timedelta, timezone
+from typing import ClassVar, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
@@ -99,6 +99,24 @@ class ReadingCreate(BaseModel):
     def timestamp_must_include_timezone(cls, value: datetime) -> datetime:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("Reading timestamp must include a timezone.")
+        return value
+
+    # Modest device clock skew is tolerated, but an implausibly future-dated
+    # sample is rejected instead of being stored as the newest observation.
+    # Selection ordering (live provenance before timestamp) is the second
+    # line of defence: it keeps a near-future simulated row from masking a
+    # legitimate live reading.
+    MAX_FUTURE_SKEW: ClassVar[timedelta] = timedelta(hours=24)
+
+    @field_validator("timestamp")
+    @classmethod
+    def timestamp_not_implausibly_future(cls, value: datetime) -> datetime:
+        skew = value.astimezone(timezone.utc) - datetime.now(timezone.utc)
+        if skew > cls.MAX_FUTURE_SKEW:
+            raise ValueError(
+                "Reading timestamp is more than 24 hours in the future; "
+                "check the sensor clock before resubmitting."
+            )
         return value
 
 

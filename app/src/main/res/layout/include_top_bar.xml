@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Navy top application bar (DESIGN.md, "Top Application Bar (Native Android)").
+
+  Primary Navy background with direct edge integration into the Android status
+  bar. That integration is done by SystemInsets.applyForTopBar, which gives this
+  view the status-bar height as extra top padding instead of padding the content
+  down below it, so the navy fills the strip behind the clock and battery icons
+  and those icons are switched to light. android:statusBarColor cannot achieve
+  this on Android 15 / targetSdk 36 — the platform ignores it.
+
+  Contents are brand mark + wordmark, the link state, and the alerts action.
+  The screen title is deliberately NOT here: in every approved reference the
+  heading sits on the light canvas below the bar (navy bar = chrome only), which
+  is also why the existing dynamic heading/subtitle views can stay where they are.
+
+  No fabricated figures appear here. The link state comes from real transport
+  outcomes (ServerLink) and the badge count comes from the alert list the server
+  actually returned — both are absent/hidden until there is real data.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/top_app_bar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/hydroguard_navy"
+    android:gravity="center_vertical"
+    android:minHeight="@dimen/top_bar_height"
+    android:orientation="horizontal"
+    android:paddingStart="@dimen/screen_margin"
+    android:paddingEnd="4dp">
+
+    <ImageView
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_hydroguard_brand"
+        android:tint="@color/hydroguard_navy_on" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:fontFamily="@font/hydroguard_sans"
+        android:letterSpacing="0.16"
+        android:text="HYDROGUARD"
+        android:textColor="@color/hydroguard_navy_on"
+        android:textFontWeight="600"
+        android:textSize="13sp" />
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layout_weight="1" />
+
+    <!-- Link state: pulse + word. Hidden until the first request settles, because
+         an unmeasured connection has no state to display. -->
+    <LinearLayout
+        android:id="@+id/top_bar_link"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/top_bar_link_icon"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_hydroguard_pulse"
+            android:tint="@color/hydroguard_link_on" />
+
+        <TextView
+            android:id="@+id/top_bar_link_state"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:fontFamily="@font/hydroguard_sans"
+            android:letterSpacing="0.1"
+            android:text="CONNECTING"
+            android:textColor="@color/hydroguard_link_on"
+            android:textFontWeight="600"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Alerts action. Opens the Water screen, which is where the alert list and
+         the acknowledge action actually live; the badge is fed by that same list. -->
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+
+        <ImageButton
+            android:id="@+id/top_bar_alerts"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Show sensor alerts"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_hydroguard_bell"
+            android:tint="@color/hydroguard_navy_on" />
+
+        <TextView
+            android:id="@+id/top_bar_alert_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="16dp"
+            android:layout_gravity="end|top"
+            android:layout_marginTop="6dp"
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/hydroguard_badge"
+            android:gravity="center"
+            android:minWidth="16dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:textColor="@color/hydroguard_navy_on"
+            android:textFontWeight="700"
+            android:textSize="10sp"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

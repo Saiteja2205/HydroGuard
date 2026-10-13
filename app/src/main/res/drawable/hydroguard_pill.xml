@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Rounded plate behind a short status label (provenance badge, threshold badge).
+
+  Drawn in white so android:backgroundTint can recolour it per provenance without
+  a separate drawable per state; the fill and the label colour are set together by
+  WaterScreen, so a badge can never show a live colour over simulated data.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <corners android:radius="@dimen/corner_pill" />
+</shape>

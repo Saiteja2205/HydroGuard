@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Typography scale for the HydroGuard Precision System (DESIGN.md, Typography).
+
+  Six tiers only — Display / Title / Subtitle / Body / Label / Micro — plus a
+  monospace telemetry branch. The previous layout had no scale at all: every view
+  carried its own textSize, so 15sp body next to 14sp labels next to 16sp values
+  produced four near-identical sizes that read as arbitrary.
+
+  Two rules encoded here:
+   * Numerals are JetBrains Mono, never Inter (HairUnderline: "all telemetry/numeric
+     data"). Sizes step 14 -> 20 -> 28 so a primary reading is unmistakably primary.
+   * Labels are 12sp/500 with positive tracking and are the only uppercase tier.
+     Uppercase is a treatment, not a size — no tier exceeds 24sp on content screens
+     (the spec explicitly prohibits oversized headings).
+
+  A style sets the family and weight; a TextAppearance sets the family, weight and
+  size together. Views override any single item by declaring the same attribute in
+  their own layout, so adopting these incrementally cannot break existing XML.
+-->
+<resources>
+
+    <!-- Family helpers: apply a family without changing size or colour. -->
+    <!-- parent="" is required on every one of these: a dotted style name implies
+         an implicit parent of its prefix, so HydroGuard.Sans.Medium would
+         otherwise look for a style named HydroGuard.Medium. -->
+    <style name="HydroGuard.Sans" parent="">
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">400</item>
+    </style>
+
+    <style name="HydroGuard.Sans.Medium" parent="">
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">500</item>
+    </style>
+
+    <style name="HydroGuard.Sans.SemiBold" parent="">
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">600</item>
+    </style>
+
+    <style name="HydroGuard.Mono" parent="">
+        <item name="android:fontFamily">@font/hydroguard_mono</item>
+        <item name="android:textFontWeight">400</item>
+    </style>
+
+    <style name="HydroGuard.Mono.Medium" parent="">
+        <item name="android:fontFamily">@font/hydroguard_mono</item>
+        <item name="android:textFontWeight">500</item>
+    </style>
+
+    <style name="HydroGuard.Mono.SemiBold" parent="">
+        <item name="android:fontFamily">@font/hydroguard_mono</item>
+        <item name="android:textFontWeight">600</item>
+    </style>
+
+    <!-- ============================ Text appearances ============================ -->
+
+    <!-- 34sp / 600 / 40sp. Sign-in headline only; never on a content screen. -->
+    <style name="TextAppearance.HydroGuard.Display" parent="">
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textSize">34sp</item>
+        <item name="android:lineSpacingExtra">6sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 24sp / 600 / 32sp. Screen title and the navy top application bar. -->
+    <style name="TextAppearance.HydroGuard.Title" parent="">
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:lineSpacingExtra">8sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 18sp / 600 / 24sp. Section headers and card titles. -->
+    <style name="TextAppearance.HydroGuard.Subtitle" parent="">
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:lineSpacingExtra">6sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 14sp / 400 / 20sp. Default body. -->
+    <style name="TextAppearance.HydroGuard.Body" parent="">
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">400</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:lineSpacingExtra">6sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 14sp / 500. Body emphasis: inline values, buttons, selected rows. -->
+    <style name="TextAppearance.HydroGuard.BodyEmphasis" parent="TextAppearance.HydroGuard.Body">
+        <item name="android:textFontWeight">500</item>
+    </style>
+
+    <!-- 14sp / 600. Actionable text (primary button, link-style controls). -->
+    <style name="TextAppearance.HydroGuard.BodyStrong" parent="TextAppearance.HydroGuard.Body">
+        <item name="android:textFontWeight">600</item>
+    </style>
+
+    <!-- 12sp / 500 / 16sp, uppercase, +0.08em. Section labels and chip text. -->
+    <style name="TextAppearance.HydroGuard.Label" parent="">
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">500</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:lineSpacingExtra">4sp</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 11sp / 500. Chips, badges, provenance and threshold labels. -->
+    <style name="TextAppearance.HydroGuard.Micro" parent="">
+        <item name="android:fontFamily">@font/hydroguard_sans</item>
+        <item name="android:textFontWeight">500</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:lineSpacingExtra">3sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 28sp / 600 mono. The primary reading in a metric tile. -->
+    <style name="TextAppearance.HydroGuard.Reading" parent="">
+        <item name="android:fontFamily">@font/hydroguard_mono</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textSize">28sp</item>
+        <item name="android:lineSpacingExtra">4sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 20sp / 600 mono. Secondary readings: chart axis headers, tile footers. -->
+    <style name="TextAppearance.HydroGuard.ReadingSmall" parent="">
+        <item name="android:fontFamily">@font/hydroguard_mono</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 14sp / 500 mono. Inline telemetry: ranges, timestamps, node ids, units. -->
+    <style name="TextAppearance.HydroGuard.Mono" parent="">
+        <item name="android:fontFamily">@font/hydroguard_mono</item>
+        <item name="android:textFontWeight">500</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:lineSpacingExtra">4sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- 14sp / 400 mono. Historical readings table body — tabular figures. -->
+    <style name="TextAppearance.HydroGuard.MonoTable" parent="">
+        <item name="android:fontFamily">@font/hydroguard_mono</item>
+        <item name="android:textFontWeight">400</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:lineSpacingExtra">4sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+</resources>

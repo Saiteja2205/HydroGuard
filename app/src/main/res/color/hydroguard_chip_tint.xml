@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Filter-chip fill.
+
+  Selected = Cerulean container #E0F2FE (the spec's active-state fill, the same
+  value used by the bottom navigation's active indicator, so "selected" means the
+  same thing everywhere). Unselected = plain elevated surface with the hairline
+  stroke coming from chipStrokeColor.
+
+  This replaces the Material3 baseline #E8DEF8, which turned every unselected
+  range chip on the Water screen lavender in an otherwise blue app.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/hydroguard_blue_container" android:state_checked="true" />
+    <item android:color="@color/hydroguard_surface" android:state_selected="true" />
+    <item android:color="@color/hydroguard_surface" />
+</selector>

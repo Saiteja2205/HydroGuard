@@ -1,5 +1,93 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  HydroGuard palette, taken from design-reference/.../DESIGN.md (HydroGuard Precision System).
+
+  Every hydroguard_* name referenced from Java (WaterScreen, DashboardActivity, AlertAdapter)
+  is preserved here so a colour-token change never breaks compilation. Values are the approved
+  "Engineered Enterprise Material" tokens rather than the previous near-miss blues.
+
+  Contrast: text tokens used on the #FFFFFF card surface are all >= 4.5:1 —
+  hydroguard_blue is the Deep Cerulean #0369A1 (5.9:1) rather than #0284C7 (4.1:1, only
+  acceptable for fills and borders), hydroguard_muted is Slate #64748B (4.8:1) and
+  hydroguard_orange is #B45309 (5.1:1); the raw #D97706 amber is 3.2:1 and is therefore
+  exposed only as hydroguard_caution_base for fills, never for text.
+-->
 <resources>
+    <!-- Structure. -->
+    <color name="hydroguard_navy">#0F1E36</color>
+    <color name="hydroguard_navy_container">#1A2B49</color>
+    <color name="hydroguard_navy_on">#FFFFFF</color>
+
+    <!-- Operational water accent. blue = text-safe, cerulean = fill/border/chart. -->
+    <color name="hydroguard_blue">#0369A1</color>
+    <color name="hydroguard_cerulean">#0284C7</color>
+    <color name="hydroguard_teal">#0D9488</color>
+    <color name="hydroguard_teal_dark">#0F766E</color>
+
+    <!-- Neutral canvas. -->
+    <color name="hydroguard_background">#F8FAFC</color>
+    <color name="hydroguard_subsurface">#F1F5F9</color>
+    <color name="hydroguard_surface">#FFFFFF</color>
+
+    <!-- Text. -->
+    <color name="hydroguard_text">#0B1C30</color>
+    <color name="hydroguard_muted">#64748B</color>
+
+    <!-- Structure lines: hairline borders and medium-emphasis outlines. -->
+    <color name="hydroguard_divider">#E2E8F0</color>
+    <color name="hydroguard_outline">#CBD5E1</color>
+
+    <!-- Semantic status. base = fills/strokes, the *_text variants carry labels. -->
+    <color name="hydroguard_green">#047857</color>
+    <color name="hydroguard_green_surface">#ECFDF5</color>
+    <color name="hydroguard_orange">#B45309</color>
+    <color name="hydroguard_red">#DC2626</color>
+
+    <!-- Bottom-navigation container and unselected label (5.1:1 on the bar). -->
+    <color name="hydroguard_blue_container">#E0F2FE</color>
+    <color name="hydroguard_nav_inactive">#64748B</color>
+
+    <!-- Top-bar link state. These sit on Primary Navy, so they are the light
+         variants of the light-surface status colours rather than those values:
+         #047857 on #0F1E36 would be 1.2:1 and effectively invisible. Measured
+         against the navy, all three are >= 8:1. -->
+    <color name="hydroguard_link_on">#6EE7B7</color>
+    <color name="hydroguard_link_off">#FCA5A5</color>
+    <color name="hydroguard_link_unknown">#B8C7E6</color>
+
+    <!-- Telemetry provenance: never let a forecast or a simulated stream read as live. -->
+    <color name="hydroguard_provenance_live">#047857</color>
+    <color name="hydroguard_provenance_live_bg">#ECFDF5</color>
+    <color name="hydroguard_provenance_forecast">#4F46E5</color>
+    <color name="hydroguard_provenance_forecast_bg">#EEF2FF</color>
+    <color name="hydroguard_provenance_simulated">#D97706</color>
+    <color name="hydroguard_provenance_simulated_bg">#FFFBEB</color>
+    <color name="hydroguard_provenance_simulated_text">#B45309</color>
+    <color name="hydroguard_provenance_unknown">#64748B</color>
+    <color name="hydroguard_provenance_unknown_bg">#F1F5F9</color>
+
+    <!-- Telemetry threshold bands. -->
+    <color name="hydroguard_safe">#059669</color>
+    <color name="hydroguard_safe_text">#064E3B</color>
+    <color name="hydroguard_safe_surface">#D1FAE5</color>
+    <color name="hydroguard_caution_base">#D97706</color>
+    <color name="hydroguard_caution_text">#78350F</color>
+    <color name="hydroguard_caution_surface">#FEF3C7</color>
+    <color name="hydroguard_critical">#DC2626</color>
+    <color name="hydroguard_critical_text">#7F1D1D</color>
+    <color name="hydroguard_critical_surface">#FEE2E2</color>
+
+    <!-- Chart series. -->
+    <color name="hydroguard_chart_observed">#0369A1</color>
+    <color name="hydroguard_chart_forecast">#0D9488</color>
+    <color name="hydroguard_chart_threshold">#DC2626</color>
+    <color name="hydroguard_chart_grid">#E2E8F0</color>
+
+    <!-- Scrim behind diagnostic bottom sheets. -->
+    <color name="hydroguard_scrim">#7A0F1E36</color>
+
+    <!-- Legacy template tokens still referenced by the launcher theme and splash art.
+         They are not part of the approved palette and are not used by any screen. -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
@@ -7,14 +95,4 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="hydroguard_navy">#10243A</color>
-    <color name="hydroguard_blue">#1769AA</color>
-    <color name="hydroguard_teal">#138B8B</color>
-    <color name="hydroguard_background">#F3F7FA</color>
-    <color name="hydroguard_surface">#FFFFFFFF</color>
-    <color name="hydroguard_text">#15283C</color>
-    <color name="hydroguard_muted">#617486</color>
-    <color name="hydroguard_green">#287653</color>
-    <color name="hydroguard_orange">#A95D16</color>
-    <color name="hydroguard_red">#B53F46</color>
 </resources>

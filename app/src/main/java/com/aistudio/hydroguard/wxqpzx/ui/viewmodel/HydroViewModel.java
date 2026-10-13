@@ -32,6 +32,14 @@ public class HydroViewModel extends AndroidViewModel {
     public LiveData<User> currentUser() { return currentUser; }
     public LiveData<String> loginError() { return loginError; }
     public boolean isFirebaseAvailable() { return authRepository.isFirebaseAvailable(); }
+    public boolean hasActiveSession() { return authRepository.hasActiveSession(); }
+
+    /**
+     * Role verified by the backend for the current session, or {@code null} when no
+     * session has been verified on this process. Protected screens must render
+     * privileged controls from this value rather than from an Intent extra.
+     */
+    public String currentRole() { return authRepository.currentRole(); }
     public ApiRepository api() { return apiRepository; }
     public HydroRepository hydro() { return hydroRepository; }
 
@@ -57,6 +65,16 @@ public class HydroViewModel extends AndroidViewModel {
     public void developmentLogin(String role, AuthCallback callback) {
         loginError.setValue(null);
         authRepository.loginAsDevelopment(role, resultCallback(callback));
+    }
+
+    public void loginWithEmail(String email, String password, AuthCallback callback) {
+        loginError.setValue(null);
+        authRepository.loginWithEmail(email, password, resultCallback(callback));
+    }
+
+    public void registerStudent(String fullName, String email, String password, AuthCallback callback) {
+        loginError.setValue(null);
+        authRepository.registerStudent(fullName, email, password, resultCallback(callback));
     }
 
     public void logout() {

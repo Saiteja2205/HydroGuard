@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dashboard shell: navy top application bar, screen heading, screen host, bottom navigation.
+
+  Order matters. The bar comes first so SystemInsets.applyForTopBar can let it
+  run behind the status bar; the heading and subtitle sit on the light canvas
+  below it, matching the approved references where the navy bar carries chrome
+  only and the screen title is the first thing on the page.
+
+  Heading alignment moved from 20dp to @dimen/screen_margin (16dp) so it lines
+  up with screen_water, screen_content and screen_issue_form, which all use
+  16dp. Previously the title was 4dp off the content beneath it.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -6,27 +18,35 @@
     android:background="@color/hydroguard_background"
     android:orientation="vertical">
 
+    <include layout="@layout/include_top_bar" />
+
     <TextView
         android:id="@+id/dashboard_heading"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="20dp"
-        android:paddingTop="20dp"
-        android:paddingEnd="20dp"
-        android:textColor="@color/hydroguard_navy"
-        android:textSize="24sp"
-        android:textStyle="bold" />
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="@dimen/section_gap"
+        android:layout_marginEnd="@dimen/screen_margin"
+        android:fontFamily="@font/hydroguard_sans"
+        android:includeFontPadding="false"
+        android:textColor="@color/hydroguard_text"
+        android:textFontWeight="600"
+        android:textSize="@dimen/type_title" />
 
     <TextView
         android:id="@+id/dashboard_subtitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="20dp"
-        android:paddingTop="3dp"
-        android:paddingEnd="20dp"
-        android:paddingBottom="12dp"
+        android:layout_marginStart="@dimen/screen_margin"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="@dimen/screen_margin"
+        android:layout_marginBottom="12dp"
+        android:fontFamily="@font/hydroguard_sans"
+        android:includeFontPadding="false"
+        android:lineSpacingExtra="4sp"
         android:textColor="@color/hydroguard_muted"
-        android:textSize="13sp" />
+        android:textFontWeight="400"
+        android:textSize="@dimen/type_body" />
 
     <FrameLayout
         android:id="@+id/screen_container"
@@ -34,12 +54,23 @@
         android:layout_height="0dp"
         android:layout_weight="1" />
 
+    <!-- Hairline instead of a drop shadow: the reference separates chrome from
+         content with an outline, and an elevation shadow reads heavier on a
+         white bar than the card surfaces below it. -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/hydroguard_divider" />
+
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/hydroguard_surface"
-        app:itemIconTint="@color/hydroguard_blue"
-        app:itemTextColor="@color/hydroguard_blue"
+        app:itemActiveIndicatorStyle="@style/Widget.HydroGuard.BottomNavigationView.ActiveIndicator"
+        app:itemIconTint="@color/bottom_nav_tint"
+        app:itemTextColor="@color/bottom_nav_tint"
+        app:itemTextAppearanceActive="@style/TextAppearance.HydroGuard.Micro"
+        app:itemTextAppearanceInactive="@style/TextAppearance.HydroGuard.Micro"
         app:labelVisibilityMode="labeled" />
 </LinearLayout>

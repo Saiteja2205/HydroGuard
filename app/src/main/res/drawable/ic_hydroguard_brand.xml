@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Brand mark for the navy top application bar: the droplet, in white.
+
+  Deliberately not hydroguard_ai_logo.png — that asset is the product's generic
+  assistant artwork and reads as decorative, which the spec explicitly rules out
+  ("Do not include decorative illustrations"). A single geometric mark next to
+  the wordmark is what the approved references show.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2C12,2,4,10.5,4,15.5C4,19.64,7.58,22,12,22C16.42,22,20,19.64,20,15.5C20,10.5,12,2,12,2Z" />
+</vector>

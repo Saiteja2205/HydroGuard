@@ -338,6 +338,7 @@ def get_forecasts(
     ),
     limit: Optional[int] = Query(None, ge=1, le=1000, description="Maximum number of forecasts"),
     db: Session = Depends(get_db),
+    principal: dict = Depends(require_student_or_admin),
 ) -> ForecastListResponse:
     """Get stored forecasts for a node."""
     # Ensure node exists
@@ -359,6 +360,7 @@ def get_model_performance(
         description="Node identifier",
     ),
     db: Session = Depends(get_db),
+    principal: dict = Depends(require_student_or_admin),
 ) -> ModelPerformanceResponse:
     """Get model performance metrics for a node."""
     # Ensure node exists

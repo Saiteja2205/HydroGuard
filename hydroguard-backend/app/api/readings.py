@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.core.auth import require_sensor_key
+from app.core.auth import authenticated_principal, require_sensor_key
 from app.db.repositories import NodeRepository, SensorReadingRepository
 from app.schemas.readings import (
     HistoryResponse,
@@ -19,7 +19,14 @@ router = APIRouter(tags=["readings"])
 
 
 def _development_data_source() -> str | None:
-    """Keep local development dashboards on the explicitly simulated fixture."""
+    """Canonical fixture used as a tie-break among non-live provenance.
+
+    Development dashboards should land on the explicitly simulated fixture
+    when no physical sensor has reported. This is a *preference*, never an
+    exclusion filter: hiding stored readings made a successfully posted
+    sample unreachable from the latest-reading endpoint (HTTP 404) and let a
+    future-dated simulated row stand in for live data.
+    """
     if os.getenv("HYDROGUARD_ENVIRONMENT", "production").strip().lower() in {"development", "dev", "test"}:
         return "SIMULATED_DEVELOPMENT"
     return None
@@ -51,13 +58,21 @@ def get_latest_reading(
         description="Node identifier, e.g. node_overhead_a",
     ),
     db: Session = Depends(get_db),
+    principal: dict = Depends(authenticated_principal),
 ) -> LatestReadingResponse:
-    """Return the latest persisted reading; never fabricate a sensor value."""
+    """Return the latest persisted reading; never fabricate a sensor value.
+
+    Selection rule (see ``SensorReadingRepository.get_latest_by_node``):
+    trusted live provenance first, then the most recent timestamp. In
+    development the canonical simulated fixture only wins once no live
+    reading exists, so historical development data stays queryable while a
+    future-dated simulated sample cannot displace live data.
+    """
     node = NodeRepository.get_by_node_id(db, node_id)
     if node is None:
         raise HTTPException(status_code=404, detail=f"Node {node_id} not found.")
     reading = SensorReadingRepository.get_latest_by_node(
-        db, node_id, data_source=_development_data_source()
+        db, node_id, preferred_source=_development_data_source()
     )
 
     if reading:
@@ -137,8 +152,15 @@ def get_reading_history(
     end: Optional[datetime] = Query(None, description="End timestamp (ISO 8601)"),
     limit: Optional[int] = Query(None, ge=1, le=10000, description="Maximum number of readings"),
     db: Session = Depends(get_db),
+    principal: dict = Depends(authenticated_principal),
 ) -> HistoryResponse:
-    """Get historical readings for a node."""
+    """Get historical readings for a node.
+
+    History is never filtered by provenance: development readings must stay
+    queryable alongside live readings, and the response is what the
+    forecasting contract consumes. ``data_source`` is intentionally not
+    applied here because excluding rows hid legitimately stored samples.
+    """
     # Ensure node exists
     node = NodeRepository.get_by_node_id(db, node_id)
     if node is None:
@@ -150,6 +172,5 @@ def get_reading_history(
         start=start,
         end=end,
         limit=limit,
-        data_source=_development_data_source(),
     )
     return HistoryResponse(readings=readings, count=len(readings))

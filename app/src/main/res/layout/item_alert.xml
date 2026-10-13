@@ -1,45 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  One alert row on the Water screen.
+
+  Card geometry deliberately mirrors the four cards in screen_water.xml: the same
+  corner token, the same hairline stroke, and cardElevation 0dp. Elevation is not
+  a cosmetic choice here. A white MaterialCardView with a non-zero elevation
+  renders its surface measurably darker (measured on device: 1dp samples as
+  #F2F3F4, 0dp as #FFFFFF), so a 1dp row would sit visibly grey beside the metric
+  tiles that render pure white.
+
+  Severity colour is set by AlertAdapter at runtime from the alert's own
+  severity, so alert_severity deliberately carries no android:textColor here.
+-->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="8dp"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="1dp">
+    app:cardBackgroundColor="@color/hydroguard_surface"
+    app:cardCornerRadius="@dimen/corner_card"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/hydroguard_divider"
+    app:strokeWidth="@dimen/border_hairline">
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="14dp">
+        android:padding="@dimen/card_padding_compact">
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
             <TextView
                 android:id="@+id/alert_parameter"
+                style="@style/TextAppearance.HydroGuard.BodyStrong"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textColor="@color/hydroguard_text"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:text="pH" />
+                android:text="pH"
+                android:textColor="@color/hydroguard_text" />
             <TextView
                 android:id="@+id/alert_severity"
+                style="@style/TextAppearance.HydroGuard.Label"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="13sp"
-                android:textStyle="bold" />
+                android:layout_height="wrap_content" />
         </LinearLayout>
         <TextView
             android:id="@+id/alert_message"
+            style="@style/TextAppearance.HydroGuard.Body"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textColor="@color/hydroguard_text"
-            android:textSize="14sp" />
+            android:textColor="@color/hydroguard_text" />
+        <!-- Reading, limit and timestamp are numerals, so the mono family applies;
+             the size stays at 12sp so the meta line remains clearly secondary to
+             the message above it. -->
         <TextView
             android:id="@+id/alert_meta"
+            style="@style/HydroGuard.Mono"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
@@ -47,9 +65,9 @@
             android:textSize="12sp" />
         <com.google.android.material.button.MaterialButton
             android:id="@+id/alert_acknowledge"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/Widget.HydroGuard.Button.Outlined"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:text="Acknowledge"
             android:textAllCaps="false"

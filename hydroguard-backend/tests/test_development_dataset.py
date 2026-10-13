@@ -132,7 +132,9 @@ def test_development_seed_is_idempotent_and_preserves_real_rows():
         ).count() == 200
 
 
-def test_legacy_demo_seed_and_history_response_include_optical_colour(monkeypatch):
+def test_legacy_demo_seed_and_history_response_include_optical_colour(
+    monkeypatch, authenticated_client
+):
     from app.db.database import get_db_context, init_db
     from app.db.seed import seed_demo_data
     from app.main import app
@@ -144,7 +146,7 @@ def test_legacy_demo_seed_and_history_response_include_optical_colour(monkeypatc
     with get_db_context() as db:
         assert seed_demo_data(db, node_id=node_id, days=24) == 24
 
-    response = TestClient(app).get(f"/api/v1/nodes/{node_id}/readings/history?limit=100")
+    response = authenticated_client.get(f"/api/v1/nodes/{node_id}/readings/history?limit=100")
     assert response.status_code == 200, response.text
     readings = response.json()["readings"]
     assert len(readings) == 24
