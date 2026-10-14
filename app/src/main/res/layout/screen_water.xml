@@ -293,6 +293,14 @@
                 android:layout_marginTop="8dp"
                 android:text="Generate next-day forecast" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/load_thingspeak_forecast"
+                style="@style/Widget.HydroGuard.Button.Outlined"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Generate ThingSpeak forecast" />
+
             <!-- Forecast notice card. forecast_status keeps its id and every one
                  of its existing loading / error / result strings; only its frame
                  changes. The provenance badge stays hidden until a forecast has

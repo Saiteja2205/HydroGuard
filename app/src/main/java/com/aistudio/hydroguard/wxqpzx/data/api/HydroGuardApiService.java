@@ -41,6 +41,8 @@ public interface HydroGuardApiService {
     @GET("api/v1/nodes/{node_id}/model-performance") Call<ResponseBody> getModelPerformance(@Path("node_id") String nodeId);
     @POST("api/v1/forecast") Call<ResponseBody> generateForecast(@Body RequestBody body);
 
+    @GET("api/v1/thingspeak/forecast") Call<ResponseBody> generateThingSpeakForecast(@Query("channel_id") String channelId);
+
     @GET("api/v1/hostel/configuration") Call<ResponseBody> getHostelConfiguration();
     @GET("api/v1/hostel/issues/workflow") Call<ResponseBody> getIssueWorkflow();
     @GET("api/v1/hostel/issues") Call<ResponseBody> getHostelIssues();

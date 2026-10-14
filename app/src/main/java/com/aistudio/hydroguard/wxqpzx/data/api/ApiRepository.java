@@ -200,6 +200,11 @@ public class ApiRepository {
     public void getIssueTimeline(String issueId, ApiCallback callback) {
         enqueue(api.getIssueTimeline(issueId), "/api/v1/hostel/issues/" + issueId + "/timeline", callback);
     }
+
+    public void generateThingSpeakForecast(String channelId, ApiCallback callback) {
+        enqueue(api.generateThingSpeakForecast(channelId), "/api/v1/thingspeak/forecast", callback);
+    }
+
     public void inviteAdmin(String email, ApiCallback callback) {
         JSONObject json = new JSONObject();
         try { json.put("email", email.trim()); } catch (JSONException ignored) { }
