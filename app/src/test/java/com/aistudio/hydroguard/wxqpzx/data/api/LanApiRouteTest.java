@@ -67,4 +67,55 @@ public class LanApiRouteTest {
                 new UnknownHostException("host"), PUBLIC_URL, false);
         assertTrue(unknownHost, unknownHost.contains("could not be resolved"));
     }
+
+    // ===== Network security configuration =====
+    //
+    // A networkSecurityConfig in the manifest overrides the
+    // usesCleartextTraffic attribute entirely, so the manifest flag is dead
+    // text once a config is declared. These tests pin the actual policy files
+    // so a release build can never silently regain cleartext HTTP (which
+    // would send bearer tokens over plain text).
+
+    /** Strips XML comments so assertions inspect the effective policy, not prose. */
+    private static String stripXmlComments(String xml) {
+        return xml.replaceAll("(?s)<!--.*?-->", "");
+    }
+
+    private static String readResourceFile(String relativePath) throws Exception {
+        java.io.File cwd = new java.io.File(System.getProperty("user.dir"));
+        java.io.File[] candidates = {
+            new java.io.File(cwd, relativePath),
+            new java.io.File(cwd, "app/" + relativePath),
+        };
+        for (java.io.File candidate : candidates) {
+            if (candidate.isFile()) {
+                return stripXmlComments(new String(
+                        java.nio.file.Files.readAllBytes(candidate.toPath()),
+                        java.nio.charset.StandardCharsets.UTF_8));
+            }
+        }
+        throw new AssertionError("Could not locate " + relativePath
+                + " from working directory " + cwd.getAbsolutePath());
+    }
+
+    @Test public void releaseCleartextIsDenied() throws Exception {
+        String releaseCfg = readResourceFile("src/main/res/xml/network_security_config.xml");
+        assertTrue("release config must deny cleartext",
+                releaseCfg.contains("cleartextTrafficPermitted=\"false\""));
+        assertFalse("release config must not permit cleartext",
+                releaseCfg.contains("cleartextTrafficPermitted=\"true\""));
+        String manifest = readResourceFile("src/main/AndroidManifest.xml");
+        assertFalse("release manifest must not grant a cleartext exception",
+                manifest.contains("usesCleartextTraffic=\"true\""));
+    }
+
+    @Test public void debugCleartextCarveOutKeepsUserCaTrust() throws Exception {
+        String debugCfg = readResourceFile("src/debug/res/xml/network_security_config.xml");
+        assertTrue("debug config must keep the cleartext carve-out for the local dev server",
+                debugCfg.contains("cleartextTrafficPermitted=\"true\""));
+        assertTrue("debug config must keep trusting user-installed CAs",
+                debugCfg.contains("<certificates src=\"user\" />"));
+        assertTrue("debug config must keep the system CA anchor",
+                debugCfg.contains("<certificates src=\"system\" />"));
+    }
 }

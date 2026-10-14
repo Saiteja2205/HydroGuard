@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.io.File
 import java.io.StringReader
 import java.net.URI
 import java.util.Properties
@@ -92,11 +93,20 @@ android {
 }
 
 val validateReleaseConfiguration by tasks.registering {
+  // The configuration cache serializes this task, so the action may only capture
+  // plain values. Reading the script-level provider and the Project.file()
+  // method inside doLast would capture the build script and the Project, which
+  // the cache rejects. Resolve both now and capture the results instead.
+  val configuredReleaseUrl = releaseApiBaseUrl
+  val signingEnv = listOf("KEYSTORE_PATH", "STORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+    .associateWith { System.getenv(it).orEmpty() }
+  val keystoreFile = signingEnv["KEYSTORE_PATH"]?.takeIf { it.isNotBlank() }?.let { file(it) }
+
   doLast {
-    if (!releaseApiBaseUrl.startsWith("https://")) {
+    if (!configuredReleaseUrl.startsWith("https://")) {
       throw GradleException("Set HYDROGUARD_RELEASE_API_BASE_URL to the production HTTPS API URL before building a release.")
     }
-    val releaseApiHost = runCatching { URI(releaseApiBaseUrl).host?.lowercase() }.getOrNull()
+    val releaseApiHost = runCatching { URI(configuredReleaseUrl).host?.lowercase() }.getOrNull()
     val privateIpv4 = releaseApiHost?.split(".")?.mapNotNull { it.toIntOrNull() }
     val isLocalOrPrivate = releaseApiHost == null || releaseApiHost == "localhost" || releaseApiHost.endsWith(".local")
         || releaseApiHost.startsWith("127.") || releaseApiHost.startsWith("10.")
@@ -105,10 +115,8 @@ val validateReleaseConfiguration by tasks.registering {
     if (releaseApiHost.isNullOrBlank() || isLocalOrPrivate) {
       throw GradleException("The release API URL must use a production host, not a local development address.")
     }
-    val requiredSigning = listOf("KEYSTORE_PATH", "STORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
-    val missing = requiredSigning.filter { System.getenv(it).isNullOrBlank() }
-    val keyStore = System.getenv("KEYSTORE_PATH")?.let(::file)
-    if (missing.isNotEmpty() || keyStore?.isFile != true) {
+    val missing = signingEnv.filterValues { it.isBlank() }.keys
+    if (missing.isNotEmpty() || keystoreFile?.isFile != true) {
       throw GradleException("Release signing is not configured. Supply a private keystore and all signing values through environment variables.")
     }
   }

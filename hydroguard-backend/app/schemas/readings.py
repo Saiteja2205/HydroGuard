@@ -32,13 +32,77 @@ class ModelsLoadedStatus(BaseModel):
     timemixer: bool = False
 
 
+class DatabaseHealth(BaseModel):
+    """Whether the configured database answered a minimal, bounded check.
+
+    The check runs on a worker thread with a configured timeout so a slow or
+    locked database degrades this field instead of hanging a public probe.
+    """
+
+    state: Literal["ok", "unavailable"]
+    latency_ms: Optional[float] = None
+    detail: Optional[str] = None
+
+
+class ModelHealth(BaseModel):
+    """Forecast model availability, read from an already-constructed service.
+
+    Health never loads checkpoints: loading is expensive and would make this
+    endpoint slow. ``state`` is therefore ``not_loaded`` until a forecast has
+    actually been served, which is honest rather than a fabricated failure.
+    """
+
+    state: Literal["loaded", "not_loaded", "unavailable"]
+    lstm: bool = False
+    patchtst: bool = False
+    timemixer: bool = False
+    detail: Optional[str] = None
+
+
+class SensorIngestionHealth(BaseModel):
+    """Verified ingestion heartbeat for physical-sensor provenance only.
+
+    Only REAL_SENSOR rows count. Simulated, historical or demo rows are never
+    treated as evidence that hardware is attached, so a dashboard built on
+    simulated data cannot claim connected sensors.
+    """
+
+    state: Literal["recent", "stale", "not_configured"]
+    last_real_sensor_at: Optional[str] = None
+    age_seconds: Optional[int] = None
+    detail: Optional[str] = None
+
+
+class DataFreshnessHealth(BaseModel):
+    """Age and provenance of the newest stored observation."""
+
+    state: Literal["fresh", "stale", "empty"]
+    latest_observed_at: Optional[str] = None
+    age_seconds: Optional[int] = None
+    source: Optional[str] = None
+    detail: Optional[str] = None
+
+
 class HealthResponse(BaseModel):
+    """Liveness plus separately-triaged dependency states.
+
+    ``status`` stays ``ok`` while the HTTP service can answer, because clients
+    already key on it. Nothing here implies physical sensors are attached:
+    that is reported independently by ``sensor_ingestion``.
+    """
+
     status: Literal["ok"]
     service: str
     version: str
     sensors_connected: bool
     models_loaded: ModelsLoadedStatus
     data_mode: Literal["historical_or_simulated"]
+    checked_at: str
+    environment: str
+    database: DatabaseHealth
+    models: ModelHealth
+    sensor_ingestion: SensorIngestionHealth
+    data_freshness: DataFreshnessHealth
 
 
 class LatestReadingResponse(BaseModel):

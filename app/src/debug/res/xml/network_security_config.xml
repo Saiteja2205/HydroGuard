@@ -1,11 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only policy: cleartext is permitted so the local development backend is
+  reachable over http://.
+
+  The overlay exists because the release build must not inherit this. The
+  manifest sets usesCleartextTraffic="false", but a networkSecurityConfig
+  overrides that attribute, so the permissive policy has to live in a
+  build-type-specific resource rather than in src/main.
+
+  This cannot be narrowed to named hosts: scripts/run-development.ps1 writes
+  whatever LAN IPv4 it detects into .dev-auth.env, and the debug build also has
+  to reach the emulator (10.0.2.2) and the adb reverse tunnel (127.0.0.1).
+  Android's domain-config matches hostnames, not CIDR ranges, so scoping to
+  "private addresses only" is not expressible. Debug builds also embed a
+  development token and are never intended for distribution, which is why the
+  broad debug carve-out is the right trade-off here.
+-->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
+            <!-- Retained from the pre-existing debug overlay: user-installed
+                 CAs must keep working so development traffic can be inspected
+                 with a proxy. Release keeps system anchors only. -->
             <certificates src="user" />
         </trust-anchors>
     </base-config>
 </network-security-config>
-
-

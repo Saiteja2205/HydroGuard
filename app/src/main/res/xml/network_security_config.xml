@@ -1,8 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Production policy: no cleartext.
+
+  This file previously set cleartextTrafficPermitted="true" on the base-config
+  and relied on a comment claiming it applied "only for debug builds". Because
+  it lives in src/main, it actually applied to release builds too, and a
+  networkSecurityConfig overrides the manifest's usesCleartextTraffic="false",
+  so that attribute was dead and release traffic was permitted in the clear at
+  the OS level. The Gradle release check (which forces an https:// URL) was the
+  only thing standing in the way.
+
+  Release builds now genuinely deny cleartext here, and debug builds override
+  this file with src/debug/res/xml/network_security_config.xml so the local
+  http:// backend keeps working during development.
+-->
 <network-security-config>
-    <!-- Allow cleartext traffic only for debug builds with HTTP backend -->
-    <!-- Release builds require HTTPS (enforced by build.gradle.kts) -->
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
