@@ -5,50 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.core.storage import STORAGE_KEY_PATTERN
-
-# Path this backend serves its own uploaded photographs from. A reference under
-# this prefix is a file the server wrote itself, so unlike an arbitrary URL it
-# does not have to be HTTPS to be safe to open.
-HOSTEL_PHOTO_PATH_PREFIX = "/api/v1/hostel/lost-found/photos/"
-
 IssueCategory = Literal["Water", "Plumbing", "Electrical", "Room/Furniture", "Cleaning", "Bathroom", "Wi-Fi", "Other"]
-# SUBMITTED is the persisted name for an issue that has just been opened by a
-# student; the client displays it as "Open". WAITING means the admin is blocked
-# on something outside the team (resident, spare part, clarification).
-IssueStatus = Literal[
-    "SUBMITTED",
-    "ACKNOWLEDGED",
-    "ASSIGNED",
-    "IN_PROGRESS",
-    "WAITING",
-    "RESOLVED",
-    "CLOSED",
-    "REOPENED",
-]
-
-
-def validate_image_reference(value: str | None) -> str | None:
-    """Accept a photograph this server stored, or an external HTTPS URL.
-
-    The first version of this rule rejected every non-HTTPS value because
-    uploads were not implemented yet. Now that the backend stores the photo
-    itself, its own relative path has to be allowed too — but only the exact
-    shape the upload endpoint issues, so a client still cannot smuggle in
-    ``http://``, ``file://``, ``//host`` or a traversal in the key.
-    """
-    if value is None:
-        return value
-    if value.startswith(HOSTEL_PHOTO_PATH_PREFIX):
-        key = value[len(HOSTEL_PHOTO_PATH_PREFIX):]
-        if not STORAGE_KEY_PATTERN.fullmatch(key):
-            raise ValueError("Uploaded photograph references must use the server-issued storage key.")
-        return value
-    if value.startswith("https://"):
-        return value
-    raise ValueError(
-        "Image references must be an uploaded HydroGuard photograph or an HTTPS URL."
-    )
+IssueStatus = Literal["SUBMITTED", "ACKNOWLEDGED", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED", "REOPENED"]
 
 
 class StrictInput(BaseModel):
@@ -64,8 +22,10 @@ class IssueCreate(StrictInput):
 
     @field_validator("image_url")
     @classmethod
-    def image_reference(cls, value: str | None) -> str | None:
-        return validate_image_reference(value)
+    def images_must_use_https(cls, value: str | None) -> str | None:
+        if value is not None and not value.startswith("https://"):
+            raise ValueError("Image references must use HTTPS. Direct uploads are not configured yet.")
+        return value
 
 
 class IssueRecord(BaseModel):
@@ -163,8 +123,10 @@ class LostFoundCreate(StrictInput):
 
     @field_validator("image_url")
     @classmethod
-    def image_reference(cls, value: str | None) -> str | None:
-        return validate_image_reference(value)
+    def images_must_use_https(cls, value: str | None) -> str | None:
+        if value is not None and not value.startswith("https://"):
+            raise ValueError("Image references must use HTTPS. Direct uploads are not configured yet.")
+        return value
 
 
 class LostFoundRecord(BaseModel):
@@ -184,14 +146,6 @@ class LostFoundRecord(BaseModel):
 
 class LostFoundModeration(StrictInput):
     moderation_status: Literal["APPROVED", "REJECTED", "REMOVED"]
-
-
-class LostFoundPhotoUpload(BaseModel):
-    """Returned by the upload endpoint: the reference to attach to an item."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    image_url: str
 
 
 class HostelFeedbackCreate(StrictInput):

@@ -45,29 +45,21 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import android.util.Log
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import com.example.BuildConfig
 import com.example.data.api.AlertResponse
 import com.example.data.api.ForecastResponse
 import com.example.data.api.HistoricalReadingResponse
 import com.example.data.api.LatestReadingResponse
-import com.example.data.api.ModelPerformanceRecord
-import com.example.data.api.ModelPerformanceResponse
 import com.example.data.api.NodeHealthResponse
 import com.example.data.repository.ApiFailureKind
 import com.example.data.repository.ApiRepository
 import com.example.data.repository.ApiRequestFailure
-import com.example.data.database.Alert as RoomAlert
-import com.example.data.database.SensorReading
 import com.example.data.service.WaterQualityIndexService
 import com.example.ui.components.ApplicationIndexSummary
 import com.example.ui.components.EmptyState
@@ -80,10 +72,7 @@ import com.example.ui.components.StatusChip
 import com.example.ui.components.StatusTone
 import com.example.ui.theme.HydroGuardColors
 import com.example.ui.viewmodel.HydroViewModel
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.text.ParsePosition
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -101,15 +90,10 @@ private val trendFields = listOf(
     TrendField("TDS", "ppm", HistoricalReadingResponse::tds),
     TrendField("Turbidity", "NTU", HistoricalReadingResponse::turbidity),
     TrendField("Temperature", "°C", HistoricalReadingResponse::temperature),
-    TrendField("Optical Colour Index", "index", HistoricalReadingResponse::opticalColourIndex)
+    TrendField("Optical Colour", "index", HistoricalReadingResponse::opticalColourIndex)
 )
 
-private val trendPeriods = listOf("Today", "7 Days", "30 Days", "All")
-private val monitoringNodeOptions = listOf(
-    "node_overhead_a" to "Block A",
-    "node_overhead_b" to "Block B",
-    "node_mess" to "Mess"
-)
+private val trendPeriods = listOf("Today", "7 Days", "30 Days")
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -122,214 +106,87 @@ fun ServerWaterScreen(
     onSignIn: (() -> Unit)? = onLogout
 ) {
     val nodeId by viewModel.selectedNodeId.collectAsState()
-    val localLatestReading by viewModel.latestReading.collectAsState()
-    val localHistoricalReadings by viewModel.historicalReadings.collectAsState()
-    val roomAlerts by viewModel.allAlerts.collectAsState()
     val api = remember { ApiRepository() }
-    var apiReading by remember { mutableStateOf<LatestReadingResponse?>(null) }
-    var apiHistory by remember { mutableStateOf<List<HistoricalReadingResponse>>(emptyList()) }
+    var reading by remember { mutableStateOf<LatestReadingResponse?>(null) }
+    var history by remember { mutableStateOf<List<HistoricalReadingResponse>>(emptyList()) }
     var alerts by remember { mutableStateOf<List<AlertResponse>>(emptyList()) }
     var forecast by remember { mutableStateOf<ForecastResponse?>(null) }
     var nodeHealth by remember { mutableStateOf<NodeHealthResponse?>(null) }
-    var nodeHealthFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
-    var modelPerformance by remember { mutableStateOf<ModelPerformanceResponse?>(null) }
-    var modelPerformanceFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
-    var exportFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
-    var exportStatus by remember { mutableStateOf<String?>(null) }
-    var exportLoading by remember { mutableStateOf(false) }
-    var pendingExport by remember { mutableStateOf<ByteArray?>(null) }
     var loading by remember { mutableStateOf(false) }
-    var forecastLoading by remember { mutableStateOf(false) }
-    var alertsLoadedFromApi by remember { mutableStateOf(false) }
     var connected by remember { mutableStateOf<Boolean?>(null) }
     var failure by remember { mutableStateOf<ApiRequestFailure?>(null) }
     var historyFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
     var alertsFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
     var forecastFailure by remember { mutableStateOf<ApiRequestFailure?>(null) }
     var noReading by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableIntStateOf(initialTab.coerceIn(0, if (isAdmin) 4 else 3)) }
+    var selectedTab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
     var selectedTrendField by remember { mutableIntStateOf(0) }
-    var selectedPeriod by remember { mutableIntStateOf(3) }
+    var selectedPeriod by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    val reading = apiReading ?: localLatestReading?.toLatestReadingResponse()
-    val localHistory = remember(localHistoricalReadings) {
-        localHistoricalReadings.map(SensorReading::toHistoricalReadingResponse)
-    }
-    val history = if (apiHistory.isNotEmpty()) apiHistory else localHistory
-    val roomAlertsForNode = remember(roomAlerts, nodeId) {
-        roomAlerts.filter { it.nodeId == nodeId }.map(RoomAlert::toAlertResponse)
-    }
-    val alertsForDisplay = if (alertsLoadedFromApi) alerts else roomAlertsForNode
-    val usingRoomAlerts = !alertsLoadedFromApi && roomAlertsForNode.isNotEmpty()
-    val visibleAlertsFailure = alertsFailure.takeUnless { usingRoomAlerts }
-    val usingLocalLatest = apiReading == null && localLatestReading != null
-    val usingLocalHistory = apiHistory.isEmpty() && localHistory.isNotEmpty()
-    val visibleFailure = failure.takeIf { reading == null }
-    val visibleHistoryFailure = historyFailure.takeIf { !usingLocalHistory }
 
-    LaunchedEffect(nodeId, usingLocalLatest, usingLocalHistory, history.size) {
-        val latestSource = when {
-            apiReading != null -> "API:${apiReading?.source}"
-            localLatestReading != null -> "Room:${localLatestReading?.source}"
-            else -> "none"
-        }
-        val historySource = when {
-            apiHistory.isNotEmpty() -> "API"
-            localHistory.isNotEmpty() -> "Room"
-            else -> "none"
-        }
-        Log.i(
-            "HydroGuardData",
-            "UI node=$nodeId latestSource=$latestSource historySource=$historySource historyCount=${history.size}"
-        )
-    }
-    val researchExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri: Uri? ->
-        val content = pendingExport
-        pendingExport = null
-        if (uri == null) {
-            exportStatus = "CSV export cancelled."
-        } else if (content != null) {
-            scope.launch {
-                val saved = runCatching {
-                    withContext(Dispatchers.IO) {
-                        context.contentResolver.openOutputStream(uri)?.use { it.write(content) }
-                            ?: error("The selected location could not be opened.")
-                    }
-                }
-                exportStatus = if (saved.isSuccess) {
-                    "Research CSV saved. Dataset source labels are included."
-                } else {
-                    "The CSV could not be saved. Choose another location and retry."
-                }
-            }
-        }
-    }
-
-    fun requestResearchExport() {
-        scope.launch {
-            exportFailure = null
-            exportStatus = null
-            exportLoading = true
-            api.exportResearchCsv()
-                .onSuccess { bytes ->
-                    pendingExport = bytes
-                    researchExportLauncher.launch("hydroguard-research-export.csv")
-                }
-                .onFailure { error ->
-                    exportFailure = error as? ApiRequestFailure
-                        ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/research/export.csv", cause = error)
-                }
-            exportLoading = false
-        }
-    }
-
-    LaunchedEffect(initialTab, isAdmin) { selectedTab = initialTab.coerceIn(0, if (isAdmin) 4 else 3) }
+    LaunchedEffect(initialTab) { selectedTab = initialTab.coerceIn(0, 3) }
 
     suspend fun load() {
         loading = true
-        forecastLoading = true
         failure = null
         noReading = false
-        apiReading = null
-        apiHistory = emptyList()
+        reading = null
+        history = emptyList()
         alerts = emptyList()
-        alertsLoadedFromApi = false
         forecast = null
         nodeHealth = null
-        nodeHealthFailure = null
-        modelPerformance = null
-        modelPerformanceFailure = null
         historyFailure = null
         alertsFailure = null
         forecastFailure = null
 
-        try {
-            if (isAdmin) api.getNodeHealth(nodeId)
-                .onSuccess { nodeHealth = it }
-                .onFailure { error ->
-                    nodeHealthFailure = error as? ApiRequestFailure
-                        ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId", cause = error)
-                }
-            if (isAdmin) api.getModelPerformance(nodeId)
-                .onSuccess { modelPerformance = it }
-                .onFailure { error ->
-                    modelPerformanceFailure = error as? ApiRequestFailure
-                        ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/model-performance", cause = error)
-                }
-            api.getLatestReading(nodeId).onSuccess {
-                apiReading = it
+        if (isAdmin) api.getNodeHealth(nodeId).onSuccess { nodeHealth = it }
+        api.getLatestReading(nodeId).onSuccess {
+            reading = it
+            connected = true
+        }.onFailure { exception ->
+            val apiFailure = exception as? ApiRequestFailure
+            if (apiFailure?.kind == ApiFailureKind.NO_READING) {
+                noReading = true
                 connected = true
-                Log.d("HydroGuardData", "API latest node=$nodeId source=${it.source} timestamp=${it.timestamp}")
-            }.onFailure { exception ->
-                val apiFailure = exception as? ApiRequestFailure
-                if (apiFailure?.kind == ApiFailureKind.NO_READING) {
-                    noReading = true
-                    connected = true
-                } else {
-                    failure = apiFailure ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/readings/latest", cause = exception)
-                    connected = apiFailure?.kind != ApiFailureKind.SERVER_UNREACHABLE
-                }
-                Log.i("HydroGuardData", "API latest unavailable node=$nodeId; Room fallback will be used when present", exception)
-            }
-            val historyResult = api.getHistoricalReadings(nodeId, 1000)
-            val returnedHistory = historyResult.getOrNull()?.readings.orEmpty()
-            apiHistory = returnedHistory
-            historyResult.onSuccess { historyFailure = null }
-                .onFailure { historyFailure = it as? ApiRequestFailure }
-            Log.d("HydroGuardData", "API history node=$nodeId count=${returnedHistory.size} success=${historyResult.isSuccess}")
-            api.getAlerts(nodeId)
-                .onSuccess { response ->
-                    alerts = response.alerts
-                    alertsLoadedFromApi = true
-                    alertsFailure = null
-                    Log.d("HydroGuardAlerts", "API alerts node=$nodeId count=${response.alerts.size}")
-                }
-                .onFailure { error ->
-                    alertsLoadedFromApi = false
-                    alertsFailure = error as? ApiRequestFailure
-                        ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/alerts", cause = error)
-                    Log.i("HydroGuardAlerts", "API alerts unavailable node=$nodeId; using Room fallback when present", error)
-                }
-
-            // Current/history/alerts have their own loading indicator; forecast continues independently.
-            loading = false
-            if (historyResult.isFailure) {
-                forecastFailure = historyResult.exceptionOrNull() as? ApiRequestFailure
-                    ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/readings/history", cause = historyResult.exceptionOrNull())
             } else {
-                val readiness = assessForecastHistory(returnedHistory)
-                if (BuildConfig.DEBUG) {
-                    Log.w(
-                        "HydroGuardForecast",
-                        "node=$nodeId total=${readiness.totalReadings} recent30=${readiness.recent30Readings} " +
-                            "complete=${readiness.forecastRows.size} source=${readiness.forecastSource} " +
-                            "missingRecent30=${readiness.missingRecent30} invalidTimestamp=${readiness.invalidTimestamps} " +
-                            "future=${readiness.futureTimestamps} duplicate=${readiness.duplicateTimestamps} " +
-                            "required=${ApiRepository.FORECAST_MIN_HISTORY}"
-                    )
-                }
-                if (readiness.forecastRows.size >= ApiRepository.FORECAST_MIN_HISTORY) {
-                    api.generateForecast(nodeId, readiness.forecastRows).onSuccess { forecast = it }
-                        .onFailure { forecastFailure = it as? ApiRequestFailure }
-                } else {
-                    forecastFailure = ApiRequestFailure(
-                        ApiFailureKind.INSUFFICIENT_DATA,
-                        "/api/v1/forecast",
-                        userDetail = readiness.detail
-                    )
-                }
+                failure = apiFailure ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/readings/latest", cause = exception)
+                connected = apiFailure?.kind != ApiFailureKind.SERVER_UNREACHABLE
             }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (error: Exception) {
-            forecast = null
-            forecastFailure = error as? ApiRequestFailure
-                ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/forecast", cause = error)
-        } finally {
-            loading = false
-            forecastLoading = false
         }
+        val historyResult = api.getHistoricalReadings(nodeId, 100)
+        val returnedHistory = historyResult.getOrNull()?.readings.orEmpty()
+        history = returnedHistory
+        historyResult.onSuccess { historyFailure = null }
+            .onFailure { historyFailure = it as? ApiRequestFailure }
+        api.getAlerts(nodeId).onSuccess { alerts = it.alerts }
+            .onFailure { alertsFailure = it as? ApiRequestFailure }
+        if (historyResult.isFailure) {
+            forecastFailure = historyResult.exceptionOrNull() as? ApiRequestFailure
+                ?: ApiRequestFailure(ApiFailureKind.API_ERROR, "/api/v1/nodes/$nodeId/readings/history", cause = historyResult.exceptionOrNull())
+        } else {
+            val readiness = assessForecastHistory(returnedHistory)
+            if (BuildConfig.DEBUG) {
+                Log.w(
+                    "HydroGuardForecast",
+                    "node=$nodeId total=${readiness.totalReadings} recent30=${readiness.recent30Readings} " +
+                        "complete=${readiness.forecastRows.size} source=${readiness.forecastSource} " +
+                        "missingRecent30=${readiness.missingRecent30} invalidTimestamp=${readiness.invalidTimestamps} " +
+                        "future=${readiness.futureTimestamps} duplicate=${readiness.duplicateTimestamps} " +
+                        "required=${ApiRepository.FORECAST_MIN_HISTORY}"
+                )
+            }
+            if (readiness.forecastRows.size >= ApiRepository.FORECAST_MIN_HISTORY) {
+                api.generateForecast(nodeId, readiness.forecastRows).onSuccess { forecast = it }
+                    .onFailure { forecastFailure = it as? ApiRequestFailure }
+            } else {
+                forecastFailure = ApiRequestFailure(
+                    ApiFailureKind.INSUFFICIENT_DATA,
+                    "/api/v1/forecast",
+                    userDetail = readiness.detail
+                )
+            }
+        }
+        loading = false
     }
     LaunchedEffect(nodeId) { load() }
 
@@ -353,7 +210,7 @@ fun ServerWaterScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { scope.launch { load() } }, enabled = !loading && !forecastLoading) {
+                        IconButton(onClick = { scope.launch { load() } }, enabled = !loading) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh water data")
                         }
                         if (onLogout != null) {
@@ -369,7 +226,7 @@ fun ServerWaterScreen(
                     containerColor = MaterialTheme.colorScheme.background,
                     edgePadding = 16.dp
                 ) {
-                    (if (isAdmin) listOf("Current", "Trends", "Forecast", "Alerts", "Performance") else listOf("Current", "Trends", "Forecast", "Alerts")).forEachIndexed { index, label ->
+                    listOf("Current", "Trends", "Forecast", "Alerts").forEachIndexed { index, label ->
                         Tab(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
@@ -385,22 +242,8 @@ fun ServerWaterScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (isAdmin) {
-                item { SectionHeader("Monitoring node") }
-                item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(monitoringNodeOptions) { (optionNodeId, label) ->
-                            FilterChip(
-                                selected = nodeId == optionNodeId,
-                                onClick = { viewModel.selectNode(optionNodeId) },
-                                label = { Text(label) }
-                            )
-                        }
-                    }
-                }
-            }
-            if (loading && selectedTab != 2) item { LoadingState(if (isAdmin) "Refreshing water monitoring status" else "Refreshing water data") }
-            visibleFailure?.let { requestFailure ->
+            if (loading) item { LoadingState(if (isAdmin) "Refreshing water monitoring status" else "Refreshing water data") }
+            failure?.let { requestFailure ->
                 item {
                     ErrorState(
                         title = failureTitle(requestFailure, isAdmin),
@@ -418,9 +261,6 @@ fun ServerWaterScreen(
                 0 -> {
                     if (isAdmin) {
                         item { SectionHeader("Water Monitoring Status") }
-                        nodeHealthFailure?.let { requestFailure ->
-                            item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) }
-                        }
                         item {
                             val sensorNodeStatus = when (nodeHealth?.status?.trim()?.uppercase()) {
                                 "ONLINE" -> "Online"
@@ -470,7 +310,7 @@ fun ServerWaterScreen(
                     } else {
                         item { SectionHeader("Current Water Quality", subtitle = "Latest monitored readings") }
                     }
-                    if (noReading && reading == null && visibleFailure == null) item {
+                    if (noReading && failure == null) item {
                         EmptyState(
                             if (isAdmin) "No sensor data" else "Water data temporarily unavailable",
                             if (isAdmin) "Waiting for the monitoring node to send readings." else "We couldn't load this information right now.",
@@ -496,7 +336,6 @@ fun ServerWaterScreen(
                                 subtitle = if (isAdmin) "Five-parameter water-quality contract" else null
                             )
                         }
-                        if (usingLocalLatest) item { StatusChip("Local ${localLatestReading?.source ?: "demo"} data", tone = StatusTone.NEUTRAL) }
                         val metrics = currentMetrics(current)
                         metrics.take(4).chunked(2).forEachIndexed { rowIndex, row ->
                             item(key = "current-metrics-$rowIndex") {
@@ -516,8 +355,8 @@ fun ServerWaterScreen(
                                 }
                             }
                         }
-                        metrics.drop(4).forEachIndexed { index, metric ->
-                            item(key = "current-metric-${index + 5}") {
+                        metrics.lastOrNull()?.let { metric ->
+                            item(key = "current-optical-colour") {
                                 MetricCard(
                                     label = metric.label,
                                     value = metric.value,
@@ -529,12 +368,8 @@ fun ServerWaterScreen(
                                 )
                             }
                         }
-                        item {
-                            Text(
-                                "Last updated · ${current.timestamp} · ${current.source}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        if (!isAdmin) item {
+                            Text("Last updated · ${current.timestamp}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     if (isAdmin) {
@@ -551,7 +386,7 @@ fun ServerWaterScreen(
                         }
                         item { AdminForecastSummary(forecast, forecastFailure, onSignIn) }
                     }
-                    if (reading == null && !noReading && visibleFailure == null && !loading) {
+                    if (reading == null && !noReading && failure == null && !loading) {
                         item {
                             EmptyState(
                                 if (isAdmin) "Current reading unavailable" else "Water data temporarily unavailable",
@@ -564,15 +399,13 @@ fun ServerWaterScreen(
                 }
                 1 -> {
                     item { SectionHeader(if (isAdmin) "Historical trends" else "Trends", subtitle = if (isAdmin) "Recent water readings" else "Recent water readings") }
-                    visibleHistoryFailure?.let { requestFailure -> item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) } }
+                    historyFailure?.let { requestFailure -> item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) } }
                     item {
-                        val visibleTrendFields = trendFields
-                        val selectedFieldIndex = selectedTrendField.coerceIn(0, visibleTrendFields.lastIndex)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(visibleTrendFields) { field ->
+                            items(trendFields) { field ->
                                 FilterChip(
-                                    selected = visibleTrendFields[selectedFieldIndex] == field,
-                                    onClick = { selectedTrendField = visibleTrendFields.indexOf(field) },
+                                    selected = trendFields[selectedTrendField] == field,
+                                    onClick = { selectedTrendField = trendFields.indexOf(field) },
                                     label = { Text(field.label, maxLines = 1, softWrap = false) }
                                 )
                             }
@@ -589,25 +422,23 @@ fun ServerWaterScreen(
                             }
                         }
                     }
-                    val visibleTrendFields = trendFields
-                    val field = visibleTrendFields[selectedTrendField.coerceIn(0, visibleTrendFields.lastIndex)]
+                    val field = trendFields[selectedTrendField]
                     val maxAgeMillis = when (trendPeriods[selectedPeriod]) {
                         "Today" -> 24L * 60 * 60 * 1000
                         "7 Days" -> 7L * 24 * 60 * 60 * 1000
-                        "30 Days" -> 30L * 24 * 60 * 60 * 1000
-                        else -> Long.MAX_VALUE
+                        else -> 30L * 24 * 60 * 60 * 1000
                     }
                     val points = history
-                        .filter { trendPeriods[selectedPeriod] == "All" || isWithinPeriod(it.timestamp, maxAgeMillis) }
+                        .filter { isWithinPeriod(it.timestamp, maxAgeMillis) }
                         .sortedWith(compareBy<HistoricalReadingResponse>({ parseTimestampMillis(it.timestamp) ?: Long.MIN_VALUE }, { it.id }))
                         .mapNotNull { row -> field.value(row)?.let { row.timestamp to it } }
-                    if (visibleHistoryFailure == null && points.size < 2) item {
+                    if (historyFailure == null && points.size < 2) item {
                         EmptyState(
                             "Not enough ${field.label} readings",
                             "At least two actual observations in ${trendPeriods[selectedPeriod].lowercase()} are needed to draw a trend.",
                             icon = Icons.Default.WaterDrop
                         )
-                    } else if (visibleHistoryFailure == null) {
+                    } else if (historyFailure == null) {
                         item {
                             HydroCard {
                                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -654,44 +485,30 @@ fun ServerWaterScreen(
                             )
                         }
                     }
-                    if (forecastLoading) item { LoadingState("Loading forecast data") }
-                    if (!forecastLoading && forecastFailure != null && forecast == null) {
+                    if (forecastFailure != null && forecast == null) {
                         item {
                             if (isAdmin) {
                                 val requestFailure = requireNotNull(forecastFailure)
+                                val requiresSignIn = requestFailure.kind == ApiFailureKind.AUTHENTICATION && requestFailure.statusCode != 403 && onSignIn != null
                                 EmptyState(
                                     "Forecast Unavailable",
-                                    requestFailure.userDetail ?: when (requestFailure.kind) {
+                                    when (requestFailure.kind) {
                                         ApiFailureKind.INSUFFICIENT_DATA -> "More complete water readings are needed before a forecast is available."
                                         ApiFailureKind.SERVER_UNREACHABLE -> "Backend is unavailable right now."
-                                        ApiFailureKind.AUTHENTICATION -> "The backend rejected the authenticated forecast request. Retry after checking server authentication."
                                         else -> "A forecast could not be loaded right now."
                                     },
                                     icon = Icons.Default.WaterDrop,
-                                    actionLabel = "Retry",
-                                    onAction = { scope.launch { load() }; Unit }
+                                    actionLabel = if (requiresSignIn) "Sign in" else "Retry",
+                                    onAction = if (requiresSignIn) onSignIn!! else ({ scope.launch { load() }; Unit })
+                                )
+                            } else if (forecastFailure?.kind == ApiFailureKind.INSUFFICIENT_DATA) {
+                                EmptyState(
+                                    "Forecast not available yet",
+                                    "Not enough complete historical readings are available to generate the next-day forecast.",
+                                    icon = Icons.Default.WaterDrop
                                 )
                             } else {
-                                val requestFailure = requireNotNull(forecastFailure)
-                                if (requestFailure.kind == ApiFailureKind.INSUFFICIENT_DATA) {
-                                    EmptyState(
-                                        "Not enough forecast data",
-                                        "At least 30 complete historical readings from one data source are needed to generate a forecast.",
-                                        icon = Icons.Default.WaterDrop
-                                    )
-                                } else {
-                                    EmptyState(
-                                        "Forecast unavailable",
-                                        requestFailure.userDetail ?: when (requestFailure.kind) {
-                                            ApiFailureKind.SERVER_UNREACHABLE -> "The forecasting backend is unavailable right now."
-                                            ApiFailureKind.AUTHENTICATION -> "The backend rejected the authenticated forecast request. Retry after checking server authentication."
-                                            else -> "A forecast could not be loaded right now."
-                                        },
-                                        icon = Icons.Default.WaterDrop,
-                                        actionLabel = "Retry",
-                                        onAction = { scope.launch { load() }; Unit }
-                                    )
-                                }
+                                FailureSummary(forecastFailure!!, { scope.launch { load() } }, onSignIn, false)
                             }
                         }
                     }
@@ -708,11 +525,6 @@ fun ServerWaterScreen(
                                      Text(
                                          "Forecast for ${result.forecastDate}",
                                          style = MaterialTheme.typography.bodySmall
-                                     )
-                                     if (isAdmin) Text(
-                                         "${result.dataSource} · ${result.weightStatus}",
-                                         style = MaterialTheme.typography.bodySmall,
-                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                      )
                                 }
                             }
@@ -767,21 +579,18 @@ fun ServerWaterScreen(
                         item { Text("Optical Colour is for information only and is not a safety measurement.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
-                3 -> {
+                else -> {
                     item { SectionHeader("Alerts", subtitle = "Water alerts") }
-                    visibleAlertsFailure?.let { requestFailure -> item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) } }
-                    if (isAdmin && visibleAlertsFailure == null) item {
+                    alertsFailure?.let { requestFailure -> item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, isAdmin) } }
+                    if (isAdmin && alertsFailure == null) item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val displayActiveCount = alertsForDisplay.count { it.status.equals("ACTIVE", true) }
-                            val displayAcknowledgedCount = alertsForDisplay.count { it.status.equals("ACKNOWLEDGED", true) }
-                            val displayResolvedCount = alertsForDisplay.count { it.status.equals("RESOLVED", true) }
-                            item { StatusChip("Active $displayActiveCount", tone = if (displayActiveCount > 0) StatusTone.ATTENTION else StatusTone.HEALTHY) }
-                            item { StatusChip("Acknowledged $displayAcknowledgedCount", tone = StatusTone.NEUTRAL) }
-                            item { StatusChip("Resolved $displayResolvedCount", tone = StatusTone.HEALTHY) }
+                            item { StatusChip("Active $activeCount", tone = if (activeCount > 0) StatusTone.ATTENTION else StatusTone.HEALTHY) }
+                            item { StatusChip("Acknowledged $acknowledgedCount", tone = StatusTone.NEUTRAL) }
+                            item { StatusChip("Resolved $resolvedCount", tone = StatusTone.HEALTHY) }
                         }
                     }
-                    val visibleAlerts = if (isAdmin) alertsForDisplay else alertsForDisplay.filter { it.status.equals("ACTIVE", true) }
-                    if (visibleAlertsFailure == null && visibleAlerts.isEmpty() && !loading) item {
+                    val visibleAlerts = if (isAdmin) alerts else alerts.filter { it.status.equals("ACTIVE", true) }
+                    if (alertsFailure == null && visibleAlerts.isEmpty() && !loading) item {
                         EmptyState(
                             if (isAdmin) "No alert records" else "No active water alerts",
                             if (isAdmin) "No alerts have been recorded." else "Everything looks good right now.",
@@ -790,44 +599,6 @@ fun ServerWaterScreen(
                     }
                     items(visibleAlerts.sortedByDescending { it.timestamp }, key = { it.id }) { alert ->
                         AlertCard(alert, isAdmin)
-                    }
-                }
-                4 -> if (isAdmin) {
-                    item {
-                        SectionHeader("Model performance", subtitle = "Evaluation metrics from the backend")
-                    }
-                    item {
-                        HydroCard {
-                            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Research data export", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Text("Download the backend CSV with its data-source provenance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Button(onClick = ::requestResearchExport, enabled = !exportLoading) {
-                                    Text(if (exportLoading) "Preparing export…" else "Export research CSV")
-                                }
-                                exportFailure?.let { requestFailure ->
-                                    FailureSummary(requestFailure, ::requestResearchExport, onSignIn, true)
-                                }
-                                exportStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                            }
-                        }
-                    }
-                    modelPerformanceFailure?.let { requestFailure ->
-                        item { FailureSummary(requestFailure, { scope.launch { load() } }, onSignIn, true) }
-                    }
-                    val records = modelPerformance?.performance.orEmpty()
-                    if (modelPerformanceFailure == null && records.isEmpty() && !loading) item {
-                        EmptyState(
-                            "Model performance unavailable",
-                            "No evaluation metrics are available from the backend yet.",
-                            icon = Icons.Default.WaterDrop,
-                            actionLabel = "Retry",
-                            onAction = { scope.launch { load() } }
-                        )
-                    }
-                    records.groupBy { it.modelName }.toSortedMap().forEach { (model, metrics) ->
-                        item(key = "performance-$model") {
-                            ModelPerformanceCard(model, metrics)
-                        }
                     }
                 }
             }
@@ -844,75 +615,13 @@ private data class DisplayMetric(
     val tone: StatusTone = StatusTone.NEUTRAL
 )
 
-private fun SensorReading.toLatestReadingResponse(): LatestReadingResponse = LatestReadingResponse(
-    nodeId = nodeId,
-    timestamp = toIsoTimestamp(),
-    ph = ph,
-    tds = tds,
-    turbidity = turbidity,
-    temperature = temperature,
-    red = red,
-    green = green,
-    blue = blue,
-    clear = clear,
-    opticalColourIndex = opticalColourIndex,
-    calibrationId = calibrationId,
-    source = source
-)
-
-private fun SensorReading.toHistoricalReadingResponse(): HistoricalReadingResponse {
-    val timestampString = toIsoTimestamp()
-    return HistoricalReadingResponse(
-        id = id.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt(),
-        nodeId = nodeId,
-        timestamp = timestampString,
-        ph = ph,
-        tds = tds,
-        turbidity = turbidity,
-        temperature = temperature,
-        red = red,
-        green = green,
-        blue = blue,
-        clear = clear,
-        opticalColourIndex = opticalColourIndex,
-        calibrationId = calibrationId,
-        source = source,
-        createdAt = timestampString
-    )
-}
-
-private fun RoomAlert.toAlertResponse(): AlertResponse {
-    val timestampString = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("UTC")
-    }.format(java.util.Date(timestamp))
-    return AlertResponse(
-        id = id.hashCode(),
-        nodeId = nodeId,
-        timestamp = timestampString,
-        parameter = parameterName,
-        value = value,
-        threshold = thresholdLimit,
-        severity = riskLevel,
-        message = listOf(title, recommendation).filter { it.isNotBlank() }.joinToString(" · "),
-        status = if (isResolved) "RESOLVED" else "ACTIVE",
-        createdAt = timestampString
-    )
-}
-
-private fun SensorReading.toIsoTimestamp(): String = SimpleDateFormat(
-    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-    Locale.US
-).apply {
-    timeZone = TimeZone.getTimeZone("UTC")
-}.format(java.util.Date(timestamp))
-
 private fun currentMetrics(reading: LatestReadingResponse): List<DisplayMetric> = listOf(
     DisplayMetric("pH", formatValue(reading.ph), ""),
     DisplayMetric("TDS", formatValue(reading.tds), "ppm"),
     DisplayMetric("Turbidity", formatValue(reading.turbidity), "NTU"),
     DisplayMetric("Temperature", reading.temperature?.let(::formatValue) ?: "—", "°C", if (reading.temperature == null) "Not reported" else null),
     DisplayMetric(
-        "Optical Colour Index",
+        "Optical Colour",
         reading.opticalColourIndex?.let(::formatValue) ?: "—",
         "index",
         if (reading.opticalColourIndex == null) "Not reported" else "Experimental measure",
@@ -928,40 +637,6 @@ private fun forecastMetrics(forecast: ForecastResponse): List<DisplayMetric> = l
     DisplayMetric("Temperature", formatValue(forecast.prediction.temperature), "°C"),
     DisplayMetric("Optical Colour", formatValue(forecast.prediction.opticalColourIndex), "index", "Experimental", "EXPERIMENTAL", StatusTone.AI)
 )
-
-@Composable
-private fun ModelPerformanceCard(model: String, metrics: List<ModelPerformanceRecord>) {
-    HydroCard {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(model, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            metrics.sortedBy { parameterSortOrder(it.parameter) }.forEach { metric ->
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(parameterLabel(metric.parameter), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            "MAE ${formatValue(metric.mae)} · RMSE ${formatValue(metric.rmse)}${metric.mape?.let { " · MAPE ${formatValue(it)}%" }.orEmpty()}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                    Text(
-                        "${metric.count} observations · ${metric.dataSource} · ${metric.horizonHours}h horizon",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun parameterSortOrder(parameter: String): Int = when (parameter.lowercase()) {
-    "ph" -> 0
-    "tds" -> 1
-    "turbidity" -> 2
-    "temperature" -> 3
-    "optical_colour_index" -> 4
-    else -> 5
-}
 
 private data class ForecastHistoryReadiness(
     val totalReadings: Int,
