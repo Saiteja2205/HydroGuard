@@ -16,7 +16,25 @@ from app.db.models import SensorReading
 from app.db.repositories import EnsembleWeightRepository, ForecastRepository, ModelErrorRepository, NodeRepository
 from app.schemas.forecasts import ForecastListResponse, ForecastRecord, ModelPerformance, ModelPerformanceResponse
 from app.schemas.readings import ForecastReading, ForecastRequest, ForecastResponse
-from ml.services import create_forecast_service, ForecastServiceConfig
+from ml.services import create_forecast_service, ForecastServiceConfig, get_inference_service
+import ml.services.thingspeak_service as thingspeak_service
+from ml.services.thingspeak_service import (
+    ThingSpeakConfig,
+    ThingSpeakInvalidChannel,
+    ThingSpeakNotConfigured,
+    ThingSpeakUnavailable,
+    load_config_from_env,
+    parse_feeds,
+)
+from app.schemas.thingspeak import (
+    ForecastProvenance,
+    ThingSpeakForecastBlock,
+    ThingSpeakForecastResponse,
+    ThingSpeakLatestReading,
+    ThingSpeakReadingValues,
+    ThingSpeakRGBValues,
+    WindowProvenance,
+)
 
 router = APIRouter(tags=["forecast"])
 
@@ -440,3 +458,167 @@ def get_model_performance(
                 ))
 
     return ModelPerformanceResponse(node_id=node_id, performance=performance_list)
+
+
+def _resolve_thingspeak_config(channel_id: Optional[str]) -> ThingSpeakConfig:
+    """Resolve the channel to read, honouring an explicit per-request override.
+
+    The override is validated the same way as the configured value: a
+    ThingSpeak channel id is numeric, and anything else is rejected before it
+    can be interpolated into the request URL.
+    """
+    config = load_config_from_env()
+    if channel_id is not None:
+        stripped = channel_id.strip()
+        if not stripped.isdigit():
+            raise HTTPException(
+                status_code=422,
+                detail="channel_id must contain digits only.",
+            )
+        config = ThingSpeakConfig(
+            channel_id=stripped,
+            read_api_key=config.read_api_key,
+            base_url=config.base_url,
+            results=config.results,
+            timeout_seconds=config.timeout_seconds,
+            field_map=config.field_map,
+            rgb_field_map=config.rgb_field_map,
+        )
+    if not config.configured:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "No ThingSpeak channel is configured. Set "
+                "HYDROGUARD_THINGSPEAK_CHANNEL_ID to enable live forecasting."
+            ),
+        )
+    return config
+
+
+@router.get("/thingspeak/forecast", response_model=ThingSpeakForecastResponse)
+def generate_thingspeak_forecast(
+    channel_id: Optional[str] = Query(
+        None,
+        min_length=1,
+        max_length=32,
+        description="Optional numeric ThingSpeak channel id overriding the configured default.",
+    ),
+    principal: dict = Depends(require_student_or_admin),
+) -> ThingSpeakForecastResponse:
+    """Fetch the configured ThingSpeak channel, forecast it, and return both.
+
+    Flow: read the channel's recent feeds, shape them into the 30-row window
+    the checkpoints require, run LSTM/PatchTST/TimeMixer, combine them with
+    the weighted ensemble, and return physical-unit forecasts alongside the
+    provenance of both the observations and the model weights.
+
+    The response never claims more than the evidence supports: the observation
+    provenance (``THINGSPEAK``) is reported separately from what the weights
+    were trained on (``SIMULATED_DEVELOPMENT`` for the shipped checkpoints),
+    and every forward-filled or padded cell is counted in ``provenance.window``.
+    Nothing is persisted, so this read-only path cannot write simulated rows
+    into the sensor tables that ``/health`` uses to judge connectivity.
+    """
+    config = _resolve_thingspeak_config(channel_id)
+
+    try:
+        window = parse_feeds(thingspeak_service.fetch_feeds(config), config)
+    except ThingSpeakNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except ThingSpeakInvalidChannel as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ThingSpeakUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    if window.observed_rows == 0:
+        # The channel answered but held no feeds. Returning a forecast built
+        # entirely from range midpoints would fabricate a result, so this is
+        # reported as an empty channel instead.
+        raise HTTPException(
+            status_code=502,
+            detail="The ThingSpeak channel returned no observations, so no forecast can be produced.",
+        )
+
+    import numpy as np
+
+    inference = get_inference_service()
+    try:
+        inference.load()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=f"Forecast checkpoint not found: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Forecast checkpoints are unavailable: {exc}")
+
+    input_window = np.array(window.values, dtype=np.float32)
+    result = inference.forecast(input_window)
+
+    latest_values = ThingSpeakReadingValues(
+        pH=window.values[-1][0],
+        TDS=window.values[-1][1],
+        turbidity=window.values[-1][2],
+        temperature=window.values[-1][3],
+        optical_colour_index=window.values[-1][4],
+    )
+
+    forecast_block = ThingSpeakForecastBlock(
+        lstm=ThingSpeakReadingValues(**result.model_forecasts["lstm"]),
+        patchtst=ThingSpeakReadingValues(**result.model_forecasts["patchtst"]),
+        timemixer=ThingSpeakReadingValues(**result.model_forecasts["timemixer"]),
+        ensemble=ThingSpeakReadingValues(**result.ensemble),
+    )
+
+    fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    observed_timestamp = (
+        window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if window.latest_timestamp is not None
+        else None
+    )
+
+    # Extract RGB values from the newest feed if available
+    latest_rgb = None
+    if window.rgb_values and len(window.rgb_values) > 0:
+        last_rgb = window.rgb_values[-1]
+        if any(v is not None for v in last_rgb):
+            latest_rgb = ThingSpeakRGBValues(
+                red=last_rgb[0],
+                green=last_rgb[1],
+                blue=last_rgb[2],
+                clear=last_rgb[3],
+            )
+
+    # Calculate RGB missing counts
+    rgb_missing = {}
+    if window.rgb_values:
+        for i, colour in enumerate(("red", "green", "blue", "clear")):
+            rgb_missing[colour] = sum(
+                1 for row in window.rgb_values if row[i] is None
+            )
+
+    return ThingSpeakForecastResponse(
+        latest_reading=ThingSpeakLatestReading(
+            timestamp=observed_timestamp,
+            observed_at=observed_timestamp,
+            values=latest_values,
+            rgb=latest_rgb,
+        ),
+        forecast=forecast_block,
+        weights={param: dict(entry) for param, entry in result.weights.items()},
+        model_versions=dict(result.checkpoint_versions),
+        provenance=ForecastProvenance(
+            data_source="THINGSPEAK",
+            channel_id=window.channel_id,
+            models_trained_on=result.training_dataset_source,
+            real_sensor_data=result.real_sensor_data,
+            window=WindowProvenance(
+                window_size=window.window_size,
+                observed_rows=window.observed_rows,
+                forward_filled=window.forward_filled,
+                leading_filled=window.leading_filled,
+                padded_rows=window.padded_rows,
+                missing_by_parameter=dict(window.missing_by_parameter),
+                unobserved_parameters=list(window.unobserved_parameters),
+                rgb_missing_by_channel=rgb_missing,
+            ),
+            fetched_at=fetched_at,
+        ),
+    )
