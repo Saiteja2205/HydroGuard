@@ -549,6 +549,30 @@ class AlertRepository:
             .all()
         )
 
+    @staticmethod
+    def get_recent_similar(
+        db: Session,
+        node_id: str,
+        parameter: str,
+        threshold: float,
+        since: datetime,
+    ) -> Optional[Alert]:
+        """Check if a similar alert was recently created (for cooldown/deduplication)."""
+        return (
+            db.query(Alert)
+            .filter(
+                and_(
+                    Alert.node_id == node_id,
+                    Alert.parameter == parameter,
+                    Alert.threshold == threshold,
+                    Alert.status == "ACTIVE",
+                    Alert.timestamp >= since,
+                )
+            )
+            .order_by(desc(Alert.timestamp))
+            .first()
+        )
+
 
 class ThresholdRepository:
     """Access layer for configurable alert thresholds."""

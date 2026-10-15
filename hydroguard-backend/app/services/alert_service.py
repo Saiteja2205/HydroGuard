@@ -3,7 +3,7 @@
 Handles generating alerts based on parameter thresholds and managing alert lifecycle.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -20,7 +20,11 @@ class AlertService:
         "tds": {"max": 500.0},
         "turbidity": {"max": 5.0},
         "temperature": {"min": 15.0, "max": 30.0},
+        "optical_colour_index": {"max": 1.0},
     }
+
+    # Default cooldown period in minutes to prevent alert spam
+    DEFAULT_COOLDOWN_MINUTES = 60
 
     @staticmethod
     def get_effective_thresholds(db: Session) -> dict:
@@ -38,6 +42,12 @@ class AlertService:
             if bounds:
                 thresholds[key] = bounds
         return thresholds
+
+    @staticmethod
+    def get_cooldown_minutes(db: Session) -> int:
+        """Get configured cooldown period, defaulting to DEFAULT_COOLDOWN_MINUTES."""
+        # Could be extended to read from a settings table
+        return AlertService.DEFAULT_COOLDOWN_MINUTES
 
     @staticmethod
     def evaluate_reading_for_alerts(
@@ -58,6 +68,7 @@ class AlertService:
             List of generated alerts
         """
         thresholds = custom_thresholds or AlertService.get_effective_thresholds(db)
+        cooldown_minutes = AlertService.get_cooldown_minutes(db)
         alert_timestamp = reading_data.get("timestamp")
         if not isinstance(alert_timestamp, datetime):
             alert_timestamp = datetime.now(timezone.utc)
@@ -67,140 +78,208 @@ class AlertService:
         if "ph" in reading_data:
             ph = reading_data["ph"]
             if "min" in thresholds["ph"] and ph < thresholds["ph"]["min"]:
-                alerts.append(
-                    AlertRepository.create(
-                        db=db,
-                        node_id=node_id,
-                        timestamp=alert_timestamp,
-                        parameter="pH",
-                        value=ph,
-                        threshold=thresholds["ph"]["min"],
-                        severity="WARNING",
-                        message=f"pH below minimum threshold: {ph:.2f} < {thresholds['ph']['min']}",
-                        status="ACTIVE",
-                    )
-                )
+                alerts.append(AlertService._maybe_create_alert(
+                    db=db,
+                    node_id=node_id,
+                    timestamp=alert_timestamp,
+                    parameter="pH",
+                    value=ph,
+                    threshold=thresholds["ph"]["min"],
+                    severity="WARNING",
+                    message=f"pH below minimum threshold: {ph:.2f} < {thresholds['ph']['min']}",
+                    cooldown_minutes=cooldown_minutes,
+                ))
             elif "max" in thresholds["ph"] and ph > thresholds["ph"]["max"]:
-                alerts.append(
-                    AlertRepository.create(
-                        db=db,
-                        node_id=node_id,
-                        timestamp=alert_timestamp,
-                        parameter="pH",
-                        value=ph,
-                        threshold=thresholds["ph"]["max"],
-                        severity="WARNING",
-                        message=f"pH above maximum threshold: {ph:.2f} > {thresholds['ph']['max']}",
-                        status="ACTIVE",
-                    )
-                )
+                alerts.append(AlertService._maybe_create_alert(
+                    db=db,
+                    node_id=node_id,
+                    timestamp=alert_timestamp,
+                    parameter="pH",
+                    value=ph,
+                    threshold=thresholds["ph"]["max"],
+                    severity="WARNING",
+                    message=f"pH above maximum threshold: {ph:.2f} > {thresholds['ph']['max']}",
+                    cooldown_minutes=cooldown_minutes,
+                ))
 
         # Evaluate TDS
         if "tds" in reading_data:
             tds = reading_data["tds"]
             if "max" in thresholds["tds"] and tds > thresholds["tds"]["max"]:
-                alerts.append(
-                    AlertRepository.create(
-                        db=db,
-                        node_id=node_id,
-                        timestamp=alert_timestamp,
-                        parameter="TDS",
-                        value=tds,
-                        threshold=thresholds["tds"]["max"],
-                        severity="WARNING",
-                        message=f"TDS above maximum threshold: {tds:.2f} > {thresholds['tds']['max']}",
-                        status="ACTIVE",
-                    )
-                )
+                alerts.append(AlertService._maybe_create_alert(
+                    db=db,
+                    node_id=node_id,
+                    timestamp=alert_timestamp,
+                    parameter="TDS",
+                    value=tds,
+                    threshold=thresholds["tds"]["max"],
+                    severity="WARNING",
+                    message=f"TDS above maximum threshold: {tds:.2f} > {thresholds['tds']['max']}",
+                    cooldown_minutes=cooldown_minutes,
+                ))
 
         # Evaluate turbidity
         if "turbidity" in reading_data:
             turbidity = reading_data["turbidity"]
             if "max" in thresholds["turbidity"] and turbidity > thresholds["turbidity"]["max"]:
-                alerts.append(
-                    AlertRepository.create(
-                        db=db,
-                        node_id=node_id,
-                        timestamp=alert_timestamp,
-                        parameter="turbidity",
-                        value=turbidity,
-                        threshold=thresholds["turbidity"]["max"],
-                        severity="WARNING",
-                        message=f"Turbidity above maximum threshold: {turbidity:.2f} > {thresholds['turbidity']['max']}",
-                        status="ACTIVE",
-                    )
-                )
+                alerts.append(AlertService._maybe_create_alert(
+                    db=db,
+                    node_id=node_id,
+                    timestamp=alert_timestamp,
+                    parameter="turbidity",
+                    value=turbidity,
+                    threshold=thresholds["turbidity"]["max"],
+                    severity="WARNING",
+                    message=f"Turbidity above maximum threshold: {turbidity:.2f} > {thresholds['turbidity']['max']}",
+                    cooldown_minutes=cooldown_minutes,
+                ))
 
         # Evaluate temperature
         if "temperature" in reading_data:
             temp = reading_data["temperature"]
             if temp is not None:
                 if "min" in thresholds["temperature"] and temp < thresholds["temperature"]["min"]:
-                    alerts.append(
-                        AlertRepository.create(
-                            db=db,
-                            node_id=node_id,
-                            timestamp=alert_timestamp,
-                            parameter="temperature",
-                            value=temp,
-                            threshold=thresholds["temperature"]["min"],
-                            severity="INFO",
-                            message=f"Temperature below minimum threshold: {temp:.2f} < {thresholds['temperature']['min']}",
-                            status="ACTIVE",
-                        )
-                    )
+                    alerts.append(AlertService._maybe_create_alert(
+                        db=db,
+                        node_id=node_id,
+                        timestamp=alert_timestamp,
+                        parameter="temperature",
+                        value=temp,
+                        threshold=thresholds["temperature"]["min"],
+                        severity="INFO",
+                        message=f"Temperature below minimum threshold: {temp:.2f} < {thresholds['temperature']['min']}",
+                        cooldown_minutes=cooldown_minutes,
+                    ))
                 elif "max" in thresholds["temperature"] and temp > thresholds["temperature"]["max"]:
-                    alerts.append(
-                        AlertRepository.create(
-                            db=db,
-                            node_id=node_id,
-                            timestamp=alert_timestamp,
-                            parameter="temperature",
-                            value=temp,
-                            threshold=thresholds["temperature"]["max"],
-                            severity="INFO",
-                            message=f"Temperature above maximum threshold: {temp:.2f} > {thresholds['temperature']['max']}",
-                            status="ACTIVE",
-                        )
-                    )
+                    alerts.append(AlertService._maybe_create_alert(
+                        db=db,
+                        node_id=node_id,
+                        timestamp=alert_timestamp,
+                        parameter="temperature",
+                        value=temp,
+                        threshold=thresholds["temperature"]["max"],
+                        severity="INFO",
+                        message=f"Temperature above maximum threshold: {temp:.2f} > {thresholds['temperature']['max']}",
+                        cooldown_minutes=cooldown_minutes,
+                    ))
 
-        return alerts
+        # Evaluate optical colour index
+        if "optical_colour_index" in reading_data:
+            oci = reading_data["optical_colour_index"]
+            if oci is not None and "max" in thresholds.get("optical_colour_index", {}) and oci > thresholds["optical_colour_index"]["max"]:
+                alerts.append(AlertService._maybe_create_alert(
+                    db=db,
+                    node_id=node_id,
+                    timestamp=alert_timestamp,
+                    parameter="optical_colour_index",
+                    value=oci,
+                    threshold=thresholds["optical_colour_index"]["max"],
+                    severity="INFO",
+                    message=f"Optical colour index above maximum threshold: {oci:.4f} > {thresholds['optical_colour_index']['max']}",
+                    cooldown_minutes=cooldown_minutes,
+                ))
+
+        return [a for a in alerts if a is not None]
 
     @staticmethod
-    def get_active_alerts(db: Session, node_id: str) -> list:
-        """Get all active alerts for a node.
+    def _maybe_create_alert(
+        db: Session,
+        node_id: str,
+        timestamp: datetime,
+        parameter: str,
+        value: float,
+        threshold: float,
+        severity: str,
+        message: str,
+        cooldown_minutes: int,
+    ):
+        """Create alert only if no recent similar alert exists (cooldown check)."""
+        if cooldown_minutes > 0:
+            cutoff = datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)
+            recent = AlertRepository.get_recent_similar(db, node_id, parameter, threshold, cutoff)
+            if recent:
+                return None  # Skip: similar alert recently created
+
+        return AlertRepository.create(
+            db=db,
+            node_id=node_id,
+            timestamp=timestamp,
+            parameter=parameter,
+            value=value,
+            threshold=threshold,
+            severity=severity,
+            message=message,
+            status="ACTIVE",
+        )
+
+    @staticmethod
+    def check_and_resolve_alerts(
+        db: Session,
+        node_id: str,
+        reading_data: dict,
+        custom_thresholds: Optional[dict] = None,
+    ) -> int:
+        """Check existing active alerts and resolve those that are no longer violated.
 
         Args:
             db: Database session
             node_id: Node identifier
+            reading_data: Current reading data
+            custom_thresholds: Optional custom thresholds
 
         Returns:
-            List of active alerts
+            Number of alerts resolved
         """
+        thresholds = custom_thresholds or AlertService.get_effective_thresholds(db)
+        active_alerts = AlertRepository.get_active_by_node(db, node_id)
+        resolved_count = 0
+
+        for alert in active_alerts:
+            param = alert.parameter.lower()
+            current_value = reading_data.get(param)
+            if current_value is None:
+                continue
+
+            threshold = alert.threshold
+            should_resolve = False
+
+            if param == "ph":
+                if alert.threshold == thresholds["ph"].get("min") and current_value >= thresholds["ph"]["min"]:
+                    should_resolve = True
+                elif alert.threshold == thresholds["ph"].get("max") and current_value <= thresholds["ph"]["max"]:
+                    should_resolve = True
+            elif param == "tds" and "max" in thresholds.get("tds", {}):
+                if current_value <= thresholds["tds"]["max"]:
+                    should_resolve = True
+            elif param == "turbidity" and "max" in thresholds.get("turbidity", {}):
+                if current_value <= thresholds["turbidity"]["max"]:
+                    should_resolve = True
+            elif param == "temperature":
+                if alert.threshold == thresholds["temperature"].get("min") and current_value >= thresholds["temperature"]["min"]:
+                    should_resolve = True
+                elif alert.threshold == thresholds["temperature"].get("max") and current_value <= thresholds["temperature"]["max"]:
+                    should_resolve = True
+            elif param == "optical_colour_index" and "max" in thresholds.get("optical_colour_index", {}):
+                if current_value <= thresholds["optical_colour_index"]["max"]:
+                    should_resolve = True
+
+            if should_resolve:
+                AlertRepository.update_status(db, alert.id, "RESOLVED")
+                resolved_count += 1
+
+        return resolved_count
+
+    @staticmethod
+    def get_active_alerts(db: Session, node_id: str) -> list:
+        """Get all active alerts for a node."""
         return AlertRepository.get_active_by_node(db, node_id)
 
     @staticmethod
     def acknowledge_alert(db: Session, alert_id: int) -> Optional:
-        """Acknowledge an alert.
-
-        Args:
-            db: Database session
-            alert_id: Alert ID
-
-        Returns:
-            Updated alert or None
-        """
+        """Acknowledge an alert."""
         return AlertRepository.update_status(db, alert_id, "ACKNOWLEDGED")
 
     @staticmethod
     def resolve_alert(db: Session, alert_id: int) -> Optional:
-        """Resolve an alert.
-
-        Args:
-            db: Database session
-            alert_id: Alert ID
-
-        Returns:
-            Updated alert or None
-        """
+        """Resolve an alert."""
         return AlertRepository.update_status(db, alert_id, "RESOLVED")
