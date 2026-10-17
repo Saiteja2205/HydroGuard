@@ -1,0 +1,97 @@
+# Build-context exclusions for the HydroGuard backend image.
+#
+# The goal is a small, reproducible context: only what the runtime needs is
+# copied (app/, ml/, artifacts/checkpoints/, conftest.py). Everything below is
+# either generated, cached, secret, or development-only.
+
+# Python caches and build output. These are regenerated inside the image and
+# copying host caches in causes stale-bytecode weirdness across platforms.
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments. The image installs its own dependencies.
+.venv/
+venv/
+ENV/
+env/
+
+# Test and coverage artifacts. Tests are not run inside the image; the CI
+# pipeline runs them on the host against the same source.
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+
+# Model training outputs that are NOT runtime checkpoints. The three
+# *_water_quality_5param_v1.pt files under artifacts/checkpoints/ are required
+# and are NOT excluded; the *_best.pt and *_last.pt training snapshots and the
+# evaluation JSON under artifacts/results/ are development-only and would
+# bloat the image by ~20 MB.
+artifacts/checkpoints/*_best.pt
+artifacts/checkpoints/*_last.pt
+artifacts/results/
+
+# Secrets and local environment. Never bake credentials into an image. The
+# Firebase service-account key is supplied at runtime via
+# GOOGLE_APPLICATION_CREDENTIALS, and the ThingSpeak key via the environment.
+.env
+.env.*
+*.env
+!.env.example
+firebase-service-account.json
+serviceAccountKey.json
+*.json.key
+**/firebase*.json
+
+# Development databases. The image creates a fresh, empty database at
+# /srv/hydroguard/data; a host SQLite file must never be copied in, or the
+# container would ship whatever local rows happened to exist.
+data/*.db
+data/*.db-journal
+data/*.sqlite
+*.db
+*.sqlite3
+
+# Logs and scratch files.
+*.log
+logs/
+nohup.out
+
+# Editor and OS metadata.
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Documentation and reports. Not needed at runtime.
+*.md
+docs/
+scripts/
+tests/

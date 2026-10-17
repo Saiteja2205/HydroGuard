@@ -56,11 +56,11 @@ public final class RetrofitClient {
                 .connectTimeout(12, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS);
-        if (appContext != null && LanApiRoute.isLanApiHost(BASE_URL)) {
+        if (LanApiRoute.isLanApiHost(BASE_URL)) {
             builder.socketFactory(LanApiRoute.wifiSocketFactory());
         }
         OkHttpClient client = builder.build();
-        if (appContext != null && LanApiRoute.isLanApiHost(BASE_URL)) {
+        if (LanApiRoute.isLanApiHost(BASE_URL)) {
             LanApiRoute.setRouteLostListener(() -> client.connectionPool().evictAll());
         }
         return client;

@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Home dashboard water status overview card.
+  Replaces the unformatted multi-line text block with a clean, structured
+  2x2 glanceable metric grid, tank header, provenance/freshness badge,
+  and observation timestamp footer.
+-->
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_home_water_status"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="6dp"
+    android:layout_marginBottom="8dp"
+    app:cardBackgroundColor="@color/hydroguard_surface"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="1dp"
+    app:strokeColor="@color/hydroguard_divider"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Header: Tank identity + Status badge -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/home_water_tank_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Hostel Water Tank"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/home_water_channel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Hostel Telemetry · Channel 244357"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/home_water_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/hydroguard_pill"
+                android:backgroundTint="@color/hydroguard_subsurface"
+                android:fontFamily="@font/hydroguard_sans"
+                android:letterSpacing="0.04"
+                android:paddingStart="10dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="4dp"
+                android:text="CONNECTING…"
+                android:textColor="@color/hydroguard_muted"
+                android:textFontWeight="600"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Hairline Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="12dp"
+            android:background="@color/hydroguard_divider" />
+
+        <!-- 2x2 Metric Grid -->
+        <!-- Row 1: pH and TDS -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- pH Tile -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/hydroguard_tile"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="pH Level"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textFontWeight="500"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/home_metric_ph"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:fontFamily="@font/hydroguard_mono"
+                    android:text="--"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Target: 6.5 – 8.5"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- TDS Tile -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/hydroguard_tile"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="TDS (ppm)"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textFontWeight="500"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/home_metric_tds"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:fontFamily="@font/hydroguard_mono"
+                    android:text="--"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Ideal &lt; 300 ppm"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Row 2: Turbidity and Temperature -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <!-- Turbidity Tile -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/hydroguard_tile"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Turbidity (NTU)"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textFontWeight="500"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/home_metric_turbidity"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:fontFamily="@font/hydroguard_mono"
+                    android:text="--"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Target &lt; 5.0 NTU"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- Temperature Tile -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/hydroguard_tile"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Temperature (°C)"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textFontWeight="500"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/home_metric_temp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:fontFamily="@font/hydroguard_mono"
+                    android:text="--"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Ambient temperature"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Footer / Observation timestamp -->
+        <TextView
+            android:id="@+id/home_water_footer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:fontFamily="@font/hydroguard_sans"
+            android:text="Waiting for live telemetry…"
+            android:textColor="@color/hydroguard_muted"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:fontFamily="@font/hydroguard_sans"
+            android:text="Sensor telemetry indicator · Not a drinking-water safety certificate"
+            android:textColor="@color/hydroguard_muted"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

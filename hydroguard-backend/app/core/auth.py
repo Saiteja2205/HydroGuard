@@ -21,6 +21,24 @@ FIREBASE_UNAVAILABLE_DETAIL = (
     "HYDROGUARD_FIREBASE_PROJECT_ID, then restart the backend."
 )
 
+DEFAULT_FIREBASE_CLOCK_SKEW_SECONDS = 5
+MAX_FIREBASE_CLOCK_SKEW_SECONDS = 10
+
+
+def _get_clock_skew_seconds() -> int:
+    """Return bounded clock skew tolerance in seconds for token verification.
+
+    Bounded strictly to [0, MAX_FIREBASE_CLOCK_SKEW_SECONDS] to prevent RTC
+    drift or client timing differences from breaking authentication while
+    preserving strict expiry and signature validation.
+    """
+    raw = os.getenv("HYDROGUARD_FIREBASE_CLOCK_SKEW_SECONDS", str(DEFAULT_FIREBASE_CLOCK_SKEW_SECONDS)).strip()
+    try:
+        val = int(raw)
+        return max(0, min(val, MAX_FIREBASE_CLOCK_SKEW_SECONDS))
+    except (ValueError, TypeError):
+        return DEFAULT_FIREBASE_CLOCK_SKEW_SECONDS
+
 
 def _firebase_app():
     """Return the named Firebase app, validating credentials eagerly.
@@ -121,10 +139,16 @@ def _verified_identity(authorization: str | None) -> dict:
     try:
         from firebase_admin import auth
 
-        identity = auth.verify_id_token(token, app=_firebase_app(), check_revoked=True)
+        identity = auth.verify_id_token(
+            token,
+            app=_firebase_app(),
+            check_revoked=True,
+            clock_skew_seconds=_get_clock_skew_seconds(),
+        )
     except HTTPException:
         raise
     except Exception as exc:
+        logger.warning("Firebase token verification failed (%s: %s)", type(exc).__name__, exc)
         raise HTTPException(status_code=401, detail="Firebase bearer token is invalid or expired.") from exc
 
     uid = str(identity.get("uid", "")).strip()

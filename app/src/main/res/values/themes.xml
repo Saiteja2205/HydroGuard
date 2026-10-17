@@ -115,7 +115,7 @@
     <!-- ============================ Controls ============================ -->
 
     <style name="Widget.HydroGuard.Button" parent="Widget.Material3.Button">
-        <item name="backgroundTint">@color/hydroguard_navy</item>
+        <item name="backgroundTint">@color/hydroguard_blue</item>
         <item name="android:textColor">@color/hydroguard_navy_on</item>
         <item name="android:textFontWeight">600</item>
         <item name="android:letterSpacing">0.01</item>
@@ -148,7 +148,7 @@
     </style>
 
     <style name="Widget.HydroGuard.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
-        <item name="android:textColor">@color/hydroguard_text</item>
+        <item name="android:textColor">@color/hydroguard_blue</item>
         <item name="strokeColor">@color/hydroguard_outline</item>
         <item name="strokeWidth">1dp</item>
         <item name="android:textFontWeight">600</item>

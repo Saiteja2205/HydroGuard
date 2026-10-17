@@ -28,7 +28,9 @@ import com.aistudio.hydroguard.wxqpzx.data.api.RetrofitClient;
 import com.aistudio.hydroguard.wxqpzx.data.config.HostelConfig;
 import com.aistudio.hydroguard.wxqpzx.data.repository.HydroRepository;
 import com.aistudio.hydroguard.wxqpzx.data.service.AlertNotifier;
+import com.aistudio.hydroguard.wxqpzx.data.service.OpticalRgbService;
 import com.aistudio.hydroguard.wxqpzx.data.service.WaterQualityIndexService;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.Legend;
 import com.github.mikephil.charting.components.LimitLine;
@@ -82,9 +84,9 @@ public class WaterScreen {
 
     /** Raw sensor channels; displayed only when the reading actually contains them. */
     private static final String[][] SENSOR_CHANNELS = {
-            {"red", "Red (R)", " counts"},
-            {"green", "Green (G)", " counts"},
-            {"blue", "Blue (B)", " counts"},
+            {"red", "Red", " %"},
+            {"green", "Green", " %"},
+            {"blue", "Blue", " %"},
     };
 
     /** One worker for CSV downloads: serialises exports and keeps them off the main thread. */
@@ -104,6 +106,9 @@ public class WaterScreen {
     private List<JSONObject> history = new ArrayList<>();
     private JSONObject latestForecast;
     private final Map<String, double[]> thresholds = new HashMap<>();
+    private boolean isThingSpeakLoading = false;
+    private boolean historySourceThingSpeak = true;
+
 
     public WaterScreen(Activity activity, ApiRepository api, HydroRepository hydro,
                        AlertNotifier notifier, boolean admin, String selectedNode) {
@@ -135,12 +140,15 @@ public class WaterScreen {
                     }
                 })));
         SwipeRefreshLayout refresh = screen.findViewById(R.id.water_refresh);
-        refresh.setOnRefreshListener(() -> {
-            refreshAll();
-            refresh.setRefreshing(false);
-        });
-        screen.findViewById(R.id.load_forecast).setOnClickListener(view -> loadForecast());
-        screen.findViewById(R.id.load_thingspeak_forecast).setOnClickListener(view -> loadThingSpeakForecast());
+        refresh.setOnRefreshListener(this::refreshAll);
+        View headerRefresh = screen.findViewById(R.id.btn_refresh_live);
+        if (headerRefresh != null) {
+            headerRefresh.setOnClickListener(view -> refreshAll());
+        }
+        View tsForecastBtn = screen.findViewById(R.id.load_thingspeak_forecast);
+        if (tsForecastBtn != null) {
+            tsForecastBtn.setOnClickListener(view -> loadThingSpeakForecast());
+        }
         if (admin) {
             screen.findViewById(R.id.admin_controls).setVisibility(View.VISIBLE);
             screen.findViewById(R.id.edit_thresholds).setOnClickListener(view -> showThresholdEditor());
@@ -167,13 +175,23 @@ public class WaterScreen {
             @Override public void onFailure(ApiFailure failure) { loadConfiguredNodes(spinner); }
         });
         spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            private boolean initialSelectionFired = false;
+
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
                 List<String> ids = (List<String>) parent.getTag();
                 List<String> fallback = HostelConfig.tankNodeIds();
-                selectedNode = ids == null || position >= ids.size()
+                String target = ids == null || position >= ids.size()
                         ? fallback.get(Math.min(position, fallback.size() - 1))
                         : ids.get(position);
-                refreshAll();
+                if (!initialSelectionFired) {
+                    initialSelectionFired = true;
+                    selectedNode = target;
+                    return;
+                }
+                if (target != null && !target.equals(selectedNode)) {
+                    selectedNode = target;
+                    refreshAll();
+                }
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
         });
@@ -261,6 +279,23 @@ public class WaterScreen {
             // never promise a series the app does not offer.
             parameterCount.setText(METRICS.length + " available");
         }
+        View sourceLabel = screen.findViewById(R.id.history_source_label);
+        View sourceCard = screen.findViewById(R.id.history_source_card);
+        if (!admin) {
+            if (sourceLabel != null) sourceLabel.setVisibility(View.GONE);
+            if (sourceCard != null) sourceCard.setVisibility(View.GONE);
+        }
+        MaterialButtonToggleGroup sourceGroup = screen.findViewById(R.id.history_source_group);
+        if (sourceGroup != null) {
+            sourceGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+                if (!isChecked) return;
+                boolean useThingSpeak = checkedId == R.id.source_thingspeak;
+                if (useThingSpeak == historySourceThingSpeak) return;
+                historySourceThingSpeak = useThingSpeak;
+                loadHistory();
+            });
+        }
+
         // The horizon is a segmented control declared in the layout, so its four
         // buttons already exist and app:checkedButton has already selected the
         // default. Only the listener is attached here: building the buttons here
@@ -275,6 +310,7 @@ public class WaterScreen {
         });
     }
 
+
     /** Maps a horizon segment id back onto RANGE_DAYS, or -1 for anything else. */
     private int rangeIndex(int buttonId) {
         if (buttonId == R.id.range_24h) return 0;
@@ -285,7 +321,7 @@ public class WaterScreen {
     }
 
     private void refreshAll() {
-        loadLatest();
+        loadThingSpeakLive();
         loadThresholds();
         loadHistory();
         loadAlerts();
@@ -293,7 +329,7 @@ public class WaterScreen {
 
     private void loadLatest() {
         TextView status = screen.findViewById(R.id.reading_status);
-        status.setText("Loading the latest server reading…");
+        status.setText("Loading database reading…");
         hydro.loadLatest(selectedNode, new HydroRepository.DataCallback() {
             @Override public void onSuccess(String json, boolean cached, ApiFailure warning) {
                 if (!isCurrent()) return;
@@ -301,10 +337,16 @@ public class WaterScreen {
                     renderReading(new JSONObject(json), cached, warning);
                 } catch (JSONException error) {
                     status.setText("The server returned an unexpected reading.");
+                    updateAdvisoryScoreCard(null, null, null, null, false);
+                    updateOpticalRgbCard(null);
                 }
             }
             @Override public void onFailure(ApiFailure failure) {
-                if (isCurrent()) status.setText(failure.getMessage());
+                if (isCurrent()) {
+                    status.setText(failure.getMessage());
+                    updateAdvisoryScoreCard(null, null, null, null, false);
+                    updateOpticalRgbCard(null);
+                }
             }
         });
     }
@@ -336,7 +378,7 @@ public class WaterScreen {
 
     private void loadHistory() {
         TextView chartStatus = screen.findViewById(R.id.history_chart_status);
-        chartStatus.setText("Loading reading history…");
+        chartStatus.setText(historySourceThingSpeak ? "Loading live ThingSpeak feeds…" : "Loading database reading history…");
         String start = isoUtc.format(new Date(System.currentTimeMillis() - RANGE_DAYS[selectedRange] * 86_400_000L));
         ApiCallback callback = new ApiCallback() {
             @Override public void onSuccess(String json) {
@@ -351,12 +393,13 @@ public class WaterScreen {
                         }
                     }
                     history.sort((a, b) -> a.optString("timestamp", "").compareTo(b.optString("timestamp", "")));
-                    chartStatus.setText(describeRange(history.size()));
+                    String sourceLabel = historySourceThingSpeak ? "THINGSPEAK" : "DATABASE";
+                    chartStatus.setText(describeRange(history.size()) + " · " + sourceLabel);
                     renderHistoryChart();
                     renderForecastChart();
                     JSONObject newest = history.isEmpty() ? null : history.get(history.size() - 1);
                     notifyStale(newest == null ? 0 : parseTimestamp(newest.optString("timestamp")),
-                            newest == null ? "" : newest.optString("source"));
+                            newest == null ? "" : (historySourceThingSpeak ? "THINGSPEAK" : newest.optString("source")));
                 } catch (JSONException error) {
                     chartStatus.setText("Reading history is unavailable.");
                 }
@@ -365,12 +408,20 @@ public class WaterScreen {
                 if (isCurrent()) chartStatus.setText(failure.getMessage());
             }
         };
-        if (RANGE_DAYS[selectedRange] == 0) {
+
+        if (historySourceThingSpeak) {
+            int limit = 30;
+            if (selectedRange == 0) limit = 30;
+            else if (selectedRange == 1) limit = 50;
+            else limit = 100;
+            api.getThingSpeakHistory(null, limit, callback);
+        } else if (RANGE_DAYS[selectedRange] == 0) {
             api.getReadingHistory(selectedNode, 1000, callback);
         } else {
             api.getReadingHistoryRange(selectedNode, start, null, 1000, callback);
         }
     }
+
 
     private long parseTimestamp(String iso) {
         if (iso == null || iso.trim().isEmpty()) return 0;
@@ -425,7 +476,7 @@ public class WaterScreen {
             status.setText("Saved reading · " + (warning == null ? "offline" : warning.getMessage())
                     + " · " + sourceBadge);
         } else {
-            status.setText("Latest reading · " + (readTime > 0 ? shortDate(timestamp) : "time unknown")
+            status.setText("Database reading · " + (readTime > 0 ? shortDate(timestamp) : "time unknown")
                     + " · " + freshness + " · " + sourceBadge);
         }
         // Two tiles per row rather than one flat list of five rows. Cells are weighted so a
@@ -451,62 +502,21 @@ public class WaterScreen {
             cellsInRow = addMetricTile(metricRow, metric[1], format(value) + metric[2], metric[0], reading, value, cellsInRow);
         }
 
-        // Render raw sensor channels (Red, Green, Blue) when the reading contains them.
-        // Only channels that are actually present in the response are shown.
-        boolean hasRgb = false;
-        for (String[] channel : SENSOR_CHANNELS) {
-            if (reading.has(channel[0]) && !reading.isNull(channel[0])) {
-                hasRgb = true;
-                break;
-            }
-        }
-        if (hasRgb) {
-            for (String[] channel : SENSOR_CHANNELS) {
-                if (!reading.has(channel[0]) || reading.isNull(channel[0])) continue;
-                int value = reading.optInt(channel[0], 0);
-                if (metricRow == null || cellsInRow == 2) {
-                    boolean firstRow = cards.getChildCount() == 0;
-                    metricRow = new LinearLayout(activity);
-                    metricRow.setOrientation(LinearLayout.HORIZONTAL);
-                    LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                    if (!firstRow) rowParams.topMargin = dp(COLUMN_GAP_DP);
-                    cards.addView(metricRow, rowParams);
-                    cellsInRow = 0;
-                }
-                View tile = LayoutInflater.from(activity).inflate(R.layout.item_metric, metricRow, false);
-                ((TextView) tile.findViewById(R.id.metric_label)).setText(channel[1]);
-                ((TextView) tile.findViewById(R.id.metric_value)).setText(format(value) + channel[2]);
-                TextView thresholdView = tile.findViewById(R.id.metric_threshold);
-                TextView statusView = tile.findViewById(R.id.metric_status);
-                thresholdView.setText("Raw sensor counts (0–65535)");
-                thresholdView.setTextColor(activity.getColor(R.color.hydroguard_muted));
-                statusView.setText("");
-                LinearLayout.LayoutParams cellParams =
-                        (LinearLayout.LayoutParams) tile.getLayoutParams();
-                cellParams.width = 0;
-                cellParams.weight = 1f;
-                if (cellsInRow == 1) cellParams.leftMargin = dp(COLUMN_GAP_DP);
-                metricRow.addView(tile, cellParams);
-                cellsInRow++;
-            }
-        }
+        // Update HydroGuard Advisory Score card and Optical colour (RGB) card
+        double phVal = getMetricValue(reading, "ph");
+        double tdsVal = getMetricValue(reading, "tds");
+        double turbVal = getMetricValue(reading, "turbidity");
+        double tempVal = getMetricValue(reading, "temperature");
 
-        // Optional detected-colour preview: only when all three channels are present
-        // and within a plausible range. The preview is labelled "Estimated colour" and
-        // makes no claim about water quality or contaminant detection.
-        if (hasColourPreview(reading)) {
-            addColourPreviewTile(cards, reading);
-        }
+        boolean isStale = (readTime <= 0) || ((System.currentTimeMillis() - readTime) > (15 * 60 * 1000L));
+        updateAdvisoryScoreCard(
+                Double.isNaN(phVal) ? null : phVal,
+                Double.isNaN(tdsVal) ? null : tdsVal,
+                Double.isNaN(turbVal) ? null : turbVal,
+                Double.isNaN(tempVal) ? null : tempVal,
+                isStale);
 
-        TextView indexSummary = screen.findViewById(R.id.index_summary);
-        indexSummary.setText("HydroGuard index " + WaterQualityIndexService.calculate(
-                (float) reading.optDouble("ph", 0), (float) reading.optDouble("tds", 0),
-                (float) reading.optDouble("turbidity", 0), (float) reading.optDouble("temperature", 0))
-                .index + "/100 · " + WaterQualityIndexService.calculate(
-                (float) reading.optDouble("ph", 0), (float) reading.optDouble("tds", 0),
-                (float) reading.optDouble("turbidity", 0), (float) reading.optDouble("temperature", 0))
-                .category.displayName);
+        updateOpticalRgbCard(reading);
     }
 
     private String describeBounds(double[] bounds) {
@@ -559,73 +569,195 @@ public class WaterScreen {
         return cellsInRow + 1;
     }
 
-    /** Checks whether all three RGB channels are present and within a plausible range.
-     *  A valid colour preview requires all three channels to be non-null, non-zero,
-     *  and not saturated (65535). This avoids showing a preview from missing or
-     *  clipped data. */
-    private boolean hasColourPreview(JSONObject reading) {
-        for (String[] channel : SENSOR_CHANNELS) {
-            String key = channel[0];
-            if (!reading.has(key) || reading.isNull(key)) return false;
-            int value = reading.optInt(key, 0);
-            if (value <= 0 || value >= 65535) return false;
+    /** Resolves the object containing RGB channels, whether nested under "rgb" or at the root. */
+    private JSONObject getRgbObject(JSONObject reading) {
+        if (reading == null) return null;
+        if (reading.has("rgb") && !reading.isNull("rgb")) {
+            return reading.optJSONObject("rgb");
         }
-        return true;
+        return reading;
     }
 
-    /** Adds a small colour swatch tile representing the estimated colour from RGB readings.
-     *  The conversion normalises raw 16-bit counts to 8-bit sRGB by scaling the maximum
-     *  channel to 255, which preserves the hue while avoiding arbitrary gamma assumptions.
-     *  The tile is labelled "Estimated colour" and makes no water-quality claim. */
-    private void addColourPreviewTile(LinearLayout cards, JSONObject reading) {
-        int r = reading.optInt("red", 0);
-        int g = reading.optInt("green", 0);
-        int b = reading.optInt("blue", 0);
+    /** Extracts metric value case-insensitively, handling "pH"/"ph", "TDS"/"tds", etc. */
+    private double getMetricValue(JSONObject values, String key) {
+        if (values == null || key == null) return Double.NaN;
+        if (values.has(key)) return values.optDouble(key, Double.NaN);
+        if ("ph".equalsIgnoreCase(key)) {
+            if (values.has("pH")) return values.optDouble("pH", Double.NaN);
+            if (values.has("PH")) return values.optDouble("PH", Double.NaN);
+        } else if ("tds".equalsIgnoreCase(key)) {
+            if (values.has("TDS")) return values.optDouble("TDS", Double.NaN);
+        } else if ("turbidity".equalsIgnoreCase(key)) {
+            if (values.has("Turbidity")) return values.optDouble("Turbidity", Double.NaN);
+        } else if ("temperature".equalsIgnoreCase(key)) {
+            if (values.has("Temperature")) return values.optDouble("Temperature", Double.NaN);
+            if (values.has("temp")) return values.optDouble("temp", Double.NaN);
+        }
+        return values.optDouble(key.toLowerCase(Locale.US),
+                values.optDouble(key.toUpperCase(Locale.US), Double.NaN));
+    }
 
-        // Normalise to 0–255 by scaling the maximum channel to 255.
-        // This preserves relative intensity (hue) without assuming a specific gamma.
-        int max = Math.max(r, Math.max(g, b));
-        int nr = max > 0 ? Math.min(255, (r * 255) / max) : 0;
-        int ng = max > 0 ? Math.min(255, (g * 255) / max) : 0;
-        int nb = max > 0 ? Math.min(255, (b * 255) / max) : 0;
-        int colour = 0xFF000000 | (nr << 16) | (ng << 8) | nb;
+    /** Updates the HydroGuard Advisory Score card with prominent score, badge, gauge, and contributing summary. */
+    private void updateAdvisoryScoreCard(Double ph, Double tds, Double turbidity, Double temperature, boolean isStale) {
+        View card = screen.findViewById(R.id.card_advisory_score);
+        if (card == null) return;
 
-        // Use a full-width row for the colour preview.
-        LinearLayout previewRow = new LinearLayout(activity);
-        previewRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        if (cards.getChildCount() > 0) rowParams.topMargin = dp(COLUMN_GAP_DP);
-        cards.addView(previewRow, rowParams);
+        WaterQualityIndexService.AdvisoryEvaluation eval =
+                WaterQualityIndexService.evaluateAdvisoryScore(ph, tds, turbidity, temperature, isStale);
 
-        View tile = LayoutInflater.from(activity).inflate(R.layout.item_metric, previewRow, false);
-        ((TextView) tile.findViewById(R.id.metric_label)).setText("Estimated colour");
-        ((TextView) tile.findViewById(R.id.metric_value)).setText("");
+        TextView badge = screen.findViewById(R.id.advisory_score_badge);
+        TextView number = screen.findViewById(R.id.advisory_score_number);
+        TextView status = screen.findViewById(R.id.advisory_score_status);
+        LinearProgressIndicator progress = screen.findViewById(R.id.advisory_score_progress);
+        TextView breakdown = screen.findViewById(R.id.advisory_score_breakdown);
+        TextView disclaimer = screen.findViewById(R.id.advisory_score_disclaimer);
+        TextView indexSummary = screen.findViewById(R.id.index_summary);
 
-        // Colour swatch: a small square view showing the estimated colour.
-        View swatch = new View(activity);
-        swatch.setBackgroundColor(colour);
-        LinearLayout.LayoutParams swatchParams = new LinearLayout.LayoutParams(
-                dp(48), dp(48));
-        swatchParams.gravity = android.view.Gravity.CENTER_VERTICAL;
-        swatchParams.rightMargin = dp(12);
+        // Keep hidden index_summary updated for backwards compatibility with tests / accessibility
+        if (indexSummary != null) {
+            if (eval.score >= 0) {
+                indexSummary.setText("Water Quality Index " + eval.score + "/100 · " + eval.badgeText + " (Advisory Indicator)");
+            } else {
+                indexSummary.setText("Water Quality Index Unavailable (Advisory Indicator)");
+            }
+        }
 
-        // The item_metric layout is a vertical LinearLayout. Insert the swatch
-        // between the value and the threshold line.
-        LinearLayout tileContainer = (LinearLayout) tile;
-        tileContainer.addView(swatch, 1, swatchParams);
+        if (badge != null) {
+            badge.setText(eval.badgeText);
+            int badgeBg;
+            int badgeFg;
+            if (eval.category != null) {
+                switch (eval.category) {
+                    case EXCELLENT:
+                        badgeBg = activity.getColor(R.color.hydroguard_safe_surface);
+                        badgeFg = activity.getColor(R.color.hydroguard_green);
+                        break;
+                    case GOOD:
+                        badgeBg = activity.getColor(R.color.hydroguard_safe_surface);
+                        badgeFg = activity.getColor(R.color.hydroguard_teal);
+                        break;
+                    case MODERATE:
+                        badgeBg = activity.getColor(R.color.hydroguard_subsurface);
+                        badgeFg = activity.getColor(R.color.hydroguard_blue);
+                        break;
+                    case POOR:
+                        badgeBg = activity.getColor(R.color.hydroguard_caution_surface);
+                        badgeFg = activity.getColor(R.color.hydroguard_orange);
+                        break;
+                    case CRITICAL:
+                    default:
+                        badgeBg = activity.getColor(R.color.hydroguard_critical_surface);
+                        badgeFg = activity.getColor(R.color.hydroguard_red);
+                        break;
+                }
+            } else {
+                badgeBg = activity.getColor(R.color.hydroguard_subsurface);
+                badgeFg = activity.getColor(R.color.hydroguard_muted);
+            }
+            if (eval.state == WaterQualityIndexService.ScoreState.PROVISIONAL) {
+                badgeBg = activity.getColor(R.color.hydroguard_caution_surface);
+                badgeFg = activity.getColor(R.color.hydroguard_orange);
+            }
+            badge.setBackgroundTintList(ColorStateList.valueOf(badgeBg));
+            badge.setTextColor(badgeFg);
+        }
 
-        TextView thresholdView = tile.findViewById(R.id.metric_threshold);
-        thresholdView.setText("Normalised from raw 16-bit counts (max → 255)");
-        thresholdView.setTextColor(activity.getColor(R.color.hydroguard_muted));
+        if (number != null) {
+            if (eval.score >= 0) {
+                number.setText(String.valueOf(eval.score));
+            } else {
+                number.setText("—");
+            }
+        }
 
-        TextView statusView = tile.findViewById(R.id.metric_status);
-        statusView.setText("Not a water-quality measurement");
-        statusView.setTextColor(activity.getColor(R.color.hydroguard_orange));
+        if (status != null) {
+            status.setText(eval.statusText);
+        }
 
-        LinearLayout.LayoutParams cellParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        previewRow.addView(tile, cellParams);
+        if (progress != null) {
+            if (eval.score >= 0) {
+                progress.setProgressCompat(Math.max(0, Math.min(100, eval.score)), true);
+                int progressColor;
+                if (eval.category != null) {
+                    switch (eval.category) {
+                        case EXCELLENT: progressColor = activity.getColor(R.color.hydroguard_green); break;
+                        case GOOD: progressColor = activity.getColor(R.color.hydroguard_teal); break;
+                        case MODERATE: progressColor = activity.getColor(R.color.hydroguard_blue); break;
+                        case POOR: progressColor = activity.getColor(R.color.hydroguard_orange); break;
+                        case CRITICAL:
+                        default: progressColor = activity.getColor(R.color.hydroguard_red); break;
+                    }
+                } else {
+                    progressColor = activity.getColor(R.color.hydroguard_muted);
+                }
+                if (eval.state == WaterQualityIndexService.ScoreState.PROVISIONAL) {
+                    progressColor = activity.getColor(R.color.hydroguard_orange);
+                }
+                progress.setIndicatorColor(progressColor);
+            } else {
+                progress.setProgressCompat(0, false);
+                progress.setIndicatorColor(activity.getColor(R.color.hydroguard_muted));
+            }
+        }
+
+        if (breakdown != null) {
+            breakdown.setText(eval.breakdownText);
+        }
+
+        if (disclaimer != null) {
+            disclaimer.setText(eval.disclaimer);
+        }
+    }
+
+    /** Updates the Optical colour (RGB) card with accurate linear sRGB swatch and 3 aligned mini-metrics. */
+    private void updateOpticalRgbCard(JSONObject reading) {
+        View card = screen.findViewById(R.id.card_optical_rgb);
+        if (card == null) return;
+
+        TextView redView = screen.findViewById(R.id.rgb_red_value);
+        TextView greenView = screen.findViewById(R.id.rgb_green_value);
+        TextView blueView = screen.findViewById(R.id.rgb_blue_value);
+        View swatchView = screen.findViewById(R.id.rgb_swatch_view);
+        View swatchCard = screen.findViewById(R.id.rgb_swatch_card);
+        TextView footerNote = screen.findViewById(R.id.rgb_footer_note);
+
+        if (OpticalRgbService.hasValidRgb(reading)) {
+            int[] rgb = OpticalRgbService.extractRgb(reading);
+            int r = rgb[0];
+            int g = rgb[1];
+            int b = rgb[2];
+
+            if (redView != null) redView.setText(OpticalRgbService.formatPercent(r));
+            if (greenView != null) greenView.setText(OpticalRgbService.formatPercent(g));
+            if (blueView != null) blueView.setText(OpticalRgbService.formatPercent(b));
+
+            int displayColor = OpticalRgbService.toDisplayColor(r, g, b);
+            if (swatchView != null) swatchView.setBackgroundColor(displayColor);
+            if (swatchCard instanceof com.google.android.material.card.MaterialCardView) {
+                ((com.google.android.material.card.MaterialCardView) swatchCard).setCardBackgroundColor(displayColor);
+            }
+
+            if (footerNote != null) {
+                footerNote.setText("Relative optical intensity, normalised to 0–100% · Not a validated water-quality measurement");
+                footerNote.setTextColor(activity.getColor(R.color.hydroguard_muted));
+            }
+        } else {
+            // Optical readings missing, null, or out of range
+            if (redView != null) redView.setText("--%");
+            if (greenView != null) greenView.setText("--%");
+            if (blueView != null) blueView.setText("--%");
+
+            int neutralColor = activity.getColor(R.color.hydroguard_subsurface);
+            if (swatchView != null) swatchView.setBackgroundColor(neutralColor);
+            if (swatchCard instanceof com.google.android.material.card.MaterialCardView) {
+                ((com.google.android.material.card.MaterialCardView) swatchCard).setCardBackgroundColor(neutralColor);
+            }
+
+            if (footerNote != null) {
+                footerNote.setText("Optical colour channels unavailable · Sensor not detected or reading pending");
+                footerNote.setTextColor(activity.getColor(R.color.hydroguard_muted));
+            }
+        }
     }
 
     private void loadAlerts() {
@@ -673,74 +805,54 @@ public class WaterScreen {
         }
     }
 
-    private void loadForecast() {
-        TextView forecastStatus = screen.findViewById(R.id.forecast_status);
-        forecastStatus.setText("Checking recent history and generating a 24-hour forecast…");
-        screen.findViewById(R.id.load_forecast).setEnabled(false);
-        api.generateForecast(selectedNode, new ApiCallback() {
-            @Override public void onSuccess(String json) {
-                screen.findViewById(R.id.load_forecast).setEnabled(true);
-                if (!isCurrent()) return;
-                try {
-                    latestForecast = new JSONObject(json);
-                    JSONObject prediction = latestForecast.getJSONObject("prediction");
-                    // Provenance must stay truthful: a forecast built on the seeded
-                    // development history is labelled as such, never as live sensor data.
-                    String dataSource = latestForecast.optString("data_source", "").trim();
-                    int horizon = latestForecast.optInt("forecast_horizon_hours", 24);
-                    String provenanceNote;
-                    if (dataSource.isEmpty()) {
-                        provenanceNote = "Source not reported by the server";
-                    } else if (dataSource.contains("SIMULATED") || dataSource.contains("DEVELOPMENT")) {
-                        provenanceNote = "Based on simulated development data, not a live sensor feed";
-                    } else if (dataSource.contains("HISTORICAL")) {
-                        provenanceNote = "Based on recorded historical readings";
-                    } else if (dataSource.contains("REAL") || dataSource.contains("LIVE")) {
-                        provenanceNote = "Based on live sensor readings";
-                    } else {
-                        provenanceNote = "Source: " + dataSource;
-                    }
-                    forecastStatus.setText("Forecast for " + latestForecast.optString("forecast_date", "")
-                            + "\nHorizon: next " + horizon + " hours"
-                            + "\nModels: LSTM, PatchTST, TimeMixer with adaptive ensemble"
-                            + "\nStrategy: " + latestForecast.optString("weight_strategy", "")
-                            + " · " + latestForecast.optString("weight_status", "")
-                            + "\nGenerated " + Timestamps.readable(latestForecast.optString("generated_at", "just now"))
-                            + "\n" + provenanceNote
-                            + "\npH " + format(prediction.optDouble("pH"))
-                            + " · TDS " + format(prediction.optDouble("TDS")) + " ppm"
-                            + " · Turbidity " + format(prediction.optDouble("turbidity")) + " NTU"
-                            + " · Temperature " + format(prediction.optDouble("temperature")) + " °C");
-                    screen.findViewById(R.id.forecast_chart_card).setVisibility(View.VISIBLE);
-                    // Before the chart: renderForecastChart returns early when there
-                    // is no observed history to plot, and the legend must still
-                    // describe what the server actually sent.
-                    renderForecastProvenance();
-                    renderForecastChart();
-                } catch (JSONException error) {
-                    forecastStatus.setText("The server returned an invalid forecast.");
-                }
-            }
-
-            @Override public void onFailure(ApiFailure failure) {
-                screen.findViewById(R.id.load_forecast).setEnabled(true);
-                if (isCurrent()) forecastStatus.setText(failure.getMessage());
-            }
-        });
-    }
-
     private void loadThingSpeakForecast() {
         TextView forecastStatus = screen.findViewById(R.id.forecast_status);
-        forecastStatus.setText("Fetching ThingSpeak data and generating forecast…");
-        screen.findViewById(R.id.load_forecast).setEnabled(false);
+        forecastStatus.setText("Fetching ThingSpeak data and checking 24-hour forecast…");
+        View tsBtn = screen.findViewById(R.id.load_thingspeak_forecast);
+        if (tsBtn != null) tsBtn.setEnabled(false);
         api.generateThingSpeakForecast(null, new ApiCallback() {
             @Override public void onSuccess(String json) {
-                screen.findViewById(R.id.load_forecast).setEnabled(true);
+                if (tsBtn != null) tsBtn.setEnabled(true);
                 if (!isCurrent()) return;
                 try {
                     JSONObject response = new JSONObject(json);
                     if ("not_configured".equals(response.optString("status"))) {
                         forecastStatus.setText("ThingSpeak not configured: " + response.optString("detail"));
+                        return;
+                    }
+                    if ("forecast_unavailable".equals(response.optString("status"))) {
+                        String detail = response.optString("detail", "Forecasting requires five features including Optical Colour Index, which is not measured by the hardware. Predictions are withheld.");
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("Forecast unavailable — more validated sensor history is needed.\n\n");
+                        sb.append("Reason: ").append(detail).append("\n\n");
+                        sb.append("• Model requirement: Checkpoints (LSTM, PatchTST, TimeMixer) require 5 validated input features.\n");
+                        sb.append("• Hardware status: Physical sensor provides 4 parameters (pH, TDS, Turbidity, Temp) plus raw TCS34725 RGB light intensity.\n");
+                        sb.append("• Integrity policy: Optical colour index cannot be derived or fabricated from RGB, and current telemetry feeds are insufficient to train and validate a separate model.");
+                        JSONObject latestReading = response.optJSONObject("latest_reading");
+                        if (latestReading != null) {
+                            JSONObject values = latestReading.optJSONObject("values");
+                            if (values != null) {
+                                sb.append("\n\nLatest measured baseline:\n")
+                                        .append("pH ").append(format(getMetricValue(values, "ph")))
+                                        .append(" · TDS ").append(format(getMetricValue(values, "tds"))).append(" ppm")
+                                        .append(" · Turbidity ").append(format(getMetricValue(values, "turbidity"))).append(" NTU")
+                                        .append(" · Temp ").append(format(getMetricValue(values, "temperature"))).append(" °C");
+                            }
+                            JSONObject rgb = latestReading.optJSONObject("rgb");
+                            if (rgb != null && rgb.length() > 0) {
+                                sb.append("\nRGB: R=").append(rgb.optInt("red", 0)).append("%")
+                                        .append(" G=").append(rgb.optInt("green", 0)).append("%")
+                                        .append(" B=").append(rgb.optInt("blue", 0)).append("%");
+                            }
+                        }
+                        forecastStatus.setText(sb.toString());
+                        View chartCard = screen.findViewById(R.id.forecast_chart_card);
+                        if (chartCard != null) chartCard.setVisibility(View.GONE);
+                        TextView badge = screen.findViewById(R.id.forecast_source_badge);
+                        if (badge != null) {
+                            badge.setVisibility(View.VISIBLE);
+                            badge.setText("UNAVAILABLE");
+                        }
                         return;
                     }
                     latestForecast = response;
@@ -766,30 +878,34 @@ public class WaterScreen {
                     sb.append("\nHorizon: next ").append(horizon).append(" hours");
                     sb.append("\nModels: LSTM, PatchTST, TimeMixer with adaptive ensemble");
                     if (forecast != null) {
-                        sb.append("\nEnsemble: pH ").append(format(forecast.optJSONObject("ensemble").optDouble("pH")))
-                                .append(" · TDS ").append(format(forecast.optJSONObject("ensemble").optDouble("TDS"))).append(" ppm")
-                                .append(" · Turbidity ").append(format(forecast.optJSONObject("ensemble").optDouble("turbidity"))).append(" NTU")
-                                .append(" · Temp ").append(format(forecast.optJSONObject("ensemble").optDouble("temperature"))).append(" °C")
-                                .append(" · OCI ").append(format(forecast.optJSONObject("ensemble").optDouble("optical_colour_index")));
+                        JSONObject ensemble = forecast.optJSONObject("ensemble");
+                        if (ensemble != null) {
+                            sb.append("\nEnsemble: pH ").append(format(getMetricValue(ensemble, "ph")))
+                                    .append(" · TDS ").append(format(getMetricValue(ensemble, "tds"))).append(" ppm")
+                                    .append(" · Turbidity ").append(format(getMetricValue(ensemble, "turbidity"))).append(" NTU")
+                                    .append(" · Temp ").append(format(getMetricValue(ensemble, "temperature"))).append(" °C")
+                                    .append(" · OCI ").append(format(ensemble.optDouble("optical_colour_index", Double.NaN)));
+                        }
                     }
                     sb.append("\n").append(provenanceNote);
                     if (latestReading != null) {
                         JSONObject values = latestReading.optJSONObject("values");
                         if (values != null) {
-                            sb.append("\nLatest: pH ").append(format(values.optDouble("pH")))
-                                    .append(" · TDS ").append(format(values.optDouble("TDS"))).append(" ppm")
-                                    .append(" · Turbidity ").append(format(values.optDouble("turbidity"))).append(" NTU")
-                                    .append(" · Temp ").append(format(values.optDouble("temperature"))).append(" °C");
+                            sb.append("\nLatest: pH ").append(format(getMetricValue(values, "ph")))
+                                    .append(" · TDS ").append(format(getMetricValue(values, "tds"))).append(" ppm")
+                                    .append(" · Turbidity ").append(format(getMetricValue(values, "turbidity"))).append(" NTU")
+                                    .append(" · Temp ").append(format(getMetricValue(values, "temperature"))).append(" °C");
                             JSONObject rgb = latestReading.optJSONObject("rgb");
                             if (rgb != null && rgb.length() > 0) {
-                                sb.append("\nRGB: R=").append(rgb.optInt("red"))
-                                        .append(" G=").append(rgb.optInt("green"))
-                                        .append(" B=").append(rgb.optInt("blue"));
+                                sb.append("\nRGB: R=").append(rgb.optInt("red", 0)).append("%")
+                                        .append(" G=").append(rgb.optInt("green", 0)).append("%")
+                                        .append(" B=").append(rgb.optInt("blue", 0)).append("%");
                             }
                         }
                     }
                     forecastStatus.setText(sb.toString());
-                    screen.findViewById(R.id.forecast_chart_card).setVisibility(View.VISIBLE);
+                    View chartCard = screen.findViewById(R.id.forecast_chart_card);
+                    if (chartCard != null) chartCard.setVisibility(View.VISIBLE);
                     renderForecastProvenance();
                     renderForecastChart();
                 } catch (JSONException error) {
@@ -798,41 +914,267 @@ public class WaterScreen {
             }
 
             @Override public void onFailure(ApiFailure failure) {
-                screen.findViewById(R.id.load_forecast).setEnabled(true);
+                if (tsBtn != null) tsBtn.setEnabled(true);
                 if (isCurrent()) forecastStatus.setText(failure.getMessage());
             }
         });
     }
 
+    /** Load the latest live reading from ThingSpeak without running a forecast. */
+    private void loadThingSpeakLive() {
+        if (isThingSpeakLoading) return;
+        isThingSpeakLoading = true;
+        TextView status = screen.findViewById(R.id.reading_status);
+        if (status != null) {
+            status.setText("Fetching live ThingSpeak reading…");
+        }
+        View headerRefresh = screen.findViewById(R.id.btn_refresh_live);
+        if (headerRefresh != null) headerRefresh.setEnabled(false);
+        SwipeRefreshLayout refresh = screen.findViewById(R.id.water_refresh);
+
+        api.getLatestThingSpeakReading(null, new ApiCallback() {
+            @Override public void onSuccess(String json) {
+                isThingSpeakLoading = false;
+                if (headerRefresh != null) headerRefresh.setEnabled(true);
+                if (refresh != null) refresh.setRefreshing(false);
+                if (!isCurrent()) return;
+                try {
+                    JSONObject response = new JSONObject(json);
+                    renderThingSpeakLiveReading(response);
+                } catch (JSONException error) {
+                    showLiveReadingError("The server returned an invalid ThingSpeak reading.");
+                }
+            }
+
+            @Override public void onFailure(ApiFailure failure) {
+                isThingSpeakLoading = false;
+                if (headerRefresh != null) headerRefresh.setEnabled(true);
+                if (refresh != null) refresh.setRefreshing(false);
+                if (!isCurrent()) return;
+                showLiveReadingError(failure.getMessage());
+            }
+        });
+    }
+
+    private void showLiveReadingError(String message) {
+        TextView status = screen.findViewById(R.id.reading_status);
+        if (status != null) {
+            status.setText("Live ThingSpeak fetch failed: " + message + " · Tap Refresh above to retry.");
+        }
+        TextView sensorStatus = screen.findViewById(R.id.sensor_status);
+        if (sensorStatus != null) {
+            sensorStatus.setText("ThingSpeak Channel 244357 · Telemetry unreachable");
+        }
+        LinearLayout cards = screen.findViewById(R.id.metric_cards);
+        if (cards != null) {
+            cards.removeAllViews();
+            LinearLayout errorCard = new LinearLayout(activity);
+            errorCard.setOrientation(LinearLayout.VERTICAL);
+            errorCard.setPadding(dp(16), dp(20), dp(16), dp(20));
+            errorCard.setGravity(android.view.Gravity.CENTER);
+            errorCard.setBackgroundColor(activity.getColor(R.color.hydroguard_surface));
+
+            TextView errorTitle = new TextView(activity);
+            errorTitle.setText("Live Telemetry Unavailable");
+            errorTitle.setTextColor(activity.getColor(R.color.hydroguard_text));
+            errorTitle.setTextSize(14f);
+            errorTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+            errorTitle.setGravity(android.view.Gravity.CENTER);
+            errorCard.addView(errorTitle);
+
+            TextView errorDesc = new TextView(activity);
+            errorDesc.setText("Could not retrieve latest readings from ThingSpeak channel 244357.\nVerify network connection or server status and tap Refresh above.\nSimulated or cached records are withheld in production.");
+            errorDesc.setTextColor(activity.getColor(R.color.hydroguard_muted));
+            errorDesc.setTextSize(12f);
+            errorDesc.setGravity(android.view.Gravity.CENTER);
+            LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            descParams.topMargin = dp(6);
+            errorCard.addView(errorDesc, descParams);
+
+            cards.addView(errorCard);
+        }
+        TextView indexSummary = screen.findViewById(R.id.index_summary);
+        if (indexSummary != null) {
+            indexSummary.setText("HydroGuard index unavailable · Live sensor telemetry required");
+        }
+        updateAdvisoryScoreCard(null, null, null, null, false);
+        updateOpticalRgbCard(null);
+    }
+
+    /** Render a live ThingSpeak reading in the metric cards with correct units. */
+    private void renderThingSpeakLiveReading(JSONObject reading) {
+        TextView status = screen.findViewById(R.id.reading_status);
+        LinearLayout cards = screen.findViewById(R.id.metric_cards);
+        cards.removeAllViews();
+
+        String timestamp = reading.optString("timestamp", "");
+        long readTime = parseTimestamp(timestamp);
+        String observedAt = reading.optString("observed_at", "");
+        long observedTime = parseTimestamp(observedAt);
+
+        String freshness = "up to date";
+        if (readTime > 0) {
+            long age = Math.max(0, System.currentTimeMillis() - readTime);
+            if (age < 5 * 60 * 1000L) freshness = "up to date";
+            else if (age < 30 * 60 * 1000L) freshness = "stale";
+            else freshness = "no reading for " + Math.round(age / 3_600_000.0) + " hours";
+        } else {
+            freshness = "time unknown";
+        }
+
+        status.setText("Hostel Water Tank · " + (readTime > 0 ? shortDate(timestamp) : "time unknown")
+                + " · " + freshness);
+
+        TextView sensorStatus = screen.findViewById(R.id.sensor_status);
+        if (sensorStatus != null) {
+            int entryId = reading.optInt("entry_id", 0);
+            int statusFlag = reading.optInt("status_flag", -1);
+            String hwStatus = statusFlag == 0 ? "Normal" : (statusFlag > 0 ? "Flag " + statusFlag : "");
+            sensorStatus.setText("Hostel Telemetry Feed · Channel 244357" + (entryId > 0 ? " · #" + entryId : "")
+                    + (!hwStatus.isEmpty() ? " · " + hwStatus : "") + " · Source: ThingSpeak");
+        }
+
+        // Render primary water-quality metrics
+        LinearLayout metricRow = null;
+        int cellsInRow = 0;
+
+        JSONObject values = reading.optJSONObject("values");
+        if (values != null) {
+            for (String[] metric : METRICS) {
+                String key = metric[0];
+                double value = getMetricValue(values, key);
+                if (Double.isNaN(value)) continue;
+                if (metricRow == null || cellsInRow == 2) {
+                    boolean firstRow = cards.getChildCount() == 0;
+                    metricRow = new LinearLayout(activity);
+                    metricRow.setOrientation(LinearLayout.HORIZONTAL);
+                    LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                    if (!firstRow) rowParams.topMargin = dp(COLUMN_GAP_DP);
+                    cards.addView(metricRow, rowParams);
+                    cellsInRow = 0;
+                }
+                cellsInRow = addMetricTile(metricRow, metric[1], format(value) + metric[2], key, reading, value, cellsInRow);
+            }
+
+            // Update HydroGuard Advisory Score card
+            double ph = getMetricValue(values, "ph");
+            double tds = getMetricValue(values, "tds");
+            double turbidity = getMetricValue(values, "turbidity");
+            double temperature = getMetricValue(values, "temperature");
+
+            boolean isStale = (readTime <= 0) || ((System.currentTimeMillis() - readTime) > (15 * 60 * 1000L));
+            updateAdvisoryScoreCard(
+                    Double.isNaN(ph) ? null : ph,
+                    Double.isNaN(tds) ? null : tds,
+                    Double.isNaN(turbidity) ? null : turbidity,
+                    Double.isNaN(temperature) ? null : temperature,
+                    isStale);
+        } else {
+            updateAdvisoryScoreCard(null, null, null, null, false);
+        }
+
+        // Update Optical colour (RGB) card
+        updateOpticalRgbCard(reading);
+
+        notifyStale(readTime, "THINGSPEAK");
+    }
+
+    /**
+     * Checks if a measured sensor value represents a physically valid aqueous observation
+     * rather than an open-circuit / 0V ADC sensor dropout or unphysical artifact.
+     */
+    private static boolean isPhysicallyValid(String metric, double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) return false;
+        String m = metric.toLowerCase(Locale.ROOT);
+        if ("ph".equals(m)) {
+            // Natural aqueous water: 0.5 <= pH <= 14.0. pH <= 0.05 is an open-circuit 0V analog probe dropout.
+            return value > 0.05 && value <= 14.0;
+        } else if ("tds".equals(m)) {
+            return value >= 0.0 && value < 4000.0;
+        } else if ("turbidity".equals(m)) {
+            return value >= 0.0 && value < 1000.0;
+        } else if ("temperature".equals(m)) {
+            return value > 0.5 && value < 75.0;
+        }
+        return true;
+    }
+
+    private String metricUnit(String metric) {
+        for (String[] candidate : METRICS) {
+            if (candidate[0].equalsIgnoreCase(metric)) return candidate[2].trim();
+        }
+        for (String[] candidate : SENSOR_CHANNELS) {
+            if (candidate[0].equalsIgnoreCase(metric)) return candidate[2].trim();
+        }
+        return "";
+    }
+
     private void renderHistoryChart() {
         LineChart chart = screen.findViewById(R.id.history_chart);
         TextView title = screen.findViewById(R.id.history_chart_title);
-        if (title != null) {
-            // Names the series and the horizon; the status line below reports the
-            // row count, not what is being counted.
-            title.setText(metricLabel(selectedMetric) + " · " + RANGE_LABELS[selectedRange]);
-        }
+        TextView status = screen.findViewById(R.id.history_chart_status);
+
         List<Entry> entries = new ArrayList<>();
         List<String> labels = new ArrayList<>();
         int index = 0;
+        int droppedOut = 0;
+        double latestVal = Double.NaN;
+
         for (JSONObject row : history) {
             double value = row.optDouble(selectedMetric, Double.NaN);
+            if (Double.isNaN(value) && "ph".equalsIgnoreCase(selectedMetric)) {
+                value = row.optDouble("pH", Double.NaN);
+            } else if (Double.isNaN(value) && "tds".equalsIgnoreCase(selectedMetric)) {
+                value = row.optDouble("TDS", Double.NaN);
+            }
             if (Double.isNaN(value)) continue;
+
+            if (!isPhysicallyValid(selectedMetric, value)) {
+                droppedOut++;
+                continue;
+            }
+
             entries.add(new Entry(index++, (float) value));
-            labels.add(shortDate(row.optString("timestamp", "")));
+            String timeStr = shortDate(row.optString("timestamp", ""));
+            labels.add(timeStr);
+            latestVal = value;
         }
+
+        if (title != null) {
+            String unit = metricUnit(selectedMetric);
+            String latestStr = Double.isNaN(latestVal) ? "--" : (format(latestVal) + (unit.isEmpty() ? "" : " " + unit));
+            title.setText(metricLabel(selectedMetric) + " · " + RANGE_LABELS[selectedRange] + " (Latest: " + latestStr + ")");
+        }
+
+        if (status != null) {
+            if (entries.isEmpty()) {
+                status.setText("No valid observations found for this range.");
+            } else {
+                float first = entries.get(0).getY();
+                float last = entries.get(entries.size() - 1).getY();
+                float delta = last - first;
+                String unit = metricUnit(selectedMetric);
+                String trend = (Math.abs(delta) < 0.05 ? "→ Stable" : (delta > 0 ? "↗ +" : "↘ ") + format(delta) + (unit.isEmpty() ? "" : " " + unit));
+                String qualityNote = droppedOut > 0 ? " · " + droppedOut + " dropout" + (droppedOut > 1 ? "s" : "") + " filtered" : "";
+                status.setText(entries.size() + " points · " + trend + " · Tap point to inspect" + qualityNote);
+            }
+        }
+
         if (entries.isEmpty()) {
-            // Clearing is deliberate: a range with no readings must not keep
-            // showing the previous range's line as though it still applied.
             chart.clear();
             return;
         }
-        chart.setData(buildData(entries, labels, "Observed",
+
+        String datasetLabel = historySourceThingSpeak ? "Observed Telemetry" : "Observed (Saved DB)";
+        chart.setData(buildData(entries, labels, datasetLabel,
                 activity.getColor(R.color.hydroguard_chart_observed), false));
         applyThresholdLines(chart, entries);
         styleChart(chart, labels);
         redrawAfterLayout(chart);
     }
+
 
     /**
      * Re-notifies the chart on the next layout pass.
@@ -1052,7 +1394,7 @@ public class WaterScreen {
         String label;
         int text;
         int fill;
-        if (upper.contains("REAL") || upper.contains("LIVE")) {
+        if (upper.contains("REAL") || upper.contains("LIVE") || upper.contains("THINGSPEAK")) {
             label = "LIVE SOURCE";
             text = activity.getColor(R.color.hydroguard_provenance_live);
             fill = activity.getColor(R.color.hydroguard_provenance_live_bg);
@@ -1086,18 +1428,25 @@ public class WaterScreen {
         int observedColor = activity.getColor(R.color.hydroguard_chart_observed);
         int forecastColor = activity.getColor(R.color.hydroguard_chart_forecast);
 
-        LineDataSet observedSet = new LineDataSet(observed, "Observed");
+        LineDataSet observedSet = new LineDataSet(observed, "Observed Telemetry");
         observedSet.setColor(observedColor);
         observedSet.setCircleColor(observedColor);
-        observedSet.setCircleRadius(2.5f);
+        observedSet.setCircleRadius(3.5f);
+        observedSet.setCircleHoleRadius(2.0f);
+        observedSet.setCircleHoleColor(activity.getColor(R.color.hydroguard_surface));
         observedSet.setDrawValues(false);
-        observedSet.setLineWidth(2f);
+        observedSet.setLineWidth(2.5f);
         observedSet.setMode(LineDataSet.Mode.LINEAR);
+        observedSet.setDrawFilled(true);
+        observedSet.setFillColor(observedColor);
+        observedSet.setFillAlpha(25);
 
-        LineDataSet forecastSet = new LineDataSet(predicted, "Forecast (simulated data)");
+        LineDataSet forecastSet = new LineDataSet(predicted, "24h Forecast");
         forecastSet.setColor(forecastColor);
         forecastSet.setCircleColor(forecastColor);
-        forecastSet.setCircleRadius(4f);
+        forecastSet.setCircleRadius(5f);
+        forecastSet.setCircleHoleRadius(2.5f);
+        forecastSet.setCircleHoleColor(activity.getColor(R.color.hydroguard_surface));
         forecastSet.setDrawValues(false);
         // No line: a lone predicted point must not look like a measured trend.
         forecastSet.setLineWidth(0f);
@@ -1123,9 +1472,20 @@ public class WaterScreen {
         LineDataSet set = new LineDataSet(entries, name);
         set.setColor(color);
         set.setCircleColor(color);
-        set.setCircleRadius(2.5f);
+        set.setCircleRadius(3.5f);
+        set.setCircleHoleRadius(2.0f);
+        set.setCircleHoleColor(activity.getColor(R.color.hydroguard_surface));
         set.setDrawValues(false);
-        set.setLineWidth(2f);
+        set.setLineWidth(2.5f);
+        set.setMode(LineDataSet.Mode.LINEAR);
+        set.setDrawFilled(true);
+        set.setFillColor(color);
+        set.setFillAlpha(25);
+        set.setDrawHighlightIndicators(true);
+        set.setHighLightColor(activity.getColor(R.color.hydroguard_cerulean));
+        set.setHighlightLineWidth(1.2f);
+        set.enableDashedHighlightLine(4f, 3f, 0f);
+
         LineData data = new LineData(set);
         data.setValueFormatter(new ValueFormatter() {
             @Override public String getPointLabel(Entry entry) {
@@ -1191,9 +1551,18 @@ public class WaterScreen {
         chart.getAxisRight().setEnabled(false);
         chart.setDrawGridBackground(false);
         chart.setScaleEnabled(false);
-        chart.setTouchEnabled(false);
-        chart.setExtraTopOffset(6f);
-        chart.setExtraBottomOffset(2f);
+        chart.setTouchEnabled(true);
+        chart.setDragEnabled(false);
+        chart.setPinchZoom(false);
+        chart.setDoubleTapToZoomEnabled(false);
+
+        // Interactive inspection tooltip
+        HydroGuardMarkerView marker = new HydroGuardMarkerView(activity, labels, metricUnit(selectedMetric));
+        marker.setChartView(chart);
+        chart.setMarker(marker);
+
+        chart.setExtraTopOffset(10f);
+        chart.setExtraBottomOffset(4f);
         chart.notifyDataSetChanged();
     }
 
@@ -1464,6 +1833,8 @@ public class WaterScreen {
             case "LIVE_SENSOR":
             case "SENSOR":
                 return "LIVE SENSOR";
+            case "THINGSPEAK":
+                return "THINGSPEAK";
             case "SIMULATED_DEVELOPMENT":
             case "SIMULATED":
             case "DEMO":
@@ -1481,7 +1852,7 @@ public class WaterScreen {
     /** True only for provenance tags that represent a physical sensor feed. */
     private boolean isLiveSource(String source) {
         String normalized = source == null ? "" : source.trim().toUpperCase(Locale.ROOT);
-        return "REAL_SENSOR".equals(normalized) || "LIVE_SENSOR".equals(normalized) || "SENSOR".equals(normalized);
+        return "REAL_SENSOR".equals(normalized) || "LIVE_SENSOR".equals(normalized) || "SENSOR".equals(normalized) || "THINGSPEAK".equals(normalized);
     }
 
     private String describeAge(long age) {

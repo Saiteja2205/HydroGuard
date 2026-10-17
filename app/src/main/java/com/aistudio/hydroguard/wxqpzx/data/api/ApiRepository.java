@@ -205,6 +205,15 @@ public class ApiRepository {
         enqueue(api.generateThingSpeakForecast(channelId), "/api/v1/thingspeak/forecast", callback);
     }
 
+    public void getLatestThingSpeakReading(String channelId, ApiCallback callback) {
+        enqueue(api.getLatestThingSpeakReading(channelId), "/api/v1/thingspeak/latest", callback);
+    }
+
+    public void getThingSpeakHistory(String channelId, Integer limit, ApiCallback callback) {
+        enqueue(api.getThingSpeakHistory(channelId, limit), "/api/v1/thingspeak/history", callback);
+    }
+
+
     public void inviteAdmin(String email, ApiCallback callback) {
         JSONObject json = new JSONObject();
         try { json.put("email", email.trim()); } catch (JSONException ignored) { }
@@ -471,7 +480,7 @@ public class ApiRepository {
                 + " failed before the server returned a response. Check the phone's Wi-Fi and the backend's LAN connection.";
     }
 
-    private ApiFailure classifyResponse(int status, String endpoint, String body) {
+    static ApiFailure classifyResponse(int status, String endpoint, String body) {
         String detail = parseDetail(body);
         ApiFailure.Kind kind = ApiFailure.Kind.API_ERROR;
         String message;
@@ -492,15 +501,27 @@ public class ApiRepository {
         return new ApiFailure(kind, endpoint, status, message, null);
     }
 
-    private String parseDetail(String body) {
+    static String parseDetail(String body) {
         if (body == null || body.trim().isEmpty()) return "";
         try {
             JSONObject json = new JSONObject(body);
             Object detail = json.opt("detail");
             return detail instanceof String ? ((String) detail).trim() : "";
-        } catch (JSONException ignored) {
-            return "";
+        } catch (Throwable ignored) {
+            return fallbackParseDetail(body);
         }
+    }
+
+    private static String fallbackParseDetail(String body) {
+        int idx = body.indexOf("\"detail\"");
+        if (idx == -1) return "";
+        int colon = body.indexOf(':', idx);
+        if (colon == -1) return "";
+        int firstQuote = body.indexOf('"', colon);
+        if (firstQuote == -1) return "";
+        int secondQuote = body.indexOf('"', firstQuote + 1);
+        if (secondQuote == -1) return "";
+        return body.substring(firstQuote + 1, secondQuote).trim();
     }
 
     private String read(ResponseBody body) {

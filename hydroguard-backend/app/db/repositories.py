@@ -557,7 +557,12 @@ class AlertRepository:
         threshold: float,
         since: datetime,
     ) -> Optional[Alert]:
-        """Check if a similar alert was recently created (for cooldown/deduplication)."""
+        """Check if a similar alert was recently created (for cooldown/deduplication).
+
+        Uses Alert.created_at (when the alert was persisted) rather than Alert.timestamp
+        (the sensor reading time) to correctly handle historical data sources like ThingSpeak.
+        Includes both ACTIVE and ACKNOWLEDGED alerts to prevent re-alerting during cooldown.
+        """
         return (
             db.query(Alert)
             .filter(
@@ -565,11 +570,11 @@ class AlertRepository:
                     Alert.node_id == node_id,
                     Alert.parameter == parameter,
                     Alert.threshold == threshold,
-                    Alert.status == "ACTIVE",
-                    Alert.timestamp >= since,
+                    Alert.status.in_(["ACTIVE", "ACKNOWLEDGED"]),
+                    Alert.created_at >= since,
                 )
             )
-            .order_by(desc(Alert.timestamp))
+            .order_by(desc(Alert.created_at))
             .first()
         )
 

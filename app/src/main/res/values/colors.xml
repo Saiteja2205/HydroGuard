@@ -86,6 +86,10 @@
     <!-- Scrim behind diagnostic bottom sheets. -->
     <color name="hydroguard_scrim">#7A0F1E36</color>
 
+    <!-- Star rating. -->
+    <color name="hydroguard_star_active">#F59E0B</color>
+    <color name="hydroguard_star_inactive">#CBD5E1</color>
+
     <!-- Legacy template tokens still referenced by the launcher theme and splash art.
          They are not part of the approved palette and are not used by any screen. -->
     <color name="purple_200">#FFBB86FC</color>

@@ -43,6 +43,12 @@ public interface HydroGuardApiService {
 
     @GET("api/v1/thingspeak/forecast") Call<ResponseBody> generateThingSpeakForecast(@Query("channel_id") String channelId);
 
+    @GET("api/v1/thingspeak/latest") Call<ResponseBody> getLatestThingSpeakReading(@Query("channel_id") String channelId);
+
+    @GET("api/v1/thingspeak/history") Call<ResponseBody> getThingSpeakHistory(
+            @Query("channel_id") String channelId, @Query("limit") Integer limit);
+
+
     @GET("api/v1/hostel/configuration") Call<ResponseBody> getHostelConfiguration();
     @GET("api/v1/hostel/issues/workflow") Call<ResponseBody> getIssueWorkflow();
     @GET("api/v1/hostel/issues") Call<ResponseBody> getHostelIssues();

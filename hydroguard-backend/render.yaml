@@ -1,0 +1,86 @@
+# HydroGuard backend — Render blueprint.
+#
+# This describes a single CPU-only web service. Render reads this file on
+# "New > Blueprint" and provisions the service, disk and environment together.
+#
+# IMPORTANT — read the "Sync: false" entries below before deploying. Anything
+# marked `sync: false` is a secret Render will NOT set for you: you must enter
+# it in the dashboard. The app fails closed when they are missing, by design —
+# it will not fall back to a dev token, a default password, or a placeholder.
+# No secret value is written in this file, and none should ever be committed.
+
+services:
+  - type: web
+    name: hydroguard-backend
+    runtime: docker
+    # Build from the backend subdirectory so app/, ml/ and
+    # artifacts/checkpoints/ are all in the build context.
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+
+    # Render injects $PORT; the Dockerfile's CMD already reads it.
+    healthCheckPath: /api/v1/health
+
+    # Free-tier instances spin down when idle, so the first request after a
+    # pause pays a cold start (checkpoint load happens lazily on the first
+    # forecast, not at boot, so the cold start is a few seconds rather than
+    # tens of seconds).
+    autoDeploy: true
+
+    disk:
+      name: hydroguard-data
+      mountPath: /srv/hydroguard/data
+      sizeGB: 1
+
+    envVars:
+      # ---- Runtime mode -------------------------------------------------
+      # production locks CORS to an empty origin list and disables the
+      # development identity bridge. Do not set development here: it enables
+      # the X-HydroGuard-Development-* header bypass, which must never be
+      # reachable from the public internet.
+      - key: HYDROGUARD_ENVIRONMENT
+        value: production
+
+      # ---- Firebase (required; app fails closed without it) --------------
+      # GOOGLE_APPLICATION_CREDENTIALS must point at a service-account JSON
+      # file. Render supplies this as a secret file mounted into the container;
+      # set the path below to wherever you mount it.
+      - key: HYDROGUARD_FIREBASE_PROJECT_ID
+        value: hydroguard-4a606
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        sync: false   # path to the mounted service-account JSON, e.g. /etc/hydroguard/firebase.json
+
+      # ---- Student registration allowlist --------------------------------
+      # Comma-separated, no spaces. A domain that is absent here will NOT
+      # auto-provision a student, and an unset value rejects every
+      # registration rather than opening it.
+      - key: HYDROGUARD_ALLOWED_STUDENT_DOMAINS
+        sync: false   # e.g. your-college.edu.in
+
+      # ---- Sensor ingestion (optional) -----------------------------------
+      # Leave unconfigured to keep POST /readings disabled (it fails closed).
+      - key: HYDROGUARD_SENSOR_API_KEY
+        sync: false
+
+      # ---- ThingSpeak channel (for GET /api/v1/thingspeak/forecast) -------
+      # Without a channel id this endpoint returns 503 and says exactly which
+      # variable to set. The read API key is only needed for a private channel.
+      - key: HYDROGUARD_THINGSPEAK_CHANNEL_ID
+        sync: false   # numeric channel id, e.g. 123456
+      - key: HYDROGUARD_THINGSPEAK_READ_API_KEY
+        sync: false   # optional; only for private channels
+      # Optional overrides, each with a safe default in code:
+      #   HYDROGUARD_THINGSPEAK_BASE_URL          (default https://api.thingspeak.com)
+      #   HYDROGUARD_THINGSPEAK_RESULTS           (default 30, floored at the 30-row model window)
+      #   HYDROGUARD_THINGSPEAK_TIMEOUT_SECONDS   (default 10)
+
+      # ---- Persistence ----------------------------------------------------
+      # Defaults to ./data/hydroguard.db, which the Dockerfile places on the
+      # persistent disk above. Override only if you point at an external DB.
+      # - key: HYDROGUARD_DATABASE_PATH
+      #   value: /srv/hydroguard/data/hydroguard.db
+
+      # ---- Logging --------------------------------------------------------
+      - key: HYDROGUARD_LOG_LEVEL
+        value: INFO

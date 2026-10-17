@@ -14,6 +14,7 @@ from app.db import get_db
 from app.core.auth import require_student_or_admin
 from app.db.models import SensorReading
 from app.db.repositories import EnsembleWeightRepository, ForecastRepository, ModelErrorRepository, NodeRepository
+from app.services.alert_service import AlertService
 from app.schemas.forecasts import ForecastListResponse, ForecastRecord, ModelPerformance, ModelPerformanceResponse
 from app.schemas.readings import ForecastReading, ForecastRequest, ForecastResponse
 from ml.services import create_forecast_service, ForecastServiceConfig, get_inference_service
@@ -25,16 +26,22 @@ from ml.services.thingspeak_service import (
     ThingSpeakUnavailable,
     load_config_from_env,
     parse_feeds,
+    parse_history_readings,
 )
 from app.schemas.thingspeak import (
     ForecastProvenance,
     ThingSpeakForecastBlock,
     ThingSpeakForecastResponse,
+    ThingSpeakForecastResponseUnion,
+    ThingSpeakForecastUnavailable,
+    ThingSpeakHistoryReading,
+    ThingSpeakHistoryResponse,
     ThingSpeakLatestReading,
     ThingSpeakReadingValues,
     ThingSpeakRGBValues,
     WindowProvenance,
 )
+
 
 router = APIRouter(tags=["forecast"])
 
@@ -495,7 +502,7 @@ def _resolve_thingspeak_config(channel_id: Optional[str]) -> ThingSpeakConfig:
     return config
 
 
-@router.get("/thingspeak/forecast", response_model=ThingSpeakForecastResponse)
+@router.get("/thingspeak/forecast", response_model=ThingSpeakForecastResponseUnion)
 def generate_thingspeak_forecast(
     channel_id: Optional[str] = Query(
         None,
@@ -504,6 +511,7 @@ def generate_thingspeak_forecast(
         description="Optional numeric ThingSpeak channel id overriding the configured default.",
     ),
     principal: dict = Depends(require_student_or_admin),
+    db: Session = Depends(get_db),
 ) -> ThingSpeakForecastResponse:
     """Fetch the configured ThingSpeak channel, forecast it, and return both.
 
@@ -518,6 +526,11 @@ def generate_thingspeak_forecast(
     and every forward-filled or padded cell is counted in ``provenance.window``.
     Nothing is persisted, so this read-only path cannot write simulated rows
     into the sensor tables that ``/health`` uses to judge connectivity.
+
+    Alert integration: evaluates the latest water-quality readings against
+    configured thresholds, creating alerts for violations and auto-resolving
+    alerts when readings return to normal. Uses 60-minute cooldown to prevent
+    duplicate alerts from repeated polling.
     """
     config = _resolve_thingspeak_config(channel_id)
 
@@ -549,6 +562,116 @@ def generate_thingspeak_forecast(
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Forecast checkpoints are unavailable: {exc}")
 
+    # --- Alert integration ---
+    # Use ThingSpeak channel_id as node_id for alert tracking
+    thingspeak_node_id = f"thingspeak-{window.channel_id}"
+    # Ensure the node exists for alert association
+    NodeRepository.get_or_create(
+        db, thingspeak_node_id, f"ThingSpeak Channel {window.channel_id}", "ThingSpeak"
+    )
+
+    # Prepare latest reading data for alert evaluation (only core 4 parameters)
+    latest_reading_data = {
+        "ph": window.values[-1][0],
+        "tds": window.values[-1][1],
+        "turbidity": window.values[-1][2],
+        "temperature": window.values[-1][3],
+        "timestamp": window.latest_timestamp or datetime.now(timezone.utc),
+    }
+
+    # Evaluate alerts for threshold violations (pH, TDS, turbidity, temperature only)
+    # Does NOT evaluate RGB or unavailable optical_colour_index
+    AlertService.evaluate_reading_for_alerts(db, thingspeak_node_id, latest_reading_data)
+
+    # Auto-resolve alerts when readings return to normal range
+    AlertService.check_and_resolve_alerts(db, thingspeak_node_id, latest_reading_data)
+
+    # Check if optical_colour_index is available for forecasting
+    if not window.has_optical_colour_index:
+        # Optical colour index is not available from the sensor hardware.
+        # Since no validated formula exists to compute it from RGB values,
+        # we cannot run the 5-parameter forecast models. Return a clear
+        # forecast-unavailable response instead of fabricating data.
+        fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        observed_timestamp = (
+            window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if window.latest_timestamp is not None
+            else None
+        )
+
+        # Extract RGB values from the newest feed if available
+        latest_rgb = None
+        if window.rgb_values and len(window.rgb_values) > 0:
+            last_rgb = window.rgb_values[-1]
+            if any(v is not None for v in last_rgb):
+                latest_rgb = ThingSpeakRGBValues(
+                    red=last_rgb[0],
+                    green=last_rgb[1],
+                    blue=last_rgb[2],
+                    clear=last_rgb[3],
+                )
+
+        # Calculate RGB missing counts
+        rgb_missing = {}
+        if window.rgb_values:
+            for i, colour in enumerate(("red", "green", "blue", "clear")):
+                rgb_missing[colour] = sum(
+                    1 for row in window.rgb_values if row[i] is None
+                )
+
+        latest_values = ThingSpeakReadingValues(
+            pH=window.values[-1][0],
+            TDS=window.values[-1][1],
+            turbidity=window.values[-1][2],
+            temperature=window.values[-1][3],
+        )
+
+        fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        observed_timestamp = (
+            window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if window.latest_timestamp is not None
+            else None
+        )
+
+        return ThingSpeakForecastUnavailable(
+            detail=(
+                "Forecast unavailable: optical_colour_index is not available from "
+                "the sensor hardware. No validated formula exists to compute it "
+                "from RGB values. A compatible model contract is required."
+            ),
+            latest_reading=ThingSpeakLatestReading(
+                timestamp=observed_timestamp,
+                observed_at=observed_timestamp,
+                values=ThingSpeakReadingValues(
+                    pH=window.values[-1][0],
+                    TDS=window.values[-1][1],
+                    turbidity=window.values[-1][2],
+                    temperature=window.values[-1][3],
+                ),
+                rgb=latest_rgb,
+                entry_id=window.latest_entry_id,
+                status_flag=window.latest_status_flag,
+            ),
+
+            provenance=ForecastProvenance(
+                data_source="THINGSPEAK",
+                channel_id=window.channel_id,
+                models_trained_on="SIMULATED_DEVELOPMENT",
+                real_sensor_data=False,
+                window=WindowProvenance(
+                    window_size=window.window_size,
+                    observed_rows=window.observed_rows,
+                    forward_filled=window.forward_filled,
+                    leading_filled=window.leading_filled,
+                    padded_rows=window.padded_rows,
+                    missing_by_parameter=dict(window.missing_by_parameter),
+                    unobserved_parameters=list(window.unobserved_parameters),
+                    rgb_missing_by_channel=rgb_missing,
+                ),
+                fetched_at=fetched_at,
+            ),
+        )
+
     input_window = np.array(window.values, dtype=np.float32)
     result = inference.forecast(input_window)
 
@@ -567,12 +690,83 @@ def generate_thingspeak_forecast(
         ensemble=ThingSpeakReadingValues(**result.ensemble),
     )
 
-    fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    observed_timestamp = (
-        window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
-        if window.latest_timestamp is not None
-        else None
+    return ThingSpeakForecastResponse(
+        latest_reading=ThingSpeakLatestReading(
+            timestamp=observed_timestamp,
+            observed_at=observed_timestamp,
+            values=latest_values,
+            rgb=latest_rgb,
+            entry_id=window.latest_entry_id,
+            status_flag=window.latest_status_flag,
+        ),
+
+        forecast=forecast_block,
+        weights={param: dict(entry) for param, entry in result.weights.items()},
+        model_versions=dict(result.checkpoint_versions),
+        provenance=ForecastProvenance(
+            data_source="THINGSPEAK",
+            channel_id=window.channel_id,
+            models_trained_on=result.training_dataset_source,
+            real_sensor_data=result.real_sensor_data,
+            window=WindowProvenance(
+                window_size=window.window_size,
+                observed_rows=window.observed_rows,
+                forward_filled=window.forward_filled,
+                leading_filled=window.leading_filled,
+                padded_rows=window.padded_rows,
+                missing_by_parameter=dict(window.missing_by_parameter),
+                unobserved_parameters=list(window.unobserved_parameters),
+                rgb_missing_by_channel=rgb_missing,
+            ),
+            fetched_at=fetched_at,
+        ),
     )
+
+
+# --- New endpoint: latest ThingSpeak reading (no forecast) ---
+
+@router.get("/thingspeak/latest", response_model=ThingSpeakLatestReading)
+def get_latest_thingspeak_reading(
+    channel_id: Optional[str] = Query(
+        None,
+        min_length=1,
+        max_length=32,
+        description="Optional numeric ThingSpeak channel id overriding the configured default.",
+    ),
+    principal: dict = Depends(require_student_or_admin),
+) -> ThingSpeakLatestReading:
+    """Fetch the latest reading from the configured ThingSpeak channel.
+
+    This is a lightweight, read-only endpoint that returns the most recent
+    feed from ThingSpeak without running any forecast models. It shares the
+    same field mapping, gap-handling, and provenance reporting as the
+    forecast endpoint but omits the ML step entirely.
+
+    The response includes:
+    - Core water-quality parameters (pH, TDS, turbidity, temperature)
+    - Raw RGB percentages (0\u2013100) from the TCS34725 sensor (fields 5-7)
+    - Observation timestamp from ThingSpeak
+    - Provenance metadata (channel ID, fill counts, etc.)
+
+    No sensor data is written to the database. The endpoint is authenticated
+    and requires STUDENT or ADMIN role.
+    """
+    config = _resolve_thingspeak_config(channel_id)
+
+    try:
+        window = parse_feeds(thingspeak_service.fetch_feeds(config), config)
+    except ThingSpeakNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except ThingSpeakInvalidChannel as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ThingSpeakUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    if window.observed_rows == 0:
+        raise HTTPException(
+            status_code=502,
+            detail="The ThingSpeak channel returned no observations.",
+        )
 
     # Extract RGB values from the newest feed if available
     latest_rgb = None
@@ -594,31 +788,74 @@ def generate_thingspeak_forecast(
                 1 for row in window.rgb_values if row[i] is None
             )
 
-    return ThingSpeakForecastResponse(
-        latest_reading=ThingSpeakLatestReading(
-            timestamp=observed_timestamp,
-            observed_at=observed_timestamp,
-            values=latest_values,
-            rgb=latest_rgb,
+    observed_timestamp = (
+        window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if window.latest_timestamp is not None
+        else None
+    )
+
+    fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return ThingSpeakLatestReading(
+        timestamp=observed_timestamp,
+        observed_at=observed_timestamp,
+        values=ThingSpeakReadingValues(
+            pH=window.values[-1][0],
+            TDS=window.values[-1][1],
+            turbidity=window.values[-1][2],
+            temperature=window.values[-1][3],
         ),
-        forecast=forecast_block,
-        weights={param: dict(entry) for param, entry in result.weights.items()},
-        model_versions=dict(result.checkpoint_versions),
-        provenance=ForecastProvenance(
-            data_source="THINGSPEAK",
-            channel_id=window.channel_id,
-            models_trained_on=result.training_dataset_source,
-            real_sensor_data=result.real_sensor_data,
-            window=WindowProvenance(
-                window_size=window.window_size,
-                observed_rows=window.observed_rows,
-                forward_filled=window.forward_filled,
-                leading_filled=window.leading_filled,
-                padded_rows=window.padded_rows,
-                missing_by_parameter=dict(window.missing_by_parameter),
-                unobserved_parameters=list(window.unobserved_parameters),
-                rgb_missing_by_channel=rgb_missing,
-            ),
-            fetched_at=fetched_at,
-        ),
+        rgb=latest_rgb,
+        entry_id=window.latest_entry_id,
+        status_flag=window.latest_status_flag,
+    )
+
+
+# --- Endpoint: historical ThingSpeak readings ---
+
+@router.get("/thingspeak/history", response_model=ThingSpeakHistoryResponse)
+def get_thingspeak_history(
+    channel_id: Optional[str] = Query(
+        None,
+        min_length=1,
+        max_length=32,
+        description="Optional numeric ThingSpeak channel id overriding the configured default.",
+    ),
+    limit: int = Query(
+        30,
+        ge=1,
+        le=100,
+        description="Maximum number of historical feed readings to return (default: 30, max: 100).",
+    ),
+    principal: dict = Depends(require_student_or_admin),
+) -> ThingSpeakHistoryResponse:
+    """Fetch chronologically ordered historical readings from ThingSpeak.
+
+    Returns the latest `limit` feeds from the configured ThingSpeak channel,
+    parsed into physical units with timestamps, RGB percentages, entry IDs,
+    and status flags. Chronological order (oldest first, newest last) is preserved.
+    """
+    import dataclasses
+
+    config = _resolve_thingspeak_config(channel_id)
+    config = dataclasses.replace(config, results=max(1, limit))
+
+    try:
+        feeds = thingspeak_service.fetch_feeds(config)
+    except ThingSpeakNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except ThingSpeakInvalidChannel as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ThingSpeakUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    parsed_readings = parse_history_readings(feeds, config)
+    if len(parsed_readings) > limit:
+        parsed_readings = parsed_readings[-limit:]
+
+    return ThingSpeakHistoryResponse(
+        channel_id=config.channel_id,
+        count=len(parsed_readings),
+        source="THINGSPEAK",
+        readings=parsed_readings,
     )

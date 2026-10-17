@@ -2,6 +2,7 @@ package com.aistudio.hydroguard.wxqpzx;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
@@ -31,6 +32,7 @@ import androidx.annotation.Nullable;
 import androidx.activity.ComponentActivity;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.aistudio.hydroguard.wxqpzx.data.api.ApiCallback;
@@ -533,21 +535,94 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
     private void renderHome(View screen) {
         LinearLayout content = screen.findViewById(R.id.content_container);
         addSection(content, "Water status");
-        TextView water = addCard(content, "Loading the latest water reading…");
-        hydro.loadLatest(HostelConfig.primaryTankNodeId(), new HydroRepository.DataCallback() {
-            @Override public void onSuccess(String json, boolean cached, ApiFailure warning) {
+
+        // Inflate the structured 2x2 water status card
+        View waterCard = getLayoutInflater().inflate(R.layout.item_home_water_status, content, false);
+        content.addView(waterCard);
+
+        TextView tankNameView = waterCard.findViewById(R.id.home_water_tank_name);
+        TextView channelView = waterCard.findViewById(R.id.home_water_channel);
+        TextView badgeView = waterCard.findViewById(R.id.home_water_badge);
+        TextView phView = waterCard.findViewById(R.id.home_metric_ph);
+        TextView tdsView = waterCard.findViewById(R.id.home_metric_tds);
+        TextView turbidityView = waterCard.findViewById(R.id.home_metric_turbidity);
+        TextView tempView = waterCard.findViewById(R.id.home_metric_temp);
+        TextView footerView = waterCard.findViewById(R.id.home_water_footer);
+
+        tankNameView.setText(HostelConfig.tankName());
+        channelView.setText("Hostel Telemetry · Channel 244357");
+
+        api.getLatestThingSpeakReading(null, new ApiCallback() {
+            @Override public void onSuccess(String json) {
                 if (activeScreen != screen) return;
                 try {
-                    JSONObject reading = new JSONObject(json);
-                    water.setText(HostelConfig.tankName() + " · pH " + format(reading.optDouble("ph")) + " · TDS "
-                            + format(reading.optDouble("tds")) + " ppm · Turbidity " + format(reading.optDouble("turbidity"))
-                            + (cached ? "\nSaved on this device while the server is unavailable." : "\nSource: " + reading.optString("source", "unknown")));
-                } catch (JSONException error) { water.setText("Reading data is unavailable."); }
+                    JSONObject response = new JSONObject(json);
+                    JSONObject values = response.optJSONObject("values");
+                    String timestamp = response.optString("timestamp", "");
+                    int entryId = response.optInt("entry_id", 0);
+                    if (values != null) {
+                        double ph = values.optDouble("pH", values.optDouble("ph", Double.NaN));
+                        double tds = values.optDouble("TDS", values.optDouble("tds", Double.NaN));
+                        double turbidity = values.optDouble("turbidity", Double.NaN);
+                        double temp = values.optDouble("temperature", Double.NaN);
+
+                        phView.setText(Double.isNaN(ph) ? "--" : format(ph));
+                        tdsView.setText(Double.isNaN(tds) ? "--" : format(tds));
+                        turbidityView.setText(Double.isNaN(turbidity) ? "--" : format(turbidity));
+                        tempView.setText(Double.isNaN(temp) ? "--" : format(temp));
+
+                        String timeStr = Timestamps.readable(timestamp);
+                        Date parsed = Timestamps.parseUtc(timestamp);
+
+                        // Freshness assessment matching backend 15-minute threshold
+                        if (parsed != null) {
+                            long ageMs = System.currentTimeMillis() - parsed.getTime();
+                            if (ageMs >= 0 && ageMs < 15 * 60 * 1000L) {
+                                badgeView.setText("ONLINE");
+                                badgeView.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.hydroguard_green_surface)));
+                                badgeView.setTextColor(getColor(R.color.hydroguard_green));
+                            } else {
+                                badgeView.setText("DATA DELAYED");
+                                badgeView.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.hydroguard_caution_surface)));
+                                badgeView.setTextColor(getColor(R.color.hydroguard_orange));
+                            }
+                        } else {
+                            badgeView.setText("ONLINE");
+                            badgeView.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.hydroguard_green_surface)));
+                            badgeView.setTextColor(getColor(R.color.hydroguard_green));
+                        }
+
+                        StringBuilder sb = new StringBuilder("Observed: ");
+                        sb.append(timeStr.isEmpty() ? "Recent observation" : timeStr);
+                        if (entryId > 0) sb.append(" · Feed #").append(entryId);
+                        sb.append(" · Source: ThingSpeak");
+                        footerView.setText(sb.toString());
+                    } else {
+                        badgeView.setText("UNAVAILABLE");
+                        badgeView.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.hydroguard_subsurface)));
+                        badgeView.setTextColor(getColor(R.color.hydroguard_muted));
+                        footerView.setText("Water reading values currently unavailable.");
+                    }
+                } catch (JSONException error) {
+                    badgeView.setText("ERROR");
+                    badgeView.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.hydroguard_critical_surface)));
+                    badgeView.setTextColor(getColor(R.color.hydroguard_critical));
+                    footerView.setText("Reading data is unavailable.");
+                }
             }
-            @Override public void onFailure(ApiFailure failure) { if (activeScreen == screen) water.setText(failure.getMessage()); }
+            @Override public void onFailure(ApiFailure failure) {
+                if (activeScreen == screen) {
+                    badgeView.setText("OFFLINE");
+                    badgeView.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.hydroguard_critical_surface)));
+                    badgeView.setTextColor(getColor(R.color.hydroguard_critical));
+                    footerView.setText("Live water telemetry unavailable (" + failure.getMessage() + ").");
+                }
+            }
         });
+
         MaterialButton openWater = addButton(content, "View water details and alerts");
         openWater.setOnClickListener(view -> navigation.setSelectedItemId(R.id.nav_water));
+
         // Optional sections render into their own body so an empty list never leaves
         // a placeholder card sitting under the heading.
         addSection(content, "Notices");
@@ -555,11 +630,11 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
         addSection(content, "Emergency contacts");
         LinearLayout contacts = sectionBody(content);
         api.getEmergencyContacts(new ApiCallback() {
-            @Override public void onSuccess(String json) { if (activeScreen == screen) displayRows(contacts, json, "name", "phone", "category", false); }
+            @Override public void onSuccess(String json) { if (activeScreen == screen) renderEmergencyContacts(contacts, json, false); }
             @Override public void onFailure(ApiFailure failure) { if (activeScreen == screen) addCard(contacts, failure.getMessage()); }
         });
         addSection(content, "Lost and found");
-        MaterialButton postLostFound = addButton(content, "Post a lost or found item");
+        MaterialButton postLostFound = addSecondaryButton(content, "Post a lost or found item");
         postLostFound.setOnClickListener(view -> showLostFoundDialog());
         LinearLayout lostFound = sectionBody(content);
         api.getLostFoundItems(new ApiCallback() {
@@ -568,9 +643,9 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
             }
             @Override public void onFailure(ApiFailure failure) { if (activeScreen == screen) addCard(lostFound, failure.getMessage()); }
         });
-        MaterialButton report = addButton(content, "Report a hostel issue");
+        MaterialButton report = addSecondaryButton(content, "Report a hostel issue");
         report.setOnClickListener(view -> navigation.setSelectedItemId(R.id.nav_report));
-        MaterialButton issues = addButton(content, "Follow my issue reports");
+        MaterialButton issues = addSecondaryButton(content, "Follow my issue reports");
         issues.setOnClickListener(view -> navigation.setSelectedItemId(R.id.nav_issues));
     }
 
@@ -587,10 +662,29 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
         Spinner feedbackCategory = screen.findViewById(R.id.feedback_category);
         feedbackCategory.setAdapter(adapter(new String[]{"Water", "Cleanliness", "Maintenance", "Wi-Fi", "Common Areas", "Overall Hostel Experience"}));
         Spinner rating = screen.findViewById(R.id.feedback_rating);
-        rating.setAdapter(adapter(new String[]{"5 stars", "4 stars", "3 stars", "2 stars", "1 star"}));
+        if (rating != null) {
+            rating.setAdapter(adapter(new String[]{"5 stars", "4 stars", "3 stars", "2 stars", "1 star"}));
+        }
         EditText comment = screen.findViewById(R.id.feedback_comment);
         TextView feedbackStatus = screen.findViewById(R.id.feedback_status);
         MaterialButton submitFeedback = screen.findViewById(R.id.submit_feedback);
+
+        final int[] selectedStars = {5};
+        final String[] starLabels = {
+            "1 Star · Poor",
+            "2 Stars · Fair",
+            "3 Stars · Average",
+            "4 Stars · Good",
+            "5 Stars · Excellent"
+        };
+        final ImageView[] starViews = {
+            screen.findViewById(R.id.star_1),
+            screen.findViewById(R.id.star_2),
+            screen.findViewById(R.id.star_3),
+            screen.findViewById(R.id.star_4),
+            screen.findViewById(R.id.star_5)
+        };
+        final TextView ratingText = screen.findViewById(R.id.feedback_rating_text);
 
         // Disabling the button only while a request is in flight is not enough:
         // a repeat tap after the first call has already succeeded files a second,
@@ -604,8 +698,37 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
         unlockOnEdit(comment, () -> unlock(feedbackLocked, submitFeedback));
         unlockOnSelect(severity, () -> unlock(issueLocked, submitIssue));
         unlockOnSelect(category, () -> unlock(issueLocked, submitIssue));
-        unlockOnSelect(rating, () -> unlock(feedbackLocked, submitFeedback));
+        if (rating != null) {
+            unlockOnSelect(rating, () -> unlock(feedbackLocked, submitFeedback));
+        }
         unlockOnSelect(feedbackCategory, () -> unlock(feedbackLocked, submitFeedback));
+
+        Runnable updateStarDisplay = () -> {
+            int current = selectedStars[0];
+            for (int i = 0; i < 5; i++) {
+                if (starViews[i] != null) {
+                    starViews[i].setImageResource(i < current ? R.drawable.ic_star_filled : R.drawable.ic_star_outline);
+                }
+            }
+            if (ratingText != null) {
+                ratingText.setText(starLabels[Math.max(0, Math.min(4, current - 1))]);
+            }
+            if (rating != null && rating.getCount() >= 5) {
+                rating.setSelection(5 - current);
+            }
+        };
+
+        for (int i = 0; i < 5; i++) {
+            final int starVal = i + 1;
+            if (starViews[i] != null) {
+                starViews[i].setOnClickListener(v -> {
+                    selectedStars[0] = starVal;
+                    updateStarDisplay.run();
+                    unlock(feedbackLocked, submitFeedback);
+                });
+            }
+        }
+        updateStarDisplay.run();
 
         submitIssue.setOnClickListener(button -> {
             String place = location.getText().toString().trim();
@@ -634,7 +757,7 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
         submitFeedback.setOnClickListener(button -> {
             String note = comment.getText().toString();
-            int stars = 5 - rating.getSelectedItemPosition();
+            int stars = selectedStars[0];
             feedbackStatus.setText("Sending feedback…");
             button.setEnabled(false);
             ApiCallback settle = resultWithReenable(button, feedbackStatus,
@@ -688,6 +811,10 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
     private void renderIssues(View screen, boolean admin) {
         LinearLayout content = screen.findViewById(R.id.content_container);
+        if (!admin) {
+            MaterialButton newReport = addButton(content, "File a new hostel report");
+            newReport.setOnClickListener(v -> navigation.setSelectedItemId(R.id.nav_report));
+        }
         // Loading is replaced by either the records, an empty notice or an error —
         // never two of them at once.
         TextView loading = addCard(content, "Loading issue reports…");
@@ -1022,9 +1149,9 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
         addCard(content, email + "\nRole: " + (isAdmin ? "Administrator" : "Student")
                 + "\nYour permissions are checked by the HydroGuard backend.");
         if (!isAdmin) {
-            MaterialButton water = addButton(content, "Water monitoring");
+            MaterialButton water = addSecondaryButton(content, "Water monitoring");
             water.setOnClickListener(view -> navigation.setSelectedItemId(R.id.nav_water));
-            MaterialButton issues = addButton(content, "My hostel issues");
+            MaterialButton issues = addSecondaryButton(content, "My hostel issues");
             issues.setOnClickListener(view -> navigation.setSelectedItemId(R.id.nav_issues));
         }
         MaterialButton signOut = addButton(content, "Sign out");
@@ -1271,6 +1398,47 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
         } catch (JSONException error) { addCard(content, "The server returned an invalid response."); }
     }
 
+    private void renderEmergencyContacts(LinearLayout content, String json, boolean showEmptyState) {
+        try {
+            JSONArray rows = new JSONArray(json);
+            if (rows.length() == 0) {
+                if (showEmptyState) addCard(content, "No emergency contacts are configured.");
+                return;
+            }
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.optJSONObject(i);
+                if (row == null) continue;
+                String name = row.optString("name", "Contact");
+                String phone = row.optString("phone", "");
+                String category = row.optString("category", "General");
+                String details = row.optString("details", "");
+
+                LinearLayout card = cardContent(content);
+                addText(card, name + " · " + category, 15, getColor(R.color.hydroguard_text), true);
+                String desc = (details.isEmpty() ? "" : details + "\n") + phone + "\nTap to open phone dialer";
+                addText(card, desc, 13, getColor(R.color.hydroguard_blue), false);
+
+                if (!phone.isEmpty()) {
+                    View parentCard = (View) card.getParent();
+                    if (parentCard != null) {
+                        parentCard.setClickable(true);
+                        parentCard.setFocusable(true);
+                        parentCard.setOnClickListener(v -> {
+                            try {
+                                Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phone.replaceAll("[^0-9+]", "")));
+                                startActivity(intent);
+                            } catch (Exception e) {
+                                showToast("Could not open dialer for " + phone);
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (JSONException error) {
+            addCard(content, "The server returned an invalid contact list.");
+        }
+    }
+
     /**
      * Renders lost-and-found rows separately from {@link #displayRows} because
      * each row may carry a photograph that has to be fetched with the
@@ -1352,6 +1520,19 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
                         statusView.setVisibility(View.GONE);
                         imageView.setImageBitmap(bitmap);
                         imageView.setVisibility(View.VISIBLE);
+                        imageView.setClickable(true);
+                        imageView.setFocusable(true);
+                        imageView.setOnClickListener(v -> {
+                            ImageView fullView = new ImageView(DashboardActivity.this);
+                            fullView.setImageBitmap(bitmap);
+                            fullView.setAdjustViewBounds(true);
+                            fullView.setPadding(dp(12), dp(12), dp(12), dp(12));
+                            new AlertDialog.Builder(DashboardActivity.this)
+                                    .setTitle("Photo preview")
+                                    .setView(fullView)
+                                    .setPositiveButton("Close", null)
+                                    .show();
+                        });
                     });
                 });
             }
@@ -1732,6 +1913,8 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
         // off-palette in this blue/teal app. Match the white surface the
         // sign-in cards already declare explicitly.
         card.setCardBackgroundColor(getColor(R.color.hydroguard_surface));
+        card.setStrokeColor(getColor(R.color.hydroguard_divider));
+        card.setStrokeWidth(dp(1));
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         cardParams.setMargins(0, dp(5), 0, dp(7));
         parent.addView(card, cardParams);
@@ -1786,6 +1969,28 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
     private MaterialButton addButton(LinearLayout parent, String label) {
         MaterialButton button = new MaterialButton(this);
         button.setText(label); button.setAllCaps(false);
+        button.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.hydroguard_blue)));
+        button.setTextColor(getColor(android.R.color.white));
+        button.setCornerRadius(dp(12));
+        try {
+            button.setTypeface(ResourcesCompat.getFont(this, R.font.hydroguard_sans), Typeface.BOLD);
+        } catch (Exception ignored) { }
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+        params.setMargins(0, dp(4), 0, dp(4));
+        parent.addView(button, params);
+        return button;
+    }
+
+    private MaterialButton addSecondaryButton(LinearLayout parent, String label) {
+        MaterialButton button = new MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle);
+        button.setText(label); button.setAllCaps(false);
+        button.setTextColor(getColor(R.color.hydroguard_blue));
+        button.setStrokeColor(ColorStateList.valueOf(getColor(R.color.hydroguard_outline)));
+        button.setStrokeWidth(dp(1));
+        button.setCornerRadius(dp(12));
+        try {
+            button.setTypeface(ResourcesCompat.getFont(this, R.font.hydroguard_sans), Typeface.NORMAL);
+        } catch (Exception ignored) { }
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
         params.setMargins(0, dp(4), 0, dp(4));
         parent.addView(button, params);

@@ -34,6 +34,33 @@ public final class Timestamps {
     }
 
     /**
+     * Parses the raw timestamp string emitted by the backend or ThingSpeak as UTC.
+     *
+     * @param raw the timestamp string returned by the API; may be null or empty
+     * @return the parsed Date object, or null if parsing fails
+     */
+    public static Date parseUtc(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.trim();
+        if (value.isEmpty()) {
+            return null;
+        }
+        for (String pattern : PATTERNS) {
+            SimpleDateFormat parser = new SimpleDateFormat(pattern, Locale.US);
+            parser.setTimeZone(TimeZone.getTimeZone("UTC"));
+            parser.setLenient(false);
+            ParsePosition position = new ParsePosition(0);
+            Date parsed = parser.parse(value, position);
+            if (parsed != null && position.getIndex() == value.length()) {
+                return parsed;
+            }
+        }
+        return null;
+    }
+
+    /**
      * @param raw the timestamp string returned by the API; may be null or empty
      * @return a readable local-time label, or the input unchanged when it cannot be
      *         parsed; empty string when there is no value at all
@@ -46,19 +73,9 @@ public final class Timestamps {
         if (value.isEmpty()) {
             return "";
         }
-        // SQLite stores naive UTC, so every pattern is parsed as UTC and then
-        // rendered in the device's time zone.
-        for (String pattern : PATTERNS) {
-            SimpleDateFormat parser = new SimpleDateFormat(pattern, Locale.US);
-            parser.setTimeZone(TimeZone.getTimeZone("UTC"));
-            parser.setLenient(false);
-            ParsePosition position = new ParsePosition(0);
-            Date parsed = parser.parse(value, position);
-            // Require the whole string to be consumed, so a short pattern cannot
-            // silently match a prefix and drop the fractional seconds.
-            if (parsed != null && position.getIndex() == value.length()) {
-                return new SimpleDateFormat("d MMM yyyy, h:mm a", Locale.US).format(parsed);
-            }
+        Date parsed = parseUtc(value);
+        if (parsed != null) {
+            return new SimpleDateFormat("d MMM yyyy, h:mm a", Locale.US).format(parsed);
         }
         return value;
     }

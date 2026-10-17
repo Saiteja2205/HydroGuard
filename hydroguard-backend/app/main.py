@@ -89,6 +89,8 @@ app.add_middleware(
 )
 
 app.include_router(health_router, prefix="/api/v1")
+app.include_router(health_router)
+
 app.include_router(readings_router, prefix="/api/v1")
 app.include_router(forecast_router, prefix="/api/v1")
 app.include_router(nodes_router, prefix="/api/v1")

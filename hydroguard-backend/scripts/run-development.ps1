@@ -37,6 +37,12 @@ if (-not [string]::IsNullOrWhiteSpace($allowedStudentDomains)) {
 if ([string]::IsNullOrWhiteSpace($env:HYDROGUARD_FIREBASE_PROJECT_ID)) {
     $env:HYDROGUARD_FIREBASE_PROJECT_ID = 'hydroguard-4a606'
 }
+if (-not [string]::IsNullOrWhiteSpace($authSettings.HYDROGUARD_THINGSPEAK_CHANNEL_ID)) {
+    $env:HYDROGUARD_THINGSPEAK_CHANNEL_ID = $authSettings.HYDROGUARD_THINGSPEAK_CHANNEL_ID
+}
+if (-not [string]::IsNullOrWhiteSpace($authSettings.HYDROGUARD_THINGSPEAK_READ_API_KEY)) {
+    $env:HYDROGUARD_THINGSPEAK_READ_API_KEY = $authSettings.HYDROGUARD_THINGSPEAK_READ_API_KEY
+}
 
 # Firebase Admin resolves its service-account key lazily, so a missing key used
 # to let the backend start normally and only fail later with an opaque HTTP 503

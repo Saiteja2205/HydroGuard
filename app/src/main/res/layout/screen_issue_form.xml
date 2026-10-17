@@ -1,19 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Hostel services screen: two clearly separated forms.
+  Hostel services screen: native, high-clarity forms for issue reporting
+  and student feedback.
 
-  The previous version stacked six unlabelled controls in one flat column, so a
-  user could not tell which spinner chose the category, the severity or the
-  rating, and the two unrelated actions (report vs feedback) ran together.
-  Each action now lives in its own card with a heading, a one-line explanation
-  and a visible label over every control. View IDs are unchanged so the wiring
-  in DashboardActivity.renderIssueForm() is untouched.
+  Inputs use outlined Material design containers, bounded spinners,
+  and an interactive 5-star rating control with generous touch targets.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    android:paddingBottom="96dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -29,115 +28,184 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:cardBackgroundColor="@color/hydroguard_surface"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="1dp">
+            app:cardCornerRadius="16dp"
+            app:cardElevation="1dp"
+            app:strokeColor="@color/hydroguard_divider"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="20dp">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
                     android:text="Report a hostel issue"
                     android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="700"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
-                    android:text="Use this for anything in the hostel that needs attention — leaks, electricity, cleanliness or supplies."
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Submit maintenance requests for water supply, leaks, plumbing, electrical, or hostel amenities."
                     android:textColor="@color/hydroguard_muted"
                     android:textSize="13sp" />
 
+                <!-- Category -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
+                    android:layout_marginTop="16dp"
+                    android:fontFamily="@font/hydroguard_sans"
                     android:labelFor="@id/issue_category"
-                    android:text="What kind of issue?"
+                    android:text="Issue category"
                     android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
                     android:textSize="13sp"
                     android:textStyle="bold" />
 
-                <Spinner
-                    android:id="@+id/issue_category"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="2dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:labelFor="@id/issue_location"
-                    android:text="Where is it?"
-                    android:textColor="@color/hydroguard_text"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <EditText
-                    android:id="@+id/issue_location"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:hint="Room or area within the hostel"
-                    android:inputType="textCapSentences"
-                    android:minHeight="56dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:labelFor="@id/issue_severity"
-                    android:text="How urgent is it?"
-                    android:textColor="@color/hydroguard_text"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <Spinner
-                    android:id="@+id/issue_severity"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="2dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:labelFor="@id/issue_description"
-                    android:text="Describe the issue"
-                    android:textColor="@color/hydroguard_text"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <EditText
-                    android:id="@+id/issue_description"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:gravity="top|start"
-                    android:hint="What is happening, and when did you notice it?"
-                    android:inputType="textCapSentences|textMultiLine"
-                    android:minHeight="110dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/submit_issue"
+                <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/spinner_background"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="8dp">
+
+                    <Spinner
+                        android:id="@+id/issue_category"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@null" />
+                </FrameLayout>
+
+                <!-- Location -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:labelFor="@id/issue_location"
+                    android:text="Location / Room"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.HydroGuard.TextInputLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    app:boxBackgroundMode="outline"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/issue_location"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/hydroguard_sans"
+                        android:hint="e.g. Block B Room 204 or Ground Floor Washroom"
+                        android:inputType="textCapSentences"
+                        android:minHeight="48dp"
+                        android:textColor="@color/hydroguard_text"
+                        android:textColorHint="@color/hydroguard_muted"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Severity -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:labelFor="@id/issue_severity"
+                    android:text="Urgency level"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/spinner_background"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="8dp">
+
+                    <Spinner
+                        android:id="@+id/issue_severity"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@null" />
+                </FrameLayout>
+
+                <!-- Description -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:labelFor="@id/issue_description"
+                    android:text="Problem description"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.HydroGuard.TextInputLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    app:boxBackgroundMode="outline"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/issue_description"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/hydroguard_sans"
+                        android:gravity="top|start"
+                        android:hint="What is happening, and when did you notice it?"
+                        android:inputType="textCapSentences|textMultiLine"
+                        android:minLines="3"
+                        android:textColor="@color/hydroguard_text"
+                        android:textColorHint="@color/hydroguard_muted"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Submit Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/submit_issue"
+                    style="@style/Widget.HydroGuard.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:layout_marginTop="18dp"
                     android:text="Submit report"
-                    android:textAllCaps="false" />
+                    android:textAllCaps="false"
+                    android:textSize="15sp" />
 
                 <TextView
                     android:id="@+id/issue_form_status"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="10dp"
+                    android:fontFamily="@font/hydroguard_sans"
                     android:lineSpacingExtra="2dp"
                     android:textColor="@color/hydroguard_muted"
                     android:textSize="13sp" />
@@ -148,99 +216,220 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="16dp"
             app:cardBackgroundColor="@color/hydroguard_surface"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="1dp">
+            app:cardCornerRadius="16dp"
+            app:cardElevation="1dp"
+            app:strokeColor="@color/hydroguard_divider"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="20dp">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
                     android:text="Hostel feedback"
                     android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="700"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
-                    android:text="Tell us how the hostel is doing. Feedback is optional and does not open a maintenance report."
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Share your ratings and comments on water quality, cleanliness, and hostel living standards."
                     android:textColor="@color/hydroguard_muted"
                     android:textSize="13sp" />
 
+                <!-- Category -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:labelFor="@id/feedback_category"
+                    android:text="Feedback area"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/spinner_background"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="8dp">
+
+                    <Spinner
+                        android:id="@+id/feedback_category"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@null" />
+                </FrameLayout>
+
+                <!-- Star Rating Control -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
-                    android:labelFor="@id/feedback_category"
-                    android:text="Which area?"
-                    android:textColor="@color/hydroguard_text"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <Spinner
-                    android:id="@+id/feedback_category"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="2dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:labelFor="@+id/feedback_rating"
+                    android:fontFamily="@font/hydroguard_sans"
                     android:text="Your rating"
                     android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
                     android:textSize="13sp"
                     android:textStyle="bold" />
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <!-- Interactive Star Row -->
+                    <LinearLayout
+                        android:id="@+id/star_rating_container"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:id="@+id/star_1"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:clickable="true"
+                            android:contentDescription="1 star - Poor"
+                            android:focusable="true"
+                            android:padding="6dp"
+                            android:src="@drawable/ic_star_filled" />
+
+                        <ImageView
+                            android:id="@+id/star_2"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:clickable="true"
+                            android:contentDescription="2 stars - Fair"
+                            android:focusable="true"
+                            android:padding="6dp"
+                            android:src="@drawable/ic_star_filled" />
+
+                        <ImageView
+                            android:id="@+id/star_3"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:clickable="true"
+                            android:contentDescription="3 stars - Average"
+                            android:focusable="true"
+                            android:padding="6dp"
+                            android:src="@drawable/ic_star_filled" />
+
+                        <ImageView
+                            android:id="@+id/star_4"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:clickable="true"
+                            android:contentDescription="4 stars - Good"
+                            android:focusable="true"
+                            android:padding="6dp"
+                            android:src="@drawable/ic_star_filled" />
+
+                        <ImageView
+                            android:id="@+id/star_5"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:clickable="true"
+                            android:contentDescription="5 stars - Excellent"
+                            android:focusable="true"
+                            android:padding="6dp"
+                            android:src="@drawable/ic_star_filled" />
+                    </LinearLayout>
+
+                    <!-- Rating Label -->
+                    <TextView
+                        android:id="@+id/feedback_rating_text"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/hydroguard_sans"
+                        android:text="5 Stars · Excellent"
+                        android:textColor="@color/hydroguard_text"
+                        android:textFontWeight="600"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <!-- Hidden fallback spinner preserved for backward compatibility -->
                 <Spinner
                     android:id="@+id/feedback_rating"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="2dp" />
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone" />
 
+                <!-- Comment -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="14dp"
+                    android:fontFamily="@font/hydroguard_sans"
                     android:labelFor="@id/feedback_comment"
-                    android:text="Anything to add?"
+                    android:text="Anything to add? (Optional)"
                     android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
                     android:textSize="13sp"
                     android:textStyle="bold" />
 
-                <EditText
-                    android:id="@+id/feedback_comment"
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.HydroGuard.TextInputLayout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:gravity="top|start"
-                    android:hint="Your feedback (optional)"
-                    android:inputType="textCapSentences|textMultiLine"
-                    android:minHeight="72dp" />
+                    android:layout_marginTop="6dp"
+                    app:boxBackgroundMode="outline"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp">
 
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/feedback_comment"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/hydroguard_sans"
+                        android:gravity="top|start"
+                        android:hint="Your feedback helps improve hostel amenities..."
+                        android:inputType="textCapSentences|textMultiLine"
+                        android:minLines="2"
+                        android:textColor="@color/hydroguard_text"
+                        android:textColorHint="@color/hydroguard_muted"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Submit Button -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/submit_feedback"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    style="@style/Widget.HydroGuard.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
-                    android:layout_marginTop="14dp"
+                    android:layout_marginTop="18dp"
                     android:text="Send feedback"
-                    android:textAllCaps="false" />
+                    android:textAllCaps="false"
+                    android:textSize="15sp" />
 
                 <TextView
                     android:id="@+id/feedback_status"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="10dp"
+                    android:fontFamily="@font/hydroguard_sans"
                     android:lineSpacingExtra="2dp"
                     android:textColor="@color/hydroguard_muted"
                     android:textSize="13sp" />

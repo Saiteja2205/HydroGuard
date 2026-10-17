@@ -49,7 +49,8 @@ IMAGE_MEDIA_TYPES: dict[str, str] = {
 
 # Storage keys are server-generated, so they only ever look like this. Anything
 # else (separators, "..", slashes) is rejected before a filesystem call.
-STORAGE_KEY_PATTERN = re.compile(r"^[0-9a-f]{32}\.(?:jpg|png|webp|gif)$")
+STORAGE_KEY_PATTERN = re.compile(r"^[0-9a-f]{32}(?:\.(?:jpg|png|webp|gif))?$", re.IGNORECASE)
+
 
 FIREBASE_BLOCKER = (
     "Firebase Cloud Storage cannot be used for HydroGuard because project "
@@ -148,9 +149,19 @@ class LocalStorageDriver(StorageDriver):
             return None
         path = self.root / key
         if not path.is_file():
-            return None
+            # If key was provided without extension (e.g. hex UUID), look for existing image file
+            for ext in ("jpg", "png", "webp", "gif"):
+                candidate = self.root / f"{key}.{ext}"
+                if candidate.is_file():
+                    path = candidate
+                    key = f"{key}.{ext}"
+                    break
+            else:
+                return None
         data = path.read_bytes()
-        return StoredObject(key=key, content_type=IMAGE_MEDIA_TYPES[key.rsplit(".", 1)[1]], data=data)
+        ext = key.rsplit(".", 1)[1].lower() if "." in key else "jpg"
+        return StoredObject(key=key, content_type=IMAGE_MEDIA_TYPES.get(ext, "image/jpeg"), data=data)
+
 
 
 def create_storage_driver() -> StorageDriver:

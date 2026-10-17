@@ -246,6 +246,10 @@ public class FirebaseAuthRepository {
     }
 
     private void provisionFirebaseUser(FirebaseUser firebaseUser, AuthCallback callback) {
+        provisionFirebaseUserWithRetry(firebaseUser, 0, callback);
+    }
+
+    private void provisionFirebaseUserWithRetry(FirebaseUser firebaseUser, int attempt, AuthCallback callback) {
         if (firebaseUser == null) {
             callback.onFailure("Firebase did not return an authenticated account.");
             return;
@@ -277,6 +281,15 @@ public class FirebaseAuthRepository {
                     }
                 }
                 @Override public void onFailure(ApiFailure failure) {
+                    if (attempt < 1 && failure.kind == ApiFailure.Kind.AUTHENTICATION) {
+                        io.execute(() -> {
+                            try {
+                                Thread.sleep(1500);
+                            } catch (InterruptedException ignored) {}
+                            provisionFirebaseUserWithRetry(firebaseUser, attempt + 1, callback);
+                        });
+                        return;
+                    }
                     if (failure.kind == ApiFailure.Kind.AUTHENTICATION) firebaseAuth.signOut();
                     callback.onFailure(failure.getMessage());
                 }

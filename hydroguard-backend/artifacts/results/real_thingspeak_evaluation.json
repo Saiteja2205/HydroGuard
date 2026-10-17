@@ -1,0 +1,120 @@
+{
+  "model_version": "four-param-real-v1",
+  "dataset_size": 122,
+  "dataset_source": "THINGSPEAK_HARDWARE",
+  "channel_id": 244357,
+  "real_sensor_data": true,
+  "date_range": {
+    "start": "2026-10-08T03:03:31+00:00",
+    "end": "2026-10-15T08:57:08+00:00"
+  },
+  "parameters": [
+    "pH",
+    "TDS",
+    "turbidity",
+    "temperature"
+  ],
+  "window_size": 5,
+  "split": {
+    "train": 85,
+    "validation": 18,
+    "test": 19
+  },
+  "training_timestamp": "2026-10-16T16:54:34.513072+00:00",
+  "checkpoint": "Z:\\EPICS\\Hydroguard_CLEANUP\\hydroguard-backend\\artifacts\\checkpoints\\lstm_water_quality_4param_real_v1.pt",
+  "persistence_baseline_validation_metrics": {
+    "pH": {
+      "MAE": 0.5794444477475205,
+      "RMSE": 1.5742105404116518,
+      "MAPE": 9.44916849831292
+    },
+    "TDS": {
+      "MAE": 0.037220406948518865,
+      "RMSE": 0.05710904474229106,
+      "MAPE": 0.651534320698577
+    },
+    "turbidity": {
+      "MAE": 0.7005555603217901,
+      "RMSE": 0.9215415826508048,
+      "MAPE": 2.421460447861555
+    },
+    "temperature": {
+      "MAE": 0.06499999305871008,
+      "RMSE": 0.1413231051445193,
+      "MAPE": 0.2432881816630872
+    }
+  },
+  "persistence_baseline_test_metrics": {
+    "pH": {
+      "MAE": 1.680526326912128,
+      "RMSE": 4.05443815529658,
+      "MAPE": 56263167.424647845
+    },
+    "TDS": {
+      "MAE": 0.2010601203599658,
+      "RMSE": 0.5212975611746086,
+      "MAPE": 3.3325142828839938
+    },
+    "turbidity": {
+      "MAE": 3.462631579703912,
+      "RMSE": 9.437514436373583,
+      "MAPE": 335.13576318081147
+    },
+    "temperature": {
+      "MAE": 0.13210528442367395,
+      "RMSE": 0.24044914246457835,
+      "MAPE": 0.49854136483346195
+    }
+  },
+  "lstm_validation_metrics": {
+    "pH": {
+      "MAE": 1.660826254343653,
+      "RMSE": 2.544222694135382,
+      "MAPE": 25.613546222524498
+    },
+    "TDS": {
+      "MAE": 102.32860347250259,
+      "RMSE": 140.61545844931456,
+      "MAPE": 1829.8219216208488
+    },
+    "turbidity": {
+      "MAE": 0.7139518522094226,
+      "RMSE": 0.844543304603868,
+      "MAPE": 2.4733916093123134
+    },
+    "temperature": {
+      "MAE": 1.358141082613444,
+      "RMSE": 1.6011176407463135,
+      "MAPE": 5.122629992146282
+    }
+  },
+  "lstm_test_metrics": {
+    "pH": {
+      "MAE": 1.7969664586229666,
+      "RMSE": 3.304141841995416,
+      "MAPE": 61864874.0128579
+    },
+    "TDS": {
+      "MAE": 160.34582879227264,
+      "RMSE": 188.63065655746658,
+      "MAPE": 2902.1635987447316
+    },
+    "turbidity": {
+      "MAE": 2.0613799762264424,
+      "RMSE": 6.641490604675871,
+      "MAPE": 324.12098680905814
+    },
+    "temperature": {
+      "MAE": 0.7592463770807184,
+      "RMSE": 0.8759330627200861,
+      "MAPE": 2.873244959724888
+    }
+  },
+  "limitations": [
+    "122 total observations collected in 5 disconnected bench sessions across 7 days.",
+    "Contains multiple multi-hour/multi-day gaps (up to 89.3 hours) where the hardware was unpowered.",
+    "Data represents short bench calibration tests, not a continuous 24-hour water tank sequence.",
+    "Persistence baseline outperforms or matches ML model on test set for stable metrics.",
+    "Continuous 24/7 telemetry collection is required before multi-step forecasting can be clinically or operationally deployed."
+  ]
+}

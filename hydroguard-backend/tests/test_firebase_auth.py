@@ -53,8 +53,8 @@ def test_bootstrap_identity_accepts_verified_id_token_without_role_claim(monkeyp
     app = object()
     calls = {}
 
-    def verify_id_token(token, app, check_revoked):
-        calls.update(token=token, app=app, check_revoked=check_revoked)
+    def verify_id_token(token, app, check_revoked, clock_skew_seconds=0):
+        calls.update(token=token, app=app, check_revoked=check_revoked, clock_skew_seconds=clock_skew_seconds)
         return {"uid": "firebase-uid", "email": "student@college.edu", "email_verified": True}
 
     monkeypatch.setattr(auth, "_firebase_app", lambda: app)
@@ -67,7 +67,12 @@ def test_bootstrap_identity_accepts_verified_id_token_without_role_claim(monkeyp
     identity = auth.verified_firebase_identity(authorization="Bearer firebase-id-token")
 
     assert identity == {"uid": "firebase-uid", "email": "student@college.edu", "email_verified": True}
-    assert calls == {"token": "firebase-id-token", "app": app, "check_revoked": True}
+    assert calls == {
+        "token": "firebase-id-token",
+        "app": app,
+        "check_revoked": True,
+        "clock_skew_seconds": 5,
+    }
 
 
 def test_database_role_overrides_client_token_claim(monkeypatch):
@@ -184,3 +189,73 @@ def test_student_or_admin_dependency_rejects_unrecognized_claim():
         auth.require_student_or_admin({"uid": "user-uid", "role": "OWNER"})
 
     assert error.value.status_code == 403
+
+
+def test_verified_identity_respects_custom_clock_skew_seconds(monkeypatch):
+    app = object()
+    calls = {}
+
+    def verify_id_token(token, app, check_revoked, clock_skew_seconds=0):
+        calls.update(clock_skew_seconds=clock_skew_seconds)
+        return {"uid": "test-uid", "email": "student@vrsec.ac.in", "email_verified": True}
+
+    monkeypatch.setenv("HYDROGUARD_FIREBASE_CLOCK_SKEW_SECONDS", "8")
+    monkeypatch.setattr(auth, "_firebase_app", lambda: app)
+    monkeypatch.setitem(
+        sys.modules,
+        "firebase_admin",
+        SimpleNamespace(auth=SimpleNamespace(verify_id_token=verify_id_token)),
+    )
+
+    auth.verified_firebase_identity(authorization="Bearer valid-token")
+    assert calls["clock_skew_seconds"] == 8
+
+
+def test_verified_identity_clamps_clock_skew_to_maximum(monkeypatch):
+    app = object()
+    calls = {}
+
+    def verify_id_token(token, app, check_revoked, clock_skew_seconds=0):
+        calls.update(clock_skew_seconds=clock_skew_seconds)
+        return {"uid": "test-uid", "email": "student@vrsec.ac.in", "email_verified": True}
+
+    monkeypatch.setenv("HYDROGUARD_FIREBASE_CLOCK_SKEW_SECONDS", "60")
+    monkeypatch.setattr(auth, "_firebase_app", lambda: app)
+    monkeypatch.setitem(
+        sys.modules,
+        "firebase_admin",
+        SimpleNamespace(auth=SimpleNamespace(verify_id_token=verify_id_token)),
+    )
+
+    auth.verified_firebase_identity(authorization="Bearer valid-token")
+    assert calls["clock_skew_seconds"] == 10
+
+
+def test_verified_identity_handles_invalid_or_negative_clock_skew(monkeypatch):
+    assert auth._get_clock_skew_seconds() == 5
+
+    monkeypatch.setenv("HYDROGUARD_FIREBASE_CLOCK_SKEW_SECONDS", "invalid")
+    assert auth._get_clock_skew_seconds() == 5
+
+    monkeypatch.setenv("HYDROGUARD_FIREBASE_CLOCK_SKEW_SECONDS", "-3")
+    assert auth._get_clock_skew_seconds() == 0
+
+
+def test_verified_identity_rejects_timing_error_outside_tolerance(monkeypatch):
+    app = object()
+
+    def reject_token(*args, **kwargs):
+        raise ValueError("Token used too early, 1792210490 < 1792210510. Check that your computer's clock is set correctly.")
+
+    monkeypatch.setattr(auth, "_firebase_app", lambda: app)
+    monkeypatch.setitem(
+        sys.modules,
+        "firebase_admin",
+        SimpleNamespace(auth=SimpleNamespace(verify_id_token=reject_token)),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        auth.verified_firebase_identity(authorization="Bearer early-token")
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Firebase bearer token is invalid or expired."

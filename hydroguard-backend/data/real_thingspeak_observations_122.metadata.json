@@ -1,0 +1,38 @@
+{
+  "dataset_name": "HydroGuard ThingSpeak Channel 244357 Real Sensor Observations",
+  "channel_id": 244357,
+  "channel_name": "VR WATER TANK QUALITY",
+  "source": "THINGSPEAK_HARDWARE",
+  "real_sensor_data": true,
+  "total_observations": 122,
+  "start_timestamp": "2026-10-08T03:03:31Z",
+  "end_timestamp": "2026-10-15T08:57:08Z",
+  "parameters": [
+    "pH",
+    "TDS",
+    "turbidity",
+    "temperature"
+  ],
+  "raw_optical_sensor_fields": [
+    "rgb_red",
+    "rgb_green",
+    "rgb_blue"
+  ],
+  "status_field": "status_flag",
+  "missingness": {
+    "entry_id": 0,
+    "timestamp": 0,
+    "pH": 0,
+    "TDS": 0,
+    "turbidity": 0,
+    "temperature": 0,
+    "rgb_red": 0,
+    "rgb_green": 0,
+    "rgb_blue": 0,
+    "status_flag": 0
+  },
+  "sampling_interval_median_seconds": 32.0,
+  "gaps_greater_than_1_hour": 5,
+  "max_gap_hours": 89.29,
+  "note": "Confirmed physical hardware observations from ESP32/TCS34725/analog sensors on VR WATER TANK QUALITY channel."
+}

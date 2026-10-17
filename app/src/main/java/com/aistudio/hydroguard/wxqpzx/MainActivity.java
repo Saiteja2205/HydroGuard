@@ -4,9 +4,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.Editable;
-import android.text.TextWatcher;
-import android.text.method.PasswordTransformationMethod;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -16,7 +13,6 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.activity.ComponentActivity;
-import androidx.appcompat.widget.AppCompatEditText;
 import androidx.credentials.Credential;
 import androidx.credentials.CredentialManager;
 import androidx.credentials.CustomCredential;
@@ -25,12 +21,9 @@ import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.GetCredentialException;
 import androidx.lifecycle.ViewModelProvider;
 
-import com.google.android.material.textfield.TextInputLayout;
-
 import com.aistudio.hydroguard.wxqpzx.data.database.User;
 import com.aistudio.hydroguard.wxqpzx.data.repository.AuthCallback;
 import com.aistudio.hydroguard.wxqpzx.data.repository.DevelopmentAuthPolicy;
-import com.aistudio.hydroguard.wxqpzx.data.repository.FirebaseAuthRepository;
 import com.aistudio.hydroguard.wxqpzx.ui.viewmodel.HydroViewModel;
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
@@ -45,10 +38,6 @@ public class MainActivity extends ComponentActivity {
     private TextView statusText;
     private ProgressBar progress;
     private Button googleButton;
-    private Button demoStudentButton;
-    private Button demoAdminButton;
-    private AppCompatEditText emailField;
-    private AppCompatEditText passwordField;
     private boolean openingDashboard;
 
     @Override protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -61,22 +50,7 @@ public class MainActivity extends ComponentActivity {
         statusText = findViewById(R.id.login_status);
         progress = findViewById(R.id.login_progress);
         googleButton = findViewById(R.id.google_sign_in);
-        demoStudentButton = findViewById(R.id.demo_student_sign_in);
-        demoAdminButton = findViewById(R.id.demo_admin_sign_in);
-        emailField = findViewById(R.id.email_address);
-        passwordField = findViewById(R.id.password_field);
-
-        boolean showDevelopment = DevelopmentAuthPolicy.apiBridgeConfigured(
-                BuildConfig.DEBUG, BuildConfig.ALLOW_DEVELOPMENT_LOGIN, BuildConfig.DEVELOPMENT_API_TOKEN);
-        findViewById(R.id.development_login_group).setVisibility(showDevelopment ? View.VISIBLE : View.GONE);
-        findViewById(R.id.email_login_group).setVisibility(View.VISIBLE);
         googleButton.setOnClickListener(view -> beginGoogleSignIn());
-        demoStudentButton.setOnClickListener(view -> beginDevelopmentSignIn("STUDENT"));
-        demoAdminButton.setOnClickListener(view -> beginDevelopmentSignIn("ADMIN"));
-
-        findViewById(R.id.email_sign_in_button).setOnClickListener(view -> performEmailLogin());
-        findViewById(R.id.register_button).setOnClickListener(view -> performRegistration());
-        keepPasswordToggleLabelInSync();
 
         if (FirebaseApp.getApps(this).isEmpty()) {
             showMessage("Firebase configuration is missing. Check the Android Firebase project setup.");
@@ -97,45 +71,6 @@ public class MainActivity extends ComponentActivity {
     }
 
     /**
-     * Keeps the password eye's accessibility label describing what tapping it will do.
-     *
-     * <p>Material Components 1.12 wires the toggle in
-     * {@code PasswordToggleEndIconDelegate}, whose {@code getIconContentDescriptionResId()}
-     * returns one fixed string resource. The icon's drawable and its {@code checked} state do
-     * follow the real visibility, but the content description never changes, so a TalkBack user
-     * hears "Show password" even while the password is plainly on screen.</p>
-     *
-     * <p>This only rewrites the description; it deliberately does not install a click listener,
-     * because replacing the delegate's own listener would silently break the toggle. The sync is
-     * driven from a text watcher because {@code TextView.setTransformationMethod} re-sets the
-     * text, so every reveal/mask fires one. The check itself asks the field whether it is still
-     * using {@link PasswordTransformationMethod}, so the label can never drift from the truth.</p>
-     */
-    private void keepPasswordToggleLabelInSync() {
-        TextInputLayout layout = null;
-        // The EditText is not a direct child of the TextInputLayout: Material wraps it in an
-        // internal FrameLayout ("editFrame"), so walk up until the wrapper is found.
-        for (android.view.ViewParent parent = passwordField.getParent(); parent instanceof View;
-                parent = ((View) parent).getParent()) {
-            if (parent instanceof TextInputLayout) {
-                layout = (TextInputLayout) parent;
-                break;
-            }
-        }
-        if (layout == null) return;
-        final TextInputLayout host = layout;
-        Runnable sync = () -> host.setEndIconContentDescription(
-                passwordToggleLabel(passwordField.getTransformationMethod()
-                        instanceof PasswordTransformationMethod));
-        passwordField.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
-            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
-            @Override public void afterTextChanged(Editable s) { sync.run(); }
-        });
-        passwordField.post(sync);
-    }
-
-    /**
      * Label for the password eye, describing what tapping it will do.
      *
      * <p>Kept as a pure function so the wording is locked down by a unit test. Material's own
@@ -146,58 +81,6 @@ public class MainActivity extends ComponentActivity {
      */
     static String passwordToggleLabel(boolean masked) {
         return masked ? "Show password" : "Hide password";
-    }
-
-    private void performEmailLogin() {
-        String email = emailField.getText().toString().trim();
-        // The password is deliberately NOT trimmed: leading and trailing spaces are
-        // legal password characters, and trimming sent a different secret than the
-        // one the user typed, which showed up as an unexplained sign-in failure.
-        String password = passwordField.getText().toString();
-        if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            showMessage("Please enter a valid college email address.");
-            return;
-        }
-        if (password.trim().isEmpty()) {
-            showMessage("Please enter your password.");
-            return;
-        }
-        setLoading(true);
-        viewModel.loginWithEmail(email, password, new AuthCallback() {
-            @Override public void onSuccess(User user) { runOnUiThread(() -> openDashboard(user)); }
-            @Override public void onFailure(String message) {
-                runOnUiThread(() -> {
-                    setLoading(false);
-                    showMessage(message);
-                });
-            }
-        });
-    }
-
-    private void performRegistration() {
-        String email = emailField.getText().toString().trim();
-        // Never trim the password: the backend hashes exactly what is sent, so a
-        // trimmed value would create an account whose real password is unknown.
-        String password = passwordField.getText().toString();
-        if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            showMessage("Please enter a valid college email address.");
-            return;
-        }
-        String passwordIssue = FirebaseAuthRepository.passwordProblem(password);
-        if (passwordIssue != null) {
-            showMessage(passwordIssue);
-            return;
-        }
-        setLoading(true);
-        viewModel.registerStudent(null, email, password, new AuthCallback() {
-            @Override public void onSuccess(User user) { runOnUiThread(() -> openDashboard(user)); }
-            @Override public void onFailure(String message) {
-                runOnUiThread(() -> {
-                    setLoading(false);
-                    showMessage(message);
-                });
-            }
-        });
     }
 
     private void beginGoogleSignIn() {
@@ -260,12 +143,6 @@ public class MainActivity extends ComponentActivity {
         return "Google sign-in could not start. Check your Google account and try again.";
     }
 
-    private void beginDevelopmentSignIn(String role) {
-        setLoading(true);
-        setStatus("Checking the development API and signing in…");
-        viewModel.developmentLogin(role, authCallback());
-    }
-
     private AuthCallback authCallback() {
         return new AuthCallback() {
             @Override public void onSuccess(User user) { runOnUiThread(() -> openDashboard(user)); }
@@ -292,10 +169,6 @@ public class MainActivity extends ComponentActivity {
     private void setLoading(boolean loading) {
         progress.setVisibility(loading ? View.VISIBLE : View.GONE);
         googleButton.setEnabled(!loading);
-        demoStudentButton.setEnabled(!loading);
-        demoAdminButton.setEnabled(!loading);
-        findViewById(R.id.email_sign_in_button).setEnabled(!loading);
-        findViewById(R.id.register_button).setEnabled(!loading);
     }
 
     /**

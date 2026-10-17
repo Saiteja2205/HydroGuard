@@ -115,6 +115,9 @@ public final class LanApiRoute {
 
     private static final class WifiSocketFactory extends SocketFactory {
         private SocketFactory delegate() throws IOException {
+            if (connectivity == null) {
+                return SocketFactory.getDefault();
+            }
             Network network = wifiNetwork();
             if (network == null) {
                 throw new LanRouteUnavailableException(

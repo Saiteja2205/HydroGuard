@@ -153,6 +153,7 @@ dependencies {
   implementation(libs.retrofit)
   implementation(libs.mpandroidchart)
   testImplementation(libs.junit)
+  testImplementation("org.json:json:20231013")
 }
 
 // lifecycle 2.8.7 publishes separate desktop/android variants; only the -android
