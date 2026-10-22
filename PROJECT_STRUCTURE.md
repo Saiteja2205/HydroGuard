@@ -1,6 +1,6 @@
 # HydroGuard Project Structure
 
-This document describes the active source tree. The Android build compiles the Java/XML implementation under `com/aistudio/hydroguard/wxqpzx`; legacy Kotlin files under the old `com/example` path remain preserved in the checkout because the workspace's automatic safety review rejected deleting existing uncommitted source. Those files are excluded from the Android build.
+This document describes the active source tree. The Android build compiles the Java/XML implementation under `com/aistudio/hydroguard/wxqpzx`. Legacy uncompiled Kotlin files under `com/example` and obsolete stray debug utilities have been cleaned up; their history remains safely preserved in earlier Git checkpoints and tags.
 
 ## Root
 
@@ -69,8 +69,7 @@ This document describes the active source tree. The Android build compiles the J
 | `requirements.txt` | Python dependencies for API, persistence, ML, and tests | Python environment | Development/runtime configuration |
 | `README.md`, `data/README.md` | Setup, API/data behavior, provenance, limitations, and run instructions | Developers/researchers | Documentation |
 | `*_IMPLEMENTATION_REPORT.md`, `ML_DEMO_*_REPORT.md` | Historical implementation and evaluation notes; some refer to older model contracts and should be read as historical records | Review/research | Research documentation |
-| `=2.7.0` | Tracked pip output excerpt for a CPU PyTorch wheel download; not imported by application code | Historical environment setup | Development artifact; retained for review |
-| `check_db.py`, `inspect_db.py`, `seed_forecast_readings.py` | Local database inspection and development data utilities | Developers | Development tools |
+| `scripts/` | Local database inspection, seeding, single-hostel migration, and development utilities | Developers | Development tools |
 
 ## Active ML contract and retained legacy artifacts
 
@@ -87,6 +86,5 @@ Removed local generated directories: `.android-cache/`, `.android-user/`, `.java
 ## Review items
 
 - `firestore.rules` currently allows unauthenticated document creation in `SensorReadings` and `Alerts`. Comments mention ESP32/API verification, but those rules do not enforce such verification themselves; confirm the intended deployment path before using direct Firestore writes.
-- The retained four-feature `best` and six-feature `last` checkpoints are not active, but their value to older research runs should be decided separately.
-- The tracked `=2.7.0` file is a pip output excerpt with a nonstandard filename; it is not referenced by runtime code.
+- The retained four-feature `best` and six-feature `last` checkpoints are not active, but their value to older research runs should be decided separately.
 - `.git` retains the unreachable 203.54 MiB Robolectric JAR blob; history cleanup was intentionally not attempted.
