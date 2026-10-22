@@ -297,3 +297,68 @@ class TestFetchErrors:
         feeds = ts.fetch_feeds(ThingSpeakConfig(channel_id="1"), client=FakeClient())
         assert len(feeds) == 1
         assert feeds[0]["field1"] == "7.0"
+
+
+class TestDataValidationAndDropoutHandling:
+    def test_ph_zero_and_negative_treated_as_sensor_dropout(self):
+        from ml.services.thingspeak_service import _coerce_value
+        # 0V ADC sensor dropouts must return None, not 0.0
+        assert _coerce_value('0.00', 'pH') is None
+        assert _coerce_value('0.0', 'pH') is None
+        assert _coerce_value('-1.5', 'pH') is None
+        assert _coerce_value('0.05', 'pH') is None
+
+    def test_ph_physically_valid_alkaline_and_acidic_accepted(self):
+        from ml.services.thingspeak_service import _coerce_value
+        # Real physical range 0.5 <= pH <= 14.0
+        assert _coerce_value('12.41', 'pH') == pytest.approx(12.41)
+        assert _coerce_value('6.5', 'pH') == pytest.approx(6.5)
+        assert _coerce_value('7.0', 'pH') == pytest.approx(7.0)
+        assert _coerce_value('14.0', 'pH') == pytest.approx(14.0)
+        # Above physical max
+        assert _coerce_value('14.5', 'pH') is None
+
+    def test_temperature_dropout_rejected(self):
+        from ml.services.thingspeak_service import _coerce_value
+        # 0.0 or sub-0.5 is probe disconnect/dropout
+        assert _coerce_value('0.00', 'temperature') is None
+        assert _coerce_value('0.5', 'temperature') is None
+        assert _coerce_value('25.56', 'temperature') == pytest.approx(25.56)
+
+    def test_history_parsing_retains_entry_and_marks_dropout_as_none(self):
+        from ml.services.thingspeak_service import parse_history_readings, ThingSpeakConfig
+        cfg = ThingSpeakConfig(channel_id='244357')
+        # Entry 110: pH 0.00 dropout with status flag 1
+        feeds = [{
+            'created_at': '2026-10-15T08:50:21Z',
+            'entry_id': '110',
+            'field1': '0.00',
+            'field2': '7.03',
+            'field3': '0.47',
+            'field4': '26.57',
+            'field5': '37',
+            'field6': '30',
+            'field7': '32',
+            'field8': '1',
+        }]
+        readings = parse_history_readings(feeds, cfg)
+        assert len(readings) == 1
+        row = readings[0]
+        assert row['entry_id'] == 110
+        assert row['ph'] is None
+        assert row['pH'] is None
+        assert row['status_flag'] == 1
+        assert row['tds'] == pytest.approx(7.03)
+
+    def test_parse_feeds_forward_fills_dropout_feed(self):
+        from ml.services.thingspeak_service import parse_feeds, ThingSpeakConfig
+        cfg = ThingSpeakConfig(channel_id='244357', results=3)
+        feeds = [
+            {'created_at': '2026-10-15T08:49:00Z', 'entry_id': '109', 'field1': '10.69', 'field2': '5.43', 'field3': '29.81', 'field4': '27.22'},
+            {'created_at': '2026-10-15T08:50:21Z', 'entry_id': '110', 'field1': '0.00', 'field2': '7.03', 'field3': '0.47', 'field4': '26.57'},
+            {'created_at': '2026-10-15T08:50:58Z', 'entry_id': '111', 'field1': '12.37', 'field2': '5.48', 'field3': '29.20', 'field4': '26.55'},
+        ]
+        window = parse_feeds(feeds, cfg)
+        # Entry 110 (middle) should carry forward 10.69 from entry 109, not 0.00
+        assert window.values[1][0] == pytest.approx(10.69)
+        assert window.forward_filled >= 1

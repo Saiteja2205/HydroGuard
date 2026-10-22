@@ -89,4 +89,6 @@ public interface HydroGuardApiService {
             @Path("user_id") int userId, @Body RequestBody body);
 
     @Streaming @GET("api/v1/research/export.csv") Call<ResponseBody> exportResearchCsv();
+    @POST("api/v1/devices/register") Call<ResponseBody> registerDevice(@Body RequestBody body);
+    @POST("api/v1/devices/unregister") Call<ResponseBody> unregisterDevice(@Body RequestBody body);
 }

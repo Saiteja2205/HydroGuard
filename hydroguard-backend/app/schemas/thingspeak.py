@@ -96,6 +96,14 @@ class ThingSpeakLatestReading(BaseModel):
         default=None,
         description="Hardware status flag from field8 (e.g. 0=normal, 1=abnormal).",
     )
+    channel_id: Optional[str] = Field(
+        default=None,
+        description="ThingSpeak numeric channel identifier.",
+    )
+    node_id: Optional[str] = Field(
+        default=None,
+        description="Associated sensor node identifier (e.g. thingspeak-244357).",
+    )
 
 
 
@@ -180,15 +188,52 @@ class ThingSpeakForecastResponse(BaseModel):
     status: Literal["success"] = "success"
     latest_reading: ThingSpeakLatestReading
     forecast: ThingSpeakForecastBlock
+    prediction: Optional[ThingSpeakReadingValues] = None
     weights: dict[str, dict[str, float]]
     model_versions: dict[str, str]
     provenance: ForecastProvenance
     forecast_horizon_hours: int = 24
+    sample_interval_seconds: Optional[int] = Field(
+        default=None,
+        description='Observed interval in seconds between the latest two feeds (e.g. 30-45s).',
+    )
+    prediction_semantics: str = Field(
+        default='next_step_experimental',
+        description='Semantics of model prediction: next-step (t+1) extrapolation from models trained on 24-hour interval simulated data.',
+    )
+    forecast_horizon_description: str = Field(
+        default='Next-step prediction (experimental; nominal 24h interval in training simulation)',
+        description='Explicit description of the forecast horizon.',
+    )
+    target_timestamp: Optional[str] = Field(
+        default=None,
+        description='ISO-8601 UTC timestamp of the expected next observation based on live interval.',
+    )
     disclaimer: str = Field(
         default=(
             "Development-trained forecast. These values are model extrapolations "
             "and are not a certified drinking-water safety rating."
         )
+    )
+    model_lifecycle_state: str = Field(
+        default="EXPERIMENTAL",
+        description="Current lifecycle state of forecasting model: EXPERIMENTAL, VALIDATED, DEPLOYED, or REJECTED.",
+    )
+    next_day_forecast_status: str = Field(
+        default="UNAVAILABLE_INSUFFICIENT_REAL_DATA",
+        description="Status of genuine next-day (24h) forecast: UNAVAILABLE_INSUFFICIENT_REAL_DATA, EXPERIMENTAL, or VALIDATED.",
+    )
+    next_day_forecast_reason: str = Field(
+        default="Real sensor data coverage is 0.68% (71 minutes active operation across 7 days with multi-hour gaps). Zero continuous 24-hour windows exist to train or validate genuine next-day forecasting. An experimental next-step (~33s) prediction is provided as a baseline.",
+        description="Scientifically grounded explanation of next-day forecast status.",
+    )
+    data_coverage_percent: float = Field(
+        default=0.684,
+        description="Temporal coverage percentage of real sensor stream over calendar span.",
+    )
+    continuous_24h_windows: int = Field(
+        default=0,
+        description="Number of continuous 24-hour windows available in real sensor stream meeting quality threshold.",
     )
 
 

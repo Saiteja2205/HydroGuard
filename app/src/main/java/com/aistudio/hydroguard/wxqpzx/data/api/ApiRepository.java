@@ -160,7 +160,7 @@ public class ApiRepository {
                 }
             }
 
-            @Override public void onFailure(ApiFailure failure) { callback.onFailure(failure); }
+            @Override public void onFailure(ApiFailure failure) { if (callback != null) callback.onFailure(failure); }
         });
     }
 
@@ -422,10 +422,10 @@ public class ApiRepository {
                 ServerLink.recordResponseReceived();
                 String body = read(response.isSuccessful() ? response.body() : response.errorBody());
                 if (response.isSuccessful()) {
-                    callback.onSuccess(body);
+                    if (callback != null) callback.onSuccess(body);
                     return;
                 }
-                callback.onFailure(classifyResponse(response.code(), endpoint, body));
+                if (callback != null) callback.onFailure(classifyResponse(response.code(), endpoint, body));
             }
 
             @Override public void onFailure(Call<ResponseBody> ignored, Throwable error) {
@@ -437,7 +437,7 @@ public class ApiRepository {
                     Log.w("HydroGuardApi", failure.getMessage());
                     Log.e("HydroGuardApi", "Network request failed: " + error.getMessage(), error);
                 }
-                callback.onFailure(failure);
+                if (callback != null) callback.onFailure(failure);
             }
         });
     }
@@ -527,6 +527,31 @@ public class ApiRepository {
     private String read(ResponseBody body) {
         if (body == null) return "";
         try { return body.string(); } catch (IOException ignored) { return ""; }
+    }
+
+    public void registerDeviceToken(String token, String deviceType, ApiCallback callback) {
+        try {
+            JSONObject json = new JSONObject();
+            json.put("token", token);
+            json.put("device_type", deviceType != null ? deviceType : "android");
+            enqueue(api.registerDevice(jsonBody(json)), "/api/v1/devices/register", callback);
+        } catch (JSONException e) {
+            if (callback != null) {
+                callback.onFailure(new ApiFailure(ApiFailure.Kind.MALFORMED_RESPONSE, "/api/v1/devices/register", 0, e.getMessage(), e));
+            }
+        }
+    }
+
+    public void unregisterDeviceToken(String token, ApiCallback callback) {
+        try {
+            JSONObject json = new JSONObject();
+            json.put("token", token);
+            enqueue(api.unregisterDevice(jsonBody(json)), "/api/v1/devices/unregister", callback);
+        } catch (JSONException e) {
+            if (callback != null) {
+                callback.onFailure(new ApiFailure(ApiFailure.Kind.MALFORMED_RESPONSE, "/api/v1/devices/unregister", 0, e.getMessage(), e));
+            }
+        }
     }
 
     private static RequestBody jsonBody(JSONObject json) {

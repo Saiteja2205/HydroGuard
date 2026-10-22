@@ -69,6 +69,12 @@ def get_latest_reading(
     future-dated simulated sample cannot displace live data.
     """
     node = NodeRepository.get_by_node_id(db, node_id)
+    if node is None and node_id.startswith("thingspeak-"):
+        parts = node_id.split("-", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            node = NodeRepository.get_or_create(
+                db, node_id, f"ThingSpeak Channel {parts[1]}", "ThingSpeak"
+            )
     if node is None:
         raise HTTPException(status_code=404, detail=f"Node {node_id} not found.")
     reading = SensorReadingRepository.get_latest_by_node(
@@ -127,13 +133,20 @@ def create_reading(reading_data: ReadingCreate, db: Session = Depends(get_db), _
         source=reading_data.source,
     )
     from app.services.alert_service import AlertService
-    AlertService.evaluate_reading_for_alerts(db, reading.node_id, {
+    new_alerts = AlertService.evaluate_reading_for_alerts(db, reading.node_id, {
         "timestamp": reading.timestamp,
         "ph": float(reading.ph),
         "tds": float(reading.tds),
         "turbidity": float(reading.turbidity),
         "temperature": float(reading.temperature) if reading.temperature is not None else None,
     })
+    if new_alerts:
+        from app.services.push_notification_service import PushNotificationService
+        for alert in new_alerts:
+            try:
+                PushNotificationService.notify_alert_created(db, alert)
+            except Exception:
+                pass
     from app.services.error_tracking import ErrorTrackingService
     ErrorTrackingService.evaluate_actual_reading(db, reading)
     return reading
@@ -163,6 +176,12 @@ def get_reading_history(
     """
     # Ensure node exists
     node = NodeRepository.get_by_node_id(db, node_id)
+    if node is None and node_id.startswith("thingspeak-"):
+        parts = node_id.split("-", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            node = NodeRepository.get_or_create(
+                db, node_id, f"ThingSpeak Channel {parts[1]}", "ThingSpeak"
+            )
     if node is None:
         raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
 

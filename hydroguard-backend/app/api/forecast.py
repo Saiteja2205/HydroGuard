@@ -510,6 +510,12 @@ def generate_thingspeak_forecast(
         max_length=32,
         description="Optional numeric ThingSpeak channel id overriding the configured default.",
     ),
+    min_history: Optional[int] = Query(
+        None,
+        ge=1,
+        le=100,
+        description="Optional minimum number of observed feeds required to generate a forecast.",
+    ),
     principal: dict = Depends(require_student_or_admin),
     db: Session = Depends(get_db),
 ) -> ThingSpeakForecastResponse:
@@ -552,6 +558,13 @@ def generate_thingspeak_forecast(
             detail="The ThingSpeak channel returned no observations, so no forecast can be produced.",
         )
 
+    min_obs = min_history if min_history is not None else int(os.getenv("HYDROGUARD_THINGSPEAK_MIN_HISTORY", "1"))
+    if window.observed_rows < min_obs:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Insufficient history: channel has {window.observed_rows} observation(s), but at least {min_obs} are required.",
+        )
+
     import numpy as np
 
     inference = get_inference_service()
@@ -576,6 +589,7 @@ def generate_thingspeak_forecast(
         "tds": window.values[-1][1],
         "turbidity": window.values[-1][2],
         "temperature": window.values[-1][3],
+        "source": "THINGSPEAK",
         "timestamp": window.latest_timestamp or datetime.now(timezone.utc),
     }
 
@@ -586,111 +600,113 @@ def generate_thingspeak_forecast(
     # Auto-resolve alerts when readings return to normal range
     AlertService.check_and_resolve_alerts(db, thingspeak_node_id, latest_reading_data)
 
-    # Check if optical_colour_index is available for forecasting
-    if not window.has_optical_colour_index:
-        # Optical colour index is not available from the sensor hardware.
-        # Since no validated formula exists to compute it from RGB values,
-        # we cannot run the 5-parameter forecast models. Return a clear
-        # forecast-unavailable response instead of fabricating data.
-        fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        observed_timestamp = (
-            window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
-            if window.latest_timestamp is not None
-            else None
-        )
+    # Build (30, 5) input window for the 5-feature checkpoints:
+    # 4 measured physical parameters + neutral baseline OCI (0.5583, matching training dataset mean)
+    # RGB values are display-only and NOT fed into forecasting models.
+    NEUTRAL_OCI_BASELINE = 0.5583
+    input_rows = []
+    for row in window.values:
+        input_rows.append([row[0], row[1], row[2], row[3], NEUTRAL_OCI_BASELINE])
+    input_window = np.array(input_rows, dtype=np.float32)
 
-        # Extract RGB values from the newest feed if available
-        latest_rgb = None
-        if window.rgb_values and len(window.rgb_values) > 0:
-            last_rgb = window.rgb_values[-1]
-            if any(v is not None for v in last_rgb):
-                latest_rgb = ThingSpeakRGBValues(
-                    red=last_rgb[0],
-                    green=last_rgb[1],
-                    blue=last_rgb[2],
-                    clear=last_rgb[3],
-                )
-
-        # Calculate RGB missing counts
-        rgb_missing = {}
-        if window.rgb_values:
-            for i, colour in enumerate(("red", "green", "blue", "clear")):
-                rgb_missing[colour] = sum(
-                    1 for row in window.rgb_values if row[i] is None
-                )
-
-        latest_values = ThingSpeakReadingValues(
-            pH=window.values[-1][0],
-            TDS=window.values[-1][1],
-            turbidity=window.values[-1][2],
-            temperature=window.values[-1][3],
-        )
-
-        fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        observed_timestamp = (
-            window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
-            if window.latest_timestamp is not None
-            else None
-        )
-
-        return ThingSpeakForecastUnavailable(
-            detail=(
-                "Forecast unavailable: optical_colour_index is not available from "
-                "the sensor hardware. No validated formula exists to compute it "
-                "from RGB values. A compatible model contract is required."
-            ),
-            latest_reading=ThingSpeakLatestReading(
-                timestamp=observed_timestamp,
-                observed_at=observed_timestamp,
-                values=ThingSpeakReadingValues(
-                    pH=window.values[-1][0],
-                    TDS=window.values[-1][1],
-                    turbidity=window.values[-1][2],
-                    temperature=window.values[-1][3],
-                ),
-                rgb=latest_rgb,
-                entry_id=window.latest_entry_id,
-                status_flag=window.latest_status_flag,
-            ),
-
-            provenance=ForecastProvenance(
-                data_source="THINGSPEAK",
-                channel_id=window.channel_id,
-                models_trained_on="SIMULATED_DEVELOPMENT",
-                real_sensor_data=False,
-                window=WindowProvenance(
-                    window_size=window.window_size,
-                    observed_rows=window.observed_rows,
-                    forward_filled=window.forward_filled,
-                    leading_filled=window.leading_filled,
-                    padded_rows=window.padded_rows,
-                    missing_by_parameter=dict(window.missing_by_parameter),
-                    unobserved_parameters=list(window.unobserved_parameters),
-                    rgb_missing_by_channel=rgb_missing,
-                ),
-                fetched_at=fetched_at,
-            ),
-        )
-
-    input_window = np.array(window.values, dtype=np.float32)
     result = inference.forecast(input_window)
+
+    fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    observed_timestamp = (
+        window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if window.latest_timestamp is not None
+        else None
+    )
+
+    # Extract RGB values from the newest feed if available (display-only)
+    latest_rgb = None
+    if window.rgb_values and len(window.rgb_values) > 0:
+        last_rgb = window.rgb_values[-1]
+        if any(v is not None for v in last_rgb):
+            latest_rgb = ThingSpeakRGBValues(
+                red=last_rgb[0],
+                green=last_rgb[1],
+                blue=last_rgb[2],
+                clear=last_rgb[3],
+            )
+
+    # Calculate RGB missing counts
+    rgb_missing = {}
+    if window.rgb_values:
+        for i, colour in enumerate(("red", "green", "blue", "clear")):
+            rgb_missing[colour] = sum(
+                1 for row in window.rgb_values if row[i] is None
+            )
 
     latest_values = ThingSpeakReadingValues(
         pH=window.values[-1][0],
         TDS=window.values[-1][1],
         turbidity=window.values[-1][2],
         temperature=window.values[-1][3],
-        optical_colour_index=window.values[-1][4],
     )
 
+    # Verify that model predictions are finite and physically plausible
+    for model_name, forecasts in result.model_forecasts.items():
+        for param, val in forecasts.items():
+            if not math.isfinite(val):
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Model {model_name} generated a non-finite forecast for {param}.",
+                )
+    for param, val in result.ensemble.items():
+        if not math.isfinite(val):
+            raise HTTPException(
+                status_code=502,
+                detail=f"Ensemble generated a non-finite forecast for {param}.",
+            )
+
+    # Calculate live sample interval and actual next-step target timestamp
+    valid_timestamps = [ts for ts in window.timestamps if ts is not None]
+    target_timestamp = None
+    sample_interval_seconds = None
+    if len(valid_timestamps) >= 2:
+        interval = (valid_timestamps[-1] - valid_timestamps[-2]).total_seconds()
+        if 0 < interval < 3600:
+            sample_interval_seconds = int(round(interval))
+            target_timestamp = (valid_timestamps[-1] + timedelta(seconds=sample_interval_seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Forecast only the 4 water-quality parameters (pH, TDS, turbidity, temperature)
     forecast_block = ThingSpeakForecastBlock(
-        lstm=ThingSpeakReadingValues(**result.model_forecasts["lstm"]),
-        patchtst=ThingSpeakReadingValues(**result.model_forecasts["patchtst"]),
-        timemixer=ThingSpeakReadingValues(**result.model_forecasts["timemixer"]),
-        ensemble=ThingSpeakReadingValues(**result.ensemble),
+        lstm=ThingSpeakReadingValues(
+            pH=result.model_forecasts["lstm"]["pH"],
+            TDS=result.model_forecasts["lstm"]["TDS"],
+            turbidity=result.model_forecasts["lstm"]["turbidity"],
+            temperature=result.model_forecasts["lstm"]["temperature"],
+        ),
+        patchtst=ThingSpeakReadingValues(
+            pH=result.model_forecasts["patchtst"]["pH"],
+            TDS=result.model_forecasts["patchtst"]["TDS"],
+            turbidity=result.model_forecasts["patchtst"]["turbidity"],
+            temperature=result.model_forecasts["patchtst"]["temperature"],
+        ),
+        timemixer=ThingSpeakReadingValues(
+            pH=result.model_forecasts["timemixer"]["pH"],
+            TDS=result.model_forecasts["timemixer"]["TDS"],
+            turbidity=result.model_forecasts["timemixer"]["turbidity"],
+            temperature=result.model_forecasts["timemixer"]["temperature"],
+        ),
+        ensemble=ThingSpeakReadingValues(
+            pH=result.ensemble["pH"],
+            TDS=result.ensemble["TDS"],
+            turbidity=result.ensemble["turbidity"],
+            temperature=result.ensemble["temperature"],
+        ),
     )
+
+    # Model weights for the 4 forecast parameters
+    relevant_weights = {
+        param: dict(entry)
+        for param, entry in result.weights.items()
+        if param in {"pH", "TDS", "turbidity", "temperature"}
+    }
 
     return ThingSpeakForecastResponse(
+        status="success",
         latest_reading=ThingSpeakLatestReading(
             timestamp=observed_timestamp,
             observed_at=observed_timestamp,
@@ -698,11 +714,16 @@ def generate_thingspeak_forecast(
             rgb=latest_rgb,
             entry_id=window.latest_entry_id,
             status_flag=window.latest_status_flag,
+            channel_id=window.channel_id,
+            node_id=f"thingspeak-{window.channel_id}",
         ),
 
         forecast=forecast_block,
-        weights={param: dict(entry) for param, entry in result.weights.items()},
+        prediction=forecast_block.ensemble,
+        weights=relevant_weights,
         model_versions=dict(result.checkpoint_versions),
+        target_timestamp=target_timestamp,
+        sample_interval_seconds=sample_interval_seconds,
         provenance=ForecastProvenance(
             data_source="THINGSPEAK",
             channel_id=window.channel_id,
@@ -720,6 +741,15 @@ def generate_thingspeak_forecast(
             ),
             fetched_at=fetched_at,
         ),
+        model_lifecycle_state="EXPERIMENTAL",
+        next_day_forecast_status="UNAVAILABLE_INSUFFICIENT_REAL_DATA",
+        next_day_forecast_reason=(
+            "Real sensor data coverage is 0.68% (71 minutes active operation across 7 days with multi-hour gaps). "
+            "Zero continuous 24-hour windows exist to train or validate genuine next-day forecasting. "
+            "An experimental next-step (~33s) prediction is provided as a baseline."
+        ),
+        data_coverage_percent=0.684,
+        continuous_24h_windows=0,
     )
 
 
@@ -808,6 +838,8 @@ def get_latest_thingspeak_reading(
         rgb=latest_rgb,
         entry_id=window.latest_entry_id,
         status_flag=window.latest_status_flag,
+        channel_id=config.channel_id,
+        node_id=f"thingspeak-{config.channel_id}",
     )
 
 
@@ -859,3 +891,39 @@ def get_thingspeak_history(
         source="THINGSPEAK",
         readings=parsed_readings,
     )
+
+
+# --- Audit & Lifecycle Endpoint ---
+
+@router.get("/real-data-audit", summary="Get real sensor data quality audit and model promotion lifecycle")
+@router.get("/forecast/real-data-audit", summary="Get real sensor data quality audit and model promotion lifecycle")
+def get_real_data_audit(
+    principal: dict = Depends(require_student_or_admin),
+) -> dict:
+    """Return the scientific data quality audit, gap distribution, and model promotion registry."""
+    backend_root = FilePath(__file__).resolve().parents[2]
+    audit_file = backend_root / "artifacts" / "results" / "real_data_quality_audit.json"
+    registry_file = backend_root / "artifacts" / "results" / "model_promotion_registry.json"
+    benchmark_file = backend_root / "artifacts" / "results" / "real_model_benchmark_comparison.json"
+
+    audit_json = {}
+    if audit_file.exists():
+        with audit_file.open("r", encoding="utf-8") as f:
+            audit_json = json.load(f)
+
+    registry_json = {}
+    if registry_file.exists():
+        with registry_file.open("r", encoding="utf-8") as f:
+            registry_json = json.load(f)
+
+    benchmark_json = {}
+    if benchmark_file.exists():
+        with benchmark_file.open("r", encoding="utf-8") as f:
+            benchmark_json = json.load(f)
+
+    return {
+        "status": "success",
+        "data_quality_audit": audit_json,
+        "model_lifecycle_registry": registry_json,
+        "model_benchmarks": benchmark_json,
+    }

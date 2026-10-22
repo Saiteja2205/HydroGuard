@@ -146,6 +146,8 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   annotationProcessor(libs.androidx.room.compiler)
   implementation(libs.firebase.auth)
+  implementation(libs.firebase.messaging)
+  implementation(libs.androidx.datastore.preferences)
   implementation(libs.okhttp)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services.auth)

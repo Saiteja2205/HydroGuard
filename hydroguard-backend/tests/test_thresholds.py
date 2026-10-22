@@ -14,6 +14,22 @@ from app.db.database import get_db_context, init_db
 from app.services.alert_service import AlertService
 
 
+import pytest
+from app.db.models import ThresholdConfig
+
+
+@pytest.fixture(autouse=True)
+def clean_thresholds():
+    init_db()
+    with get_db_context() as db:
+        db.query(ThresholdConfig).delete()
+        db.commit()
+    yield
+    with get_db_context() as db:
+        db.query(ThresholdConfig).delete()
+        db.commit()
+
+
 def _client(monkeypatch, role: str) -> TestClient:
     init_db()
     monkeypatch.setitem(
@@ -22,6 +38,7 @@ def _client(monkeypatch, role: str) -> TestClient:
         lambda: {"uid": f"test-{role.lower()}", "role": role},
     )
     return TestClient(app)
+
 
 
 def test_get_thresholds_returns_defaults(monkeypatch):

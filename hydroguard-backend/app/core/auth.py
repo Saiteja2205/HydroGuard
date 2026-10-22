@@ -105,6 +105,9 @@ def _firebase_app():
         raise HTTPException(status_code=503, detail=FIREBASE_UNAVAILABLE_DETAIL) from exc
 
 
+get_firebase_app = _firebase_app
+
+
 def _development_principal(
     token: str | None,
     role: str | None,

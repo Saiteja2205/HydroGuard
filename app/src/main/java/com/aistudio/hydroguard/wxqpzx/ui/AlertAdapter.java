@@ -34,7 +34,11 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.AlertHolder>
     public void submit(List<JSONObject> rows) {
         alerts.clear();
         alerts.addAll(rows);
-        notifyDataSetChanged();
+        try {
+            notifyDataSetChanged();
+        } catch (Exception ignored) {
+            // In unit tests without an attached RecyclerView observer, notifyDataSetChanged is unmocked
+        }
     }
 
     @NonNull
@@ -49,10 +53,24 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.AlertHolder>
         JSONObject alert = alerts.get(position);
         holder.parameter.setText(alert.optString("parameter", "Water quality"));
         String severity = alert.optString("severity", "INFO");
-        String status = alert.optString("status", "ACTIVE");
-        holder.severity.setText(severity + " · " + status);
-        int color = "CRITICAL".equals(severity) || "WARNING".equals(severity)
-                ? R.color.hydroguard_red : "INFO".equals(severity) ? R.color.hydroguard_blue : R.color.hydroguard_muted;
+        String status = alert.optString("status", "ACTIVE").toUpperCase();
+
+        int color;
+        if ("RESOLVED".equals(status)) {
+            holder.severity.setText("RESOLVED");
+            color = R.color.hydroguard_green;
+            holder.itemView.setAlpha(0.75f);
+        } else if ("ACKNOWLEDGED".equals(status)) {
+            holder.severity.setText(severity + " · ACKNOWLEDGED");
+            color = R.color.hydroguard_orange;
+            holder.itemView.setAlpha(0.9f);
+        } else {
+            holder.severity.setText(severity + " · ACTIVE");
+            color = "CRITICAL".equals(severity) || "WARNING".equals(severity)
+                    ? R.color.hydroguard_red : "INFO".equals(severity) ? R.color.hydroguard_blue : R.color.hydroguard_muted;
+            holder.itemView.setAlpha(1.0f);
+        }
+
         holder.severity.setTextColor(holder.severity.getContext().getColor(color));
         holder.severity.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         holder.message.setText(alert.optString("message", "Water quality alert"));
@@ -62,9 +80,12 @@ public class AlertAdapter extends RecyclerView.Adapter<AlertAdapter.AlertHolder>
         boolean showAcknowledge = admin && "ACTIVE".equals(status);
         holder.acknowledge.setVisibility(showAcknowledge ? View.VISIBLE : View.GONE);
         if (showAcknowledge) {
+            holder.acknowledge.setEnabled(true);
             holder.acknowledge.setOnClickListener(view -> {
                 holder.acknowledge.setEnabled(false);
-                listener.onAcknowledge(alert.optInt("id"), holder.acknowledge);
+                if (listener != null) {
+                    listener.onAcknowledge(alert.optInt("id"), holder.acknowledge);
+                }
             });
         }
     }

@@ -1,0 +1,114 @@
+{
+  "registry_updated_at": "2026-10-22T11:21:32.648635+00:00",
+  "active_production_ensemble": "five-param-v1 (Adaptive Ensemble)",
+  "active_production_horizon": "EXPERIMENTAL_NEXT_STEP (~33s nominal extrapolation)",
+  "next_day_forecast_status": "UNAVAILABLE_INSUFFICIENT_REAL_DATA",
+  "registered_models": [
+    {
+      "model_name": "Four-Parameter Real LSTM",
+      "version": "four-param-real-v1",
+      "checkpoint_file": "lstm_water_quality_4param_real_v1.pt",
+      "training_data_provenance": "THINGSPEAK_HARDWARE (122 real observations from Channel 244357)",
+      "sample_count": 85,
+      "input_features": [
+        "pH",
+        "TDS",
+        "turbidity",
+        "temperature"
+      ],
+      "training_cadence": "~32 seconds",
+      "intended_horizon": "Next observation step (~32s)",
+      "lifecycle_state": "REJECTED",
+      "horizon_status": "UNAVAILABLE_INSUFFICIENT_REAL_DATA",
+      "promotion_gates": [
+        {
+          "gate_name": "Data Coverage Gate",
+          "passed": false,
+          "threshold_criterion": ">= 30 days continuous observations, >= 80% daily coverage, 0 synthetic fills",
+          "observed_metric": "173.9h total span, 71.3 min active operation (0.684% coverage)",
+          "reason": "Hardware operated in 5 sporadic bursts over 7 days with gaps up to 89.3h. Zero continuous 24h days exist."
+        },
+        {
+          "gate_name": "Baseline Gate",
+          "passed": false,
+          "threshold_criterion": "Must outperform Persistence Baseline on >= 3 of 4 parameters on held-out test split",
+          "observed_metric": "Outperformed Persistence on 1 parameter (Turbidity: 2.06 vs 3.46 NTU). Severely underperformed on TDS (160.07 vs 0.20 ppm, 796x worse) and Temp (0.76 vs 0.13 \u00b0C, 5.7x worse).",
+          "reason": "Persistence strongly beats LSTM on high-frequency quasi-static telemetry (TDS, Temp, pH)."
+        },
+        {
+          "gate_name": "Covariate Stability Gate",
+          "passed": false,
+          "threshold_criterion": "|mean_train - mean_test| / std_train < 1.0 across chronological splits",
+          "observed_metric": "TDS normalized shift = 0.970 training sigmas (Train: 1013.8 \u00b1 1039.1 ppm; Test: 5.56 \u00b1 0.37 ppm)",
+          "reason": "Extreme covariate shift between saline bench calibration in train split and clean tap water in test split."
+        },
+        {
+          "gate_name": "Horizon Cadence Gate",
+          "passed": false,
+          "threshold_criterion": "Training cadence must equal target forecast horizon (T_train == 24h)",
+          "observed_metric": "Training cadence = ~32 seconds; target horizon = 24 hours",
+          "reason": "Model predicts next 32s step, cannot extrapolate 24h daily trends."
+        }
+      ],
+      "approval_decision": "REJECTED_FOR_PRODUCTION",
+      "approval_notes": "Failed Data Coverage, Baseline, Covariate Stability, and Horizon Cadence gates. Retained as offline research benchmark only."
+    },
+    {
+      "model_name": "Five-Parameter Adaptive Ensemble (LSTM + PatchTST + TimeMixer)",
+      "version": "five-param-v1",
+      "checkpoint_file": "lstm_water_quality_5param_v1.pt, patchtst_water_quality_5param_v1.pt, timemixer_water_quality_5param_v1.pt",
+      "training_data_provenance": "SIMULATED_DEVELOPMENT (200 simulated daily observations)",
+      "sample_count": 140,
+      "input_features": [
+        "pH",
+        "TDS",
+        "turbidity",
+        "temperature",
+        "optical_colour_index"
+      ],
+      "training_cadence": "Nominal 24 hours (simulated)",
+      "intended_horizon": "Experimental next-step extrapolation (~33s on live stream)",
+      "lifecycle_state": "EXPERIMENTAL",
+      "horizon_status": "EXPERIMENTAL_NEXT_STEP",
+      "promotion_gates": [
+        {
+          "gate_name": "Data Coverage Gate",
+          "passed": false,
+          "threshold_criterion": "Must be trained on verified real hardware sensor data (not synthetic/simulated)",
+          "observed_metric": "Trained on SIMULATED_DEVELOPMENT (200 simulated daily observations)",
+          "reason": "Simulated dataset does not reflect actual ESP32/TCS34725 hardware calibration noise or physical tank dynamics."
+        },
+        {
+          "gate_name": "Baseline Gate",
+          "passed": true,
+          "threshold_criterion": "Outperforms persistence baseline on simulated validation/test benchmarks",
+          "observed_metric": "Ensemble achieves lower validation MSE (0.64) than individual models on development dataset",
+          "reason": "Ensemble weighting successfully balances multi-scale temporal dynamics on development data."
+        },
+        {
+          "gate_name": "Covariate Stability Gate",
+          "passed": true,
+          "threshold_criterion": "Stable parameters without catastrophic distribution shifts in training split",
+          "observed_metric": "Simulated data features follow bounded stationary distributions",
+          "reason": "Synthetic dataset exhibits controlled parameters."
+        },
+        {
+          "gate_name": "Horizon Cadence Gate",
+          "passed": false,
+          "threshold_criterion": "Inference input cadence must match training cadence for 24h validation",
+          "observed_metric": "Trained on daily 24h cadence, but fed live ThingSpeak 32-second telemetry at inference",
+          "reason": "Operating on 32-second inputs yields a next-step (~33s) mathematical extrapolation, not a validated 24h forecast."
+        }
+      ],
+      "approval_decision": "APPROVED_AS_EXPERIMENTAL_FALLBACK_ONLY",
+      "approval_notes": "Approved exclusively as an experimental next-step extrapolation (~33s) with mandatory simulation disclaimers. NOT validated for genuine 24h next-day forecasting."
+    }
+  ],
+  "minimum_requirements_for_next_day_promotion": [
+    "1. Continuous Hardware Operation: ESP32 sensor rig must log 24/7 for >= 30 consecutive days.",
+    "2. Minimum Daily Coverage: >= 70% active readings per 24-hour day with no gaps > 2 hours.",
+    "3. Retraining on Real Cadence: Model must be trained on daily-aggregated real observations.",
+    "4. Baseline Superiority: Model must beat Persistence Baseline on pH, TDS, Turbidity, and Temperature on held-out test split.",
+    "5. Hardware Calibration: pH and Turbidity probes must be calibrated to resolve hardware status flag 1."
+  ]
+}

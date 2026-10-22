@@ -141,21 +141,29 @@ class TestChannelOverride:
         assert response.status_code == 422
 
 
-class TestForecastUnavailable:
-    """Tests for the forecast-unavailable response when optical_colour_index is unavailable."""
+class TestForecastGeneration:
+    """Tests for successful forecast generation from ThingSpeak data."""
 
-    def test_returns_forecast_unavailable_status(self, client, stub_feeds, monkeypatch):
+    def test_returns_success_status_and_forecast_block(self, client, stub_feeds, monkeypatch):
         monkeypatch.setenv("HYDROGUARD_THINGSPEAK_CHANNEL_ID", "12345")
         response = client.get(ENDPOINT)
         assert response.status_code == 200
         body = response.json()
-        assert body["status"] == "forecast_unavailable"
-        assert "detail" in body
-        assert "optical_colour_index is not available" in body["detail"]
-        assert "forecast" not in body
-        assert "weights" not in body
-        assert "model_versions" not in body
-        assert "disclaimer" not in body
+        assert body["status"] == "success"
+        assert "forecast" in body
+        assert "prediction" in body
+        assert "weights" in body
+        assert "model_versions" in body
+        assert "disclaimer" in body
+
+        # Verify four modelled forecast parameters (pH, TDS, turbidity, temperature)
+        ensemble = body["forecast"]["ensemble"]
+        assert set(ensemble.keys()) == {"pH", "TDS", "turbidity", "temperature"}
+        assert "optical_colour_index" not in ensemble
+        assert all(isinstance(ensemble[p], (int, float)) for p in ensemble)
+
+        # Check prediction field matches ensemble
+        assert body["prediction"] == ensemble
 
     def test_has_latest_reading_with_provenance(self, client, stub_feeds, monkeypatch):
         monkeypatch.setenv("HYDROGUARD_THINGSPEAK_CHANNEL_ID", "12345")
@@ -175,15 +183,22 @@ class TestForecastUnavailable:
         assert set(values.keys()) == {"pH", "TDS", "turbidity", "temperature"}
         assert "optical_colour_index" not in values or values["optical_colour_index"] is None
 
-    def test_has_provenance_with_forecast_unavailable_detail(self, client, stub_feeds, monkeypatch):
+    def test_insufficient_history_returns_422(self, client, stub_feeds, monkeypatch):
         monkeypatch.setenv("HYDROGUARD_THINGSPEAK_CHANNEL_ID", "12345")
+        response = client.get(ENDPOINT, params={"min_history": 50})
+        assert response.status_code == 422
+        assert "Insufficient history" in response.json()["detail"]
+
+    def test_missing_checkpoints_returns_503(self, client, stub_feeds, monkeypatch):
+        from ml.services import inference_service
+        monkeypatch.setenv("HYDROGUARD_THINGSPEAK_CHANNEL_ID", "12345")
+        service = inference_service.get_inference_service()
+        def _fail_load():
+            raise FileNotFoundError("missing checkpoint")
+        monkeypatch.setattr(service, "load", _fail_load)
         response = client.get(ENDPOINT)
-        body = response.json()
-        assert body["provenance"]["data_source"] == "THINGSPEAK"
-        assert body["provenance"]["models_trained_on"] == "SIMULATED_DEVELOPMENT"
-        assert body["provenance"]["real_sensor_data"] is False
-        assert body["detail"] is not None
-        assert "optical_colour_index is not available" in body["detail"]
+        assert response.status_code == 503
+        assert "Forecast checkpoint not found" in response.json()["detail"]
 
 
 class TestWindowGapDisclosure:
@@ -419,8 +434,8 @@ class TestAlertIntegration:
         response = client.get(ENDPOINT)
         assert response.status_code == 200
         body = response.json()
-        # Should return forecast_unavailable since OCI not available
-        assert body["status"] == "forecast_unavailable"
+        # Returns success for the 4 core parameters
+        assert body["status"] == "success"
 
         with get_db_context() as db:
             alerts = db.query(Alert).filter(Alert.node_id == "thingspeak-44444").all()
@@ -640,3 +655,43 @@ class TestLatestThingSpeakReading:
         assert body["readings"][0]["red"] == 45
         assert body["readings"][1]["entry_id"] == 102
         assert body["readings"][1]["timestamp"] > body["readings"][0]["timestamp"]
+
+
+class TestForecastSemanticsAndTargetTimestamp:
+    def test_forecast_response_contains_target_timestamp_and_semantics(self, client, stub_feeds, monkeypatch):
+        """Forecast response includes 24h target_timestamp and explicit next-step semantics."""
+        import math
+        from app.db.database import init_db
+        monkeypatch.setenv("HYDROGUARD_THINGSPEAK_CHANNEL_ID", "66661")
+        stub_feeds.feeds = _feeds(30)
+        stub_feeds.feeds[-2]["created_at"] = "2026-10-15T08:56:38Z"
+        stub_feeds.feeds[-1]["created_at"] = "2026-10-15T08:57:08Z"
+        for feed in stub_feeds.feeds:
+            feed["field1"] = "12.41"
+            feed["field2"] = "5.47"
+            feed["field3"] = "29.08"
+            feed["field4"] = "25.56"
+
+        init_db()
+        response = client.get("/api/v1/thingspeak/forecast")
+        assert response.status_code == 200
+        body = response.json()
+
+        assert body["status"] == "success"
+        assert body["forecast_horizon_hours"] == 24
+        assert "target_timestamp" in body
+        # Real live interval is 30 seconds -> 08:57:08 + 30s = 08:57:38
+        assert body["target_timestamp"] == "2026-10-15T08:57:38Z"
+        assert body["sample_interval_seconds"] == 30
+        assert "prediction_semantics" in body
+        assert "next-step" in body["prediction_semantics"].lower() or "next_step" in body["prediction_semantics"].lower()
+
+        # Check finite and non-negative predictions
+        ens = body["forecast"]["ensemble"]
+        assert math.isfinite(ens["pH"])
+        assert math.isfinite(ens["TDS"])
+        assert math.isfinite(ens["turbidity"])
+        assert math.isfinite(ens["temperature"])
+        assert ens["pH"] >= 0.0
+        assert ens["TDS"] >= 0.0
+        assert ens["turbidity"] >= 0.0

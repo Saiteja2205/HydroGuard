@@ -36,6 +36,8 @@ Configuration comes from the environment:
 from __future__ import annotations
 
 import os
+import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
@@ -298,6 +300,14 @@ def _coerce_value(raw: Any, parameter: str) -> float | None:
     if value != value:  # NaN
         return None
 
+    # Distinguish physical aqueous observations from open-circuit / 0V ADC sensor dropouts
+    if parameter == 'pH' and value <= 0.05:
+        # Sensor dropout: 0V analog ADC reading / disconnected pH probe
+        return None
+    if parameter in ('temperature', 'temp') and value <= 0.5:
+        # Sensor dropout: 0V analog ADC reading / disconnected temp probe
+        return None
+
     bounds = VALID_RANGES.get(parameter)
     if bounds is not None:
         lower, upper = bounds
@@ -556,28 +566,47 @@ def parse_history_readings(
 def fetch_feeds(
     config: ThingSpeakConfig,
     client: httpx.Client | None = None,
+    max_retries: int = 3,
+    retry_delay_seconds: float = 0.5,
 ) -> list[Mapping[str, Any]]:
     """Fetch the channel's recent feeds and return the raw feed mappings.
 
-    ``client`` may be injected so tests can exercise the parsing and error
-    paths without touching the network.
+    Supports bounded retries with exponential backoff on transient network
+    or timeout failures. ``client`` may be injected so tests can exercise
+    the parsing and error paths without touching the network.
     """
     url = build_feed_url(config)
 
     owns_client = client is None
-    if owns_client:
-        client = httpx.Client(timeout=config.timeout_seconds)
-    try:
-        response = client.get(url)
-    except httpx.TimeoutException as exc:
-        raise ThingSpeakUnavailable(
-            f"The ThingSpeak channel request exceeded {config.timeout_seconds:g}s."
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise ThingSpeakUnavailable("The ThingSpeak channel could not be reached.") from exc
-    finally:
-        if owns_client:
-            client.close()
+    last_error: Exception | None = None
+    response: httpx.Response | None = None
+
+    for attempt in range(1, max_retries + 1):
+        http_client = client if client is not None else httpx.Client(timeout=config.timeout_seconds)
+        try:
+            response = http_client.get(url)
+            # Deterministic status codes: return immediately without retrying
+            if response.status_code in (200, 401, 403, 404):
+                break
+            # Server errors (5xx): retry with backoff if attempts remain
+            if attempt < max_retries:
+                time.sleep(retry_delay_seconds * (2 ** (attempt - 1)))
+                continue
+        except (httpx.TimeoutException, httpx.HTTPError) as exc:
+            last_error = exc
+            if attempt < max_retries:
+                time.sleep(retry_delay_seconds * (2 ** (attempt - 1)))
+                continue
+        finally:
+            if owns_client:
+                http_client.close()
+
+    if response is None:
+        if isinstance(last_error, httpx.TimeoutException):
+            raise ThingSpeakUnavailable(
+                f"The ThingSpeak channel request exceeded {config.timeout_seconds:g}s."
+            ) from last_error
+        raise ThingSpeakUnavailable("The ThingSpeak channel could not be reached.") from last_error
 
     if response.status_code == 404:
         raise ThingSpeakUnavailable("The configured ThingSpeak channel was not found.")

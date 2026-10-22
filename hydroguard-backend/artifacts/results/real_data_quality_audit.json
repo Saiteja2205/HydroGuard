@@ -1,0 +1,204 @@
+{
+  "channel_id": 244357,
+  "channel_name": "VR WATER TANK QUALITY",
+  "source_provenance": "THINGSPEAK_HARDWARE",
+  "total_raw_observations": 122,
+  "unique_timestamps": 122,
+  "duplicate_count": 0,
+  "date_range_start": "2026-10-08T03:03:31+00:00",
+  "date_range_end": "2026-10-15T08:57:08+00:00",
+  "total_calendar_span_hours": 173.89,
+  "total_active_measurement_minutes": 71.3,
+  "data_temporal_coverage_percent": 0.684,
+  "sampling_interval_median_seconds": 32.0,
+  "sampling_interval_iqr_seconds": 6.0,
+  "large_gaps_count_gt_5min": 7,
+  "large_gaps_count_gt_1hour": 5,
+  "maximum_gap_hours": 89.29,
+  "gaps_details": [
+    {
+      "from_entry_id": 7,
+      "to_entry_id": 8,
+      "from_timestamp": "2026-10-08T03:07:54+00:00",
+      "to_timestamp": "2026-10-11T00:22:01+00:00",
+      "gap_seconds": 249247.0,
+      "gap_hours": 69.24
+    },
+    {
+      "from_entry_id": 16,
+      "to_entry_id": 17,
+      "from_timestamp": "2026-10-11T00:28:39+00:00",
+      "to_timestamp": "2026-10-14T17:46:14+00:00",
+      "gap_seconds": 321455.0,
+      "gap_hours": 89.29
+    },
+    {
+      "from_entry_id": 61,
+      "to_entry_id": 62,
+      "from_timestamp": "2026-10-14T18:10:31+00:00",
+      "to_timestamp": "2026-10-15T04:38:42+00:00",
+      "gap_seconds": 37691.0,
+      "gap_hours": 10.47
+    },
+    {
+      "from_entry_id": 64,
+      "to_entry_id": 65,
+      "from_timestamp": "2026-10-15T04:40:28+00:00",
+      "to_timestamp": "2026-10-15T06:27:40+00:00",
+      "gap_seconds": 6432.0,
+      "gap_hours": 1.79
+    },
+    {
+      "from_entry_id": 81,
+      "to_entry_id": 82,
+      "from_timestamp": "2026-10-15T06:37:10+00:00",
+      "to_timestamp": "2026-10-15T06:54:45+00:00",
+      "gap_seconds": 1055.0,
+      "gap_hours": 0.29
+    },
+    {
+      "from_entry_id": 104,
+      "to_entry_id": 105,
+      "from_timestamp": "2026-10-15T07:06:17+00:00",
+      "to_timestamp": "2026-10-15T07:20:15+00:00",
+      "gap_seconds": 838.0,
+      "gap_hours": 0.23
+    },
+    {
+      "from_entry_id": 109,
+      "to_entry_id": 110,
+      "from_timestamp": "2026-10-15T07:22:27+00:00",
+      "to_timestamp": "2026-10-15T08:50:21+00:00",
+      "gap_seconds": 5274.0,
+      "gap_hours": 1.47
+    }
+  ],
+  "parameter_statistics": {
+    "pH": {
+      "min": 0.0,
+      "mean": 7.466885245901639,
+      "median": 6.495,
+      "std": 4.3524128545146255,
+      "max": 12.62
+    },
+    "TDS": {
+      "min": 1.19,
+      "mean": 708.0653278688525,
+      "median": 5.615,
+      "std": 987.4631902587596,
+      "max": 2418.89
+    },
+    "turbidity": {
+      "min": 0.47,
+      "mean": 29.224262295081967,
+      "median": 29.94,
+      "std": 3.2530710012075,
+      "max": 30.0
+    },
+    "temperature": {
+      "min": 0.0,
+      "mean": 27.52286885245902,
+      "median": 28.134999999999998,
+      "std": 7.253162602253192,
+      "max": 32.74
+    }
+  },
+  "physical_validity_rates": {
+    "pH": 98.36065573770492,
+    "TDS": 100.0,
+    "turbidity": 100.0,
+    "temperature": 94.26229508196722
+  },
+  "sensor_dropouts_count": {
+    "pH": 2,
+    "TDS": 0,
+    "turbidity": 0,
+    "temperature": 7
+  },
+  "daily_resampling_summary": {
+    "calendar_days_spanned": 8,
+    "days_with_any_observations": 4,
+    "days_meeting_coverage_threshold": 0,
+    "daily_breakdown": [
+      {
+        "date": "2026-10-08",
+        "observed_count": 7,
+        "coverage_percent": 0.26,
+        "meets_next_day_coverage_threshold": false
+      },
+      {
+        "date": "2026-10-09",
+        "observed_count": 0,
+        "coverage_percent": 0.0,
+        "meets_next_day_coverage_threshold": false
+      },
+      {
+        "date": "2026-10-10",
+        "observed_count": 0,
+        "coverage_percent": 0.0,
+        "meets_next_day_coverage_threshold": false
+      },
+      {
+        "date": "2026-10-11",
+        "observed_count": 9,
+        "coverage_percent": 0.33,
+        "meets_next_day_coverage_threshold": false
+      },
+      {
+        "date": "2026-10-12",
+        "observed_count": 0,
+        "coverage_percent": 0.0,
+        "meets_next_day_coverage_threshold": false
+      },
+      {
+        "date": "2026-10-13",
+        "observed_count": 0,
+        "coverage_percent": 0.0,
+        "meets_next_day_coverage_threshold": false
+      },
+      {
+        "date": "2026-10-14",
+        "observed_count": 45,
+        "coverage_percent": 1.67,
+        "meets_next_day_coverage_threshold": false
+      },
+      {
+        "date": "2026-10-15",
+        "observed_count": 61,
+        "coverage_percent": 2.26,
+        "meets_next_day_coverage_threshold": false
+      }
+    ]
+  },
+  "next_day_eligible_windows": 0,
+  "next_day_eligibility_status": "INSUFFICIENT_DATA_UNAVAILABLE",
+  "collection_requirements_for_next_day_forecasting": [
+    "Continuous 24/7 logging: Probes must remain permanently powered and immersed in the water tank.",
+    "Zero multi-hour dropouts: Network/power gaps must not exceed 2.0 hours per 24-hour cycle.",
+    "Minimum duration: At least 30 consecutive calendar days with >= 70% daily coverage are required before training next-day models.",
+    "Sensor recalibration: pH probe recalibration against pH 4.01, 7.00, and 10.01 buffers to eliminate hardware status flag 1.",
+    "Turbidity zero-calibration in distilled water to prevent sensor saturation."
+  ],
+  "contract": {
+    "target_name": "Next Daily Mean (t + 24h)",
+    "nominal_horizon_hours": 24,
+    "cadence": "1D",
+    "input_history_days": 7,
+    "target_local_time": "09:00 IST (03:30 UTC)",
+    "parameters": [
+      "pH",
+      "TDS",
+      "turbidity",
+      "temperature"
+    ],
+    "units": {
+      "pH": "pH units (0-14)",
+      "TDS": "ppm (mg/L)",
+      "turbidity": "NTU",
+      "temperature": "\u00b0C"
+    },
+    "min_daily_coverage_ratio": 0.7,
+    "max_allowed_intra_day_gap_hours": 2.0,
+    "consecutive_days_required": 8
+  }
+}

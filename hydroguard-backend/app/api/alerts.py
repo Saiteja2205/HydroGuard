@@ -31,6 +31,12 @@ def get_alerts(
     """Get alerts for a node."""
     # Ensure node exists
     node = NodeRepository.get_by_node_id(db, node_id)
+    if node is None and node_id.startswith("thingspeak-"):
+        parts = node_id.split("-", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            node = NodeRepository.get_or_create(
+                db, node_id, f"ThingSpeak Channel {parts[1]}", "ThingSpeak"
+            )
     if node is None:
         raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
 

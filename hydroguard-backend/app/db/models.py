@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -349,3 +350,73 @@ class ThresholdConfig(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+class ThingSpeakMonitorCheckpoint(Base):
+    """Tracks processing progress and coordination lease for background ThingSpeak monitoring."""
+
+    __tablename__ = "thingspeak_monitor_checkpoints"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    channel_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    last_entry_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_feed_timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    lock_owner: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class DeviceToken(Base):
+    """Stores FCM registration tokens for push notifications."""
+
+    __tablename__ = "device_tokens"
+    __table_args__ = (
+        UniqueConstraint("token", name="uq_device_tokens_token"),
+        Index("idx_device_tokens_user_role", "user_uid", "role"),
+        Index("idx_device_tokens_active", "is_active"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_uid: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    token: Mapped[str] = mapped_column(String(512), unique=True, nullable=False)
+    device_type: Mapped[str] = mapped_column(String(32), nullable=False, default="android")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class AlertNotificationLog(Base):
+    """Tracks dispatch of FCM notifications per alert to guarantee idempotency across restarts."""
+
+    __tablename__ = "alert_notification_logs"
+    __table_args__ = (
+        Index("idx_alert_notification_logs_alert", "alert_id"),
+        Index("idx_alert_notification_logs_alert_role", "alert_id", "recipient_role"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    alert_id: Mapped[int] = mapped_column(Integer, ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False)
+    recipient_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    success_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    error_detail: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+

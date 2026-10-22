@@ -159,6 +159,9 @@ public class MainActivity extends ComponentActivity {
         if (openingDashboard || isFinishing()) return;
         openingDashboard = true;
         Intent intent = new Intent(this, DashboardActivity.class);
+        if (getIntent() != null && getIntent().getExtras() != null) {
+            intent.putExtras(getIntent().getExtras());
+        }
         intent.putExtra(DashboardActivity.EXTRA_ROLE, user.role);
         intent.putExtra(DashboardActivity.EXTRA_EMAIL, user.email);
         intent.putExtra(DashboardActivity.EXTRA_NAME, user.name);

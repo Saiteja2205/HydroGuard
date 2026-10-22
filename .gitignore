@@ -119,3 +119,8 @@ robolectric-home/
 
 .android-user/
 .java-user/
+
+# Scratch and local dumps
+scratch/
+window_dump_local.xml
+hydroguard-backend/data/uploads/

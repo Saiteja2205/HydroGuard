@@ -3,7 +3,7 @@
 Provides clean data access layer separate from business logic and API routes.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import and_, case, desc, func, or_
@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     Alert,
+    AlertNotificationLog,
+    DeviceToken,
     EnsembleWeight,
     Forecast,
     ModelError,
@@ -18,6 +20,7 @@ from app.db.models import (
     SensorCalibration,
     SensorReading,
     ThresholdConfig,
+    ThingSpeakMonitorCheckpoint,
 )
 
 
@@ -108,6 +111,22 @@ class SensorReadingRepository:
         db.commit()
         db.refresh(reading)
         return reading
+
+    @staticmethod
+    def get_by_node_and_timestamp(
+        db: Session,
+        node_id: str,
+        timestamp: datetime,
+    ) -> Optional[SensorReading]:
+        """Find an existing sensor reading by node_id and timestamp for deduplication."""
+        return (
+            db.query(SensorReading)
+            .filter(
+                SensorReading.node_id == node_id,
+                SensorReading.timestamp == timestamp,
+            )
+            .first()
+        )
 
     #: Provenance tags that originate from physical hardware ingestion.
     LIVE_SOURCES = ("REAL_SENSOR", "THINGSPEAK", "ESP32")
@@ -550,6 +569,47 @@ class AlertRepository:
         )
 
     @staticmethod
+    def exists_for_reading(
+        db: Session,
+        node_id: str,
+        parameter: str,
+        timestamp: datetime,
+    ) -> bool:
+        """Check if an alert already exists for the exact same reading timestamp."""
+        return (
+            db.query(Alert.id)
+            .filter(
+                and_(
+                    Alert.node_id == node_id,
+                    Alert.parameter == parameter,
+                    Alert.timestamp == timestamp,
+                )
+            )
+            .first()
+            is not None
+        )
+
+    @staticmethod
+    def get_open_alert(
+        db: Session,
+        node_id: str,
+        parameter: str,
+    ) -> Optional[Alert]:
+        """Check if an alert is currently ACTIVE or ACKNOWLEDGED for this node and parameter."""
+        return (
+            db.query(Alert)
+            .filter(
+                and_(
+                    Alert.node_id == node_id,
+                    Alert.parameter == parameter,
+                    Alert.status.in_(["ACTIVE", "ACKNOWLEDGED"]),
+                )
+            )
+            .order_by(desc(Alert.timestamp))
+            .first()
+        )
+
+    @staticmethod
     def get_recent_similar(
         db: Session,
         node_id: str,
@@ -607,3 +667,225 @@ class ThresholdRepository:
         db.commit()
         db.refresh(row)
         return row
+
+
+class ThingSpeakMonitorRepository:
+    """Access layer for background ThingSpeak monitoring checkpoints and leases."""
+
+    @staticmethod
+    def get_checkpoint(db: Session, channel_id: str) -> Optional[ThingSpeakMonitorCheckpoint]:
+        return db.query(ThingSpeakMonitorCheckpoint).filter_by(channel_id=channel_id).first()
+
+    @staticmethod
+    def get_or_create_checkpoint(db: Session, channel_id: str) -> ThingSpeakMonitorCheckpoint:
+        checkpoint = ThingSpeakMonitorRepository.get_checkpoint(db, channel_id)
+        if checkpoint is None:
+            checkpoint = ThingSpeakMonitorCheckpoint(
+                channel_id=channel_id,
+                last_entry_id=None,
+                last_feed_timestamp=None,
+                updated_at=datetime.now(timezone.utc),
+            )
+            db.add(checkpoint)
+            db.commit()
+            db.refresh(checkpoint)
+        return checkpoint
+
+    @staticmethod
+    def acquire_lease(
+        db: Session,
+        channel_id: str,
+        owner_id: str,
+        lease_seconds: int = 60,
+    ) -> bool:
+        """Acquire a coordination lease for polling this channel across workers/instances."""
+        checkpoint = ThingSpeakMonitorRepository.get_or_create_checkpoint(db, channel_id)
+        now = datetime.now(timezone.utc)
+        if checkpoint.locked_until is not None:
+            locked_until = checkpoint.locked_until
+            if locked_until.tzinfo is None:
+                locked_until = locked_until.replace(tzinfo=timezone.utc)
+            if locked_until > now and checkpoint.lock_owner != owner_id:
+                return False
+        checkpoint.lock_owner = owner_id
+        checkpoint.locked_until = now + timedelta(seconds=lease_seconds)
+        checkpoint.updated_at = now
+        db.commit()
+        return True
+
+    @staticmethod
+    def release_lease(db: Session, channel_id: str, owner_id: str) -> None:
+        """Release the coordination lease."""
+        checkpoint = ThingSpeakMonitorRepository.get_checkpoint(db, channel_id)
+        if checkpoint and checkpoint.lock_owner == owner_id:
+            checkpoint.locked_until = None
+            checkpoint.lock_owner = None
+            checkpoint.updated_at = datetime.now(timezone.utc)
+            db.commit()
+
+    @staticmethod
+    def update_checkpoint(
+        db: Session,
+        channel_id: str,
+        last_entry_id: Optional[int],
+        last_feed_timestamp: Optional[datetime],
+    ) -> ThingSpeakMonitorCheckpoint:
+        """Update processed feed checkpoint."""
+        checkpoint = ThingSpeakMonitorRepository.get_or_create_checkpoint(db, channel_id)
+        checkpoint.last_entry_id = last_entry_id
+        checkpoint.last_feed_timestamp = last_feed_timestamp
+        checkpoint.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(checkpoint)
+        return checkpoint
+
+
+class DeviceTokenRepository:
+    """Repository for device token database operations."""
+
+    @staticmethod
+    def register_token(
+        db: Session,
+        user_uid: str,
+        role: str,
+        token: str,
+        device_type: str = "android",
+    ) -> DeviceToken:
+        """Register or update an FCM device token."""
+        now = datetime.now(timezone.utc)
+        device_token = db.query(DeviceToken).filter(DeviceToken.token == token).first()
+        if device_token:
+            device_token.user_uid = user_uid
+            device_token.role = role
+            device_token.device_type = device_type
+            device_token.is_active = True
+            device_token.updated_at = now
+        else:
+            device_token = DeviceToken(
+                user_uid=user_uid,
+                role=role,
+                token=token,
+                device_type=device_type,
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(device_token)
+        db.commit()
+        db.refresh(device_token)
+        return device_token
+
+    @staticmethod
+    def deactivate_token(db: Session, token: str) -> bool:
+        """Deactivate a specific device token."""
+        device_token = db.query(DeviceToken).filter(DeviceToken.token == token).first()
+        if device_token:
+            device_token.is_active = False
+            device_token.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            return True
+        return False
+
+    @staticmethod
+    def deactivate_user_tokens(db: Session, user_uid: str) -> int:
+        """Deactivate all active tokens for a user (e.g. on logout)."""
+        tokens = (
+            db.query(DeviceToken)
+            .filter(DeviceToken.user_uid == user_uid, DeviceToken.is_active == True)
+            .all()
+        )
+        now = datetime.now(timezone.utc)
+        for t in tokens:
+            t.is_active = False
+            t.updated_at = now
+        db.commit()
+        return len(tokens)
+
+    @staticmethod
+    def get_active_tokens_for_roles(db: Session, roles: list[str]) -> list[str]:
+        """Get all active FCM tokens belonging to users with specified roles."""
+        rows = (
+            db.query(DeviceToken.token)
+            .filter(DeviceToken.is_active == True, DeviceToken.role.in_(roles))
+            .all()
+        )
+        return [r[0] for r in rows]
+
+    @staticmethod
+    def get_active_tokens(db: Session) -> list[str]:
+        """Get all active device tokens."""
+        rows = db.query(DeviceToken.token).filter(DeviceToken.is_active == True).all()
+        return [r[0] for r in rows]
+
+    @staticmethod
+    def cleanup_invalid_tokens(db: Session, invalid_tokens: list[str]) -> int:
+        """Mark invalid/unregistered FCM tokens as inactive."""
+        if not invalid_tokens:
+            return 0
+        tokens = (
+            db.query(DeviceToken)
+            .filter(DeviceToken.token.in_(invalid_tokens), DeviceToken.is_active == True)
+            .all()
+        )
+        now = datetime.now(timezone.utc)
+        for t in tokens:
+            t.is_active = False
+            t.updated_at = now
+        db.commit()
+        return len(tokens)
+
+    @staticmethod
+    def get_tokens_by_user(db: Session, user_uid: str) -> list[DeviceToken]:
+        """Get all device tokens for a given user."""
+        return db.query(DeviceToken).filter(DeviceToken.user_uid == user_uid).all()
+
+
+class AlertNotificationRepository:
+    """Repository for alert notification dispatch logs (outbox & deduplication)."""
+
+    @staticmethod
+    def is_alert_notified(db: Session, alert_id: int, recipient_role: Optional[str] = None) -> bool:
+        """Check if an alert has already been notified to a given role or group."""
+        query = db.query(AlertNotificationLog).filter(AlertNotificationLog.alert_id == alert_id)
+        if recipient_role:
+            query = query.filter(AlertNotificationLog.recipient_role == recipient_role)
+        # If any record exists (SENT, SKIPPED_NOT_CONFIGURED, SKIPPED_NO_TOKENS), it was evaluated
+        return query.first() is not None
+
+    @staticmethod
+    def record_log(
+        db: Session,
+        alert_id: int,
+        recipient_role: str,
+        token_count: int,
+        success_count: int,
+        failure_count: int,
+        status: str,
+        error_detail: Optional[str] = None,
+    ) -> AlertNotificationLog:
+        """Record an alert notification attempt in the log."""
+        log = AlertNotificationLog(
+            alert_id=alert_id,
+            recipient_role=recipient_role,
+            token_count=token_count,
+            success_count=success_count,
+            failure_count=failure_count,
+            status=status,
+            error_detail=error_detail,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+        return log
+
+    @staticmethod
+    def get_logs_for_alert(db: Session, alert_id: int) -> list[AlertNotificationLog]:
+        """Retrieve all notification dispatch logs for an alert."""
+        return (
+            db.query(AlertNotificationLog)
+            .filter(AlertNotificationLog.alert_id == alert_id)
+            .order_by(desc(AlertNotificationLog.created_at))
+            .all()
+        )
+

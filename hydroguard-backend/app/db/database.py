@@ -69,7 +69,16 @@ def init_db() -> None:
     Creates all tables if they don't exist.
     """
     # Import models here to ensure they are registered with Base
-    from app.db.models import Node, SensorReading, Forecast, ModelError, Alert
+    from app.db.models import (
+        Alert,
+        AlertNotificationLog,
+        DeviceToken,
+        Forecast,
+        ModelError,
+        Node,
+        SensorReading,
+        ThingSpeakMonitorCheckpoint,
+    )
     from app.db.auth_models import HydroGuardUser
     from app.db import hostel_models
     Base.metadata.create_all(bind=engine)

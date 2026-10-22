@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.alerts import router as alerts_router
 from app.api.auth import router as auth_router
 from app.api.admin_users import router as admin_users_router
+from app.api.devices import router as devices_router
 from app.api.forecast import router as forecast_router
 from app.api.health import router as health_router
 from app.api.hostel import router as hostel_router
@@ -57,7 +58,28 @@ async def lifespan(app: FastAPI):
 
         with get_db_context() as db:
             seed_development_dataset(db)
-    yield
+
+    from ml.services.thingspeak_service import load_config_from_env
+    ts_config = load_config_from_env()
+    if ts_config.configured and ts_config.channel_id.isdigit():
+        with get_db_context() as db:
+            from app.db.repositories import NodeRepository
+            NodeRepository.get_or_create(
+                db,
+                f"thingspeak-{ts_config.channel_id}",
+                f"ThingSpeak Channel {ts_config.channel_id}",
+                "ThingSpeak",
+                status="online",
+            )
+
+    from app.services.thingspeak_alert_monitor import get_alert_monitor
+
+    monitor = get_alert_monitor()
+    await monitor.start()
+    try:
+        yield
+    finally:
+        await monitor.stop()
 
 
 app = FastAPI(
@@ -100,3 +122,4 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_users_router, prefix="/api/v1")
 app.include_router(research_export_router, prefix="/api/v1")
 app.include_router(thresholds_router, prefix="/api/v1")
+app.include_router(devices_router, prefix="/api/v1")

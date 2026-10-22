@@ -115,6 +115,168 @@
                 android:layout_marginTop="@dimen/card_gap"
                 android:orientation="vertical" />
 
+            <!-- ============================ Water Safety Alert Card (Compact) ============================ -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_water_safety_warning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/card_gap"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/hydroguard_critical_surface"
+                app:cardCornerRadius="@dimen/corner_card"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/hydroguard_red"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="12dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="10dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_hydroguard_report"
+                            app:tint="@color/hydroguard_red" />
+
+                        <TextView
+                            android:id="@+id/water_safety_title"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:text="WATER QUALITY ALERT · CRITICAL VIOLATIONS"
+                            android:textColor="@color/hydroguard_red"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/water_safety_badge"
+                            style="@style/Widget.HydroGuard.Pill"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:backgroundTint="@color/hydroguard_critical_surface"
+                            android:text="CRITICAL"
+                            android:textColor="@color/hydroguard_red" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/water_safety_violations"
+                        style="@style/TextAppearance.HydroGuard.BodyStrong"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:textColor="@color/hydroguard_text"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ==================== Sensor diagnostics and safety details ==================== -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_sensor_diagnostics"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/card_gap"
+                app:cardBackgroundColor="@color/hydroguard_surface"
+                app:cardCornerRadius="@dimen/corner_card"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/hydroguard_divider"
+                app:strokeWidth="@dimen/border_hairline">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <!-- Expandable Header Row -->
+                    <LinearLayout
+                        android:id="@+id/btn_toggle_sensor_diagnostics"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="14dp"
+                        android:paddingTop="11dp"
+                        android:paddingEnd="14dp"
+                        android:paddingBottom="11dp">
+
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_hydroguard_report"
+                            app:tint="@color/hydroguard_blue" />
+
+                        <TextView
+                            android:id="@+id/sensor_diagnostics_title"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:text="Sensor diagnostics and safety details"
+                            android:textColor="@color/hydroguard_text"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/sensor_diagnostics_toggle_icon"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="▾"
+                            android:textColor="@color/hydroguard_muted"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <!-- Collapsible diagnostics container (hidden by default) -->
+                    <LinearLayout
+                        android:id="@+id/sensor_diagnostics_content"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:paddingBottom="14dp"
+                        android:visibility="gone">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginBottom="10dp"
+                            android:background="@color/hydroguard_divider" />
+
+                        <TextView
+                            android:id="@+id/water_safety_caveat"
+                            style="@style/TextAppearance.HydroGuard.Body"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/hydroguard_orange"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/water_safety_disclaimer"
+                            style="@style/TextAppearance.HydroGuard.Micro"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="Safety Disclaimer: Experimental forecast models and provisional scores do not certify drinking-water safety or override active sensor threshold violations. Physical probe inspection and laboratory confirmation required."
+                            android:textColor="@color/hydroguard_muted" />
+
             <!-- ============================ HydroGuard Advisory Score ============================ -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_advisory_score"
@@ -489,6 +651,10 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- ============================ History ============================ -->
 
             <TextView
@@ -697,7 +863,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/section_gap"
-                android:text="24-hour forecast"
+                android:text="Experimental next-step prediction"
                 android:textColor="@color/hydroguard_text" />
 
             <com.google.android.material.button.MaterialButton
@@ -706,7 +872,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Check 24-hour forecast" />
+                android:text="Generate next-step prediction" />
 
             <!-- Forecast notice card. forecast_status keeps its id and every one
                  of its existing loading / error / result strings; only its frame
@@ -928,6 +1094,24 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="@color/hydroguard_muted" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_toggle_resolved_alerts"
+                style="@style/Widget.HydroGuard.Button.Outlined"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Resolved History (0) ▾"
+                android:textAllCaps="false"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/resolved_alerts_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:nestedScrollingEnabled="false"
+                android:visibility="gone" />
 
             <!-- ============================ Administrator controls ============================ -->
 

@@ -1,0 +1,212 @@
+{
+  "benchmark_timestamp": "2026-10-22T11:20:50.626900+00:00",
+  "evaluated_dataset": "real_thingspeak_observations_122.csv",
+  "total_observations": 122,
+  "split": {
+    "train_samples": 85,
+    "validation_samples": 18,
+    "test_samples": 19
+  },
+  "target_horizon": "Next observation step (~30-45 seconds ahead on hardware stream)",
+  "models_evaluated": {
+    "Persistence Baseline": {
+      "description": "y_hat_t = y_{t-1} (predicts previous reading)",
+      "test_metrics": {
+        "pH": {
+          "MAE": 1.6805,
+          "RMSE": 4.0544,
+          "MAPE": 56263167.15
+        },
+        "TDS": {
+          "MAE": 0.2011,
+          "RMSE": 0.5213,
+          "MAPE": 3.33
+        },
+        "turbidity": {
+          "MAE": 3.4626,
+          "RMSE": 9.4375,
+          "MAPE": 335.14
+        },
+        "temperature": {
+          "MAE": 0.1321,
+          "RMSE": 0.2404,
+          "MAPE": 0.5
+        }
+      },
+      "validation_metrics": {
+        "pH": {
+          "MAE": 0.5794,
+          "RMSE": 1.5742,
+          "MAPE": 9.45
+        },
+        "TDS": {
+          "MAE": 0.0372,
+          "RMSE": 0.0571,
+          "MAPE": 0.65
+        },
+        "turbidity": {
+          "MAE": 0.7006,
+          "RMSE": 0.9215,
+          "MAPE": 2.42
+        },
+        "temperature": {
+          "MAE": 0.065,
+          "RMSE": 0.1413,
+          "MAPE": 0.24
+        }
+      }
+    },
+    "Moving Average Baseline (window=5)": {
+      "description": "y_hat_t = mean(y_{t-5:t})",
+      "test_metrics": {
+        "pH": {
+          "MAE": 2.3167,
+          "RMSE": 3.7505,
+          "MAPE": 63473697.9
+        },
+        "TDS": {
+          "MAE": 0.2436,
+          "RMSE": 0.4311,
+          "MAPE": 4.12
+        },
+        "turbidity": {
+          "MAE": 3.4258,
+          "RMSE": 7.3589,
+          "MAPE": 335.28
+        },
+        "temperature": {
+          "MAE": 0.3634,
+          "RMSE": 0.4091,
+          "MAPE": 1.37
+        }
+      },
+      "relative_to_persistence_mae": {
+        "pH": 1.379,
+        "TDS": 1.211,
+        "turbidity": 0.989,
+        "temperature": 2.751
+      },
+      "relative_to_persistence_rmse": {
+        "pH": 0.925,
+        "TDS": 0.827,
+        "turbidity": 0.78,
+        "temperature": 1.702
+      }
+    },
+    "Four-Parameter Real LSTM": {
+      "checkpoint": "lstm_water_quality_4param_real_v1.pt",
+      "description": "1-layer LSTM (hidden=32, window=5) trained on 85 real samples",
+      "test_metrics": {
+        "pH": {
+          "MAE": 1.797,
+          "RMSE": 3.3041,
+          "MAPE": 61864874.01
+        },
+        "TDS": {
+          "MAE": 160.0686,
+          "RMSE": 188.6208,
+          "MAPE": 2897.04
+        },
+        "turbidity": {
+          "MAE": 2.0614,
+          "RMSE": 6.6415,
+          "MAPE": 324.12
+        },
+        "temperature": {
+          "MAE": 0.7592,
+          "RMSE": 0.8759,
+          "MAPE": 2.87
+        }
+      },
+      "validation_metrics": {
+        "pH": {
+          "MAE": 1.6608,
+          "RMSE": 2.5442,
+          "MAPE": 25.61
+        },
+        "TDS": {
+          "MAE": 95.8991,
+          "RMSE": 139.7494,
+          "MAPE": 1718.81
+        },
+        "turbidity": {
+          "MAE": 0.714,
+          "RMSE": 0.8445,
+          "MAPE": 2.47
+        },
+        "temperature": {
+          "MAE": 1.3581,
+          "RMSE": 1.6011,
+          "MAPE": 5.12
+        }
+      },
+      "relative_to_persistence_mae": {
+        "pH": 1.069,
+        "TDS": 795.965,
+        "turbidity": 0.595,
+        "temperature": 5.747
+      },
+      "relative_to_persistence_rmse": {
+        "pH": 0.815,
+        "TDS": 361.828,
+        "turbidity": 0.704,
+        "temperature": 3.644
+      }
+    }
+  },
+  "parameter_comparison_summary": {
+    "pH": {
+      "best_model_by_mae": "Persistence Baseline (1.68 vs 1.80)",
+      "best_model_by_rmse": "Four-Parameter Real LSTM (3.30 vs 4.05)",
+      "finding": "Mixed performance. Test split contains probe dropout to 0.00 where LSTM smoothed extreme spike."
+    },
+    "TDS": {
+      "best_model": "Persistence Baseline (0.20 ppm vs 160.35 ppm)",
+      "degradation_factor": "LSTM error is 797x higher than Persistence",
+      "root_cause": "Catastrophic training-to-test distribution shift (train mean=1013.8 ppm, test mean=5.56 ppm). StandardScaler std of 1039.1 ppm scales a small normalized error of 0.154 back to 160.0 ppm. At 30-second cadence, true water TDS is static, so Persistence error is only 0.20 ppm."
+    },
+    "turbidity": {
+      "best_model": "Four-Parameter Real LSTM (2.06 NTU vs 3.46 NTU)",
+      "improvement": "LSTM achieved 40% lower MAE than Persistence on test set by filtering sudden dropout to 0.47 NTU."
+    },
+    "temperature": {
+      "best_model": "Persistence Baseline (0.13 \u00b0C vs 0.76 \u00b0C)",
+      "degradation_factor": "LSTM error is 5.7x higher than Persistence",
+      "root_cause": "Quasi-static physical process. Over 30 seconds, water temperature drifts < 0.15 \u00b0C. Persistence is mathematically optimal."
+    }
+  },
+  "distribution_shift_analysis": {
+    "pH": {
+      "train_mean": 6.51,
+      "train_std": 4.36,
+      "test_mean": 11.32,
+      "test_std": 3.04,
+      "normalized_mean_shift_in_training_sigmas": 1.104,
+      "severity": "CRITICAL_SHIFT"
+    },
+    "TDS": {
+      "train_mean": 1013.83,
+      "train_std": 1039.13,
+      "test_mean": 5.56,
+      "test_std": 0.36,
+      "normalized_mean_shift_in_training_sigmas": 0.97,
+      "severity": "CRITICAL_SHIFT"
+    },
+    "turbidity": {
+      "train_mean": 29.59,
+      "train_std": 2.24,
+      "test_mean": 27.72,
+      "test_std": 6.45,
+      "normalized_mean_shift_in_training_sigmas": 0.833,
+      "severity": "CRITICAL_SHIFT"
+    },
+    "temperature": {
+      "train_mean": 27.96,
+      "train_std": 8.61,
+      "test_mean": 26.45,
+      "test_std": 0.55,
+      "normalized_mean_shift_in_training_sigmas": 0.175,
+      "severity": "STABLE"
+    }
+  }
+}
