@@ -1,6 +1,24 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Load local development environment files if present, without overwriting existing environment variables
+try:
+    from dotenv import load_dotenv
+
+    _backend_root = Path(__file__).resolve().parent.parent
+    _repo_root = _backend_root.parent
+    for _env_candidate in (
+        _repo_root / '.dev-auth.env',
+        _backend_root / '.dev-auth.env',
+        _repo_root / '.env',
+        _backend_root / '.env',
+    ):
+        if _env_candidate.is_file():
+            load_dotenv(_env_candidate, override=False)
+except Exception:
+    pass
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

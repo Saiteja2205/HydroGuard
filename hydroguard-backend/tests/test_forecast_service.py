@@ -1,4 +1,4 @@
-﻿"""Unit tests for Forecast Service.
+"""Unit tests for Forecast Service.
 
 Tests cover service initialization, input validation, and configuration.
 Model loading tests are mocked to avoid sklearn dependency issues.

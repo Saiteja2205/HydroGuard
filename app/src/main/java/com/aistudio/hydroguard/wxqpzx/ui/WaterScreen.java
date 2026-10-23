@@ -151,6 +151,14 @@ public class WaterScreen {
         return thingspeakNodeId;
     }
 
+    public String resolveThingSpeakChannelId() {
+        if (selectedNode != null && selectedNode.startsWith("thingspeak-")) {
+            String ch = selectedNode.substring("thingspeak-".length()).trim();
+            if (!ch.isEmpty()) return ch;
+        }
+        return "244357";
+    }
+
     public void attach(View screenView) {
         this.screen = screenView;
         setUpNodeSpinner();
@@ -548,7 +556,7 @@ public class WaterScreen {
             if (selectedRange == 0) limit = 30;
             else if (selectedRange == 1) limit = 50;
             else limit = 100;
-            api.getThingSpeakHistory(null, limit, callback);
+            api.getThingSpeakHistory(resolveThingSpeakChannelId(), limit, callback);
         } else if (RANGE_DAYS[selectedRange] == 0) {
             api.getReadingHistory(selectedNode, 1000, callback);
         } else {
@@ -1259,7 +1267,7 @@ public class WaterScreen {
         if (headerRefresh != null) headerRefresh.setEnabled(false);
         SwipeRefreshLayout refresh = screen.findViewById(R.id.water_refresh);
 
-        api.getLatestThingSpeakReading(null, new ApiCallback() {
+        api.getLatestThingSpeakReading(resolveThingSpeakChannelId(), new ApiCallback() {
             @Override public void onSuccess(String json) {
                 isThingSpeakLoading = false;
                 if (headerRefresh != null) headerRefresh.setEnabled(true);
@@ -1315,7 +1323,13 @@ public class WaterScreen {
             errorCard.addView(errorTitle);
 
             TextView errorDesc = new TextView(activity);
-            errorDesc.setText("Could not retrieve latest readings from ThingSpeak channel 244357.\nVerify network connection or server status and tap Refresh above.\nSimulated or cached records are withheld in production.");
+            String descText = "Could not retrieve latest readings from ThingSpeak channel 244357.\nVerify network connection or server status and tap Refresh above.";
+            if (message != null && (message.contains("channel is configured") || message.contains("HYDROGUARD_THINGSPEAK_CHANNEL_ID"))) {
+                descText = "ThingSpeak channel is not configured on the backend server.\nSet HYDROGUARD_THINGSPEAK_CHANNEL_ID=244357 in the backend environment or .dev-auth.env and tap Refresh above.";
+            } else if (message != null && (message.contains("unreachable") || message.contains("timeout") || message.contains("exceeded"))) {
+                descText = "ThingSpeak channel 244357 is temporarily unreachable and no cached readings are available.\nCheck your network connection and tap Refresh above.";
+            }
+            errorDesc.setText(descText);
             errorDesc.setTextColor(activity.getColor(R.color.hydroguard_muted));
             errorDesc.setTextSize(12f);
             errorDesc.setGravity(android.view.Gravity.CENTER);
@@ -1346,6 +1360,9 @@ public class WaterScreen {
         String observedAt = reading.optString("observed_at", "");
         long observedTime = parseTimestamp(observedAt);
 
+        boolean isCached = reading.optBoolean("is_cached", false);
+        String hwStatus = reading.optString("hardware_status", "");
+
         String freshness = "up to date";
         if (readTime > 0) {
             long age = Math.max(0, System.currentTimeMillis() - readTime);
@@ -1356,6 +1373,12 @@ public class WaterScreen {
             freshness = "time unknown";
         }
 
+        if (isCached) {
+            freshness += " · Cached (ThingSpeak unreachable)";
+        } else if (!hwStatus.isEmpty() && hwStatus.toLowerCase().contains("offline")) {
+            freshness += " (sensor offline)";
+        }
+
         status.setText("Hostel Water Tank · " + (readTime > 0 ? shortDate(timestamp) : "time unknown")
                 + " · " + freshness);
 
@@ -1363,9 +1386,13 @@ public class WaterScreen {
         if (sensorStatus != null) {
             int entryId = reading.optInt("entry_id", 0);
             int statusFlag = reading.optInt("status_flag", -1);
-            String hwStatus = statusFlag == 0 ? "Normal" : (statusFlag > 0 ? "Flag " + statusFlag : "");
+            String flagText = statusFlag == 0 ? "Normal" : (statusFlag > 0 ? "Flag " + statusFlag : "");
+            String statusDetail = !hwStatus.isEmpty() ? hwStatus : (!flagText.isEmpty() ? flagText : "Telemetry feed");
+            if (isCached) {
+                statusDetail += " · Cached";
+            }
             sensorStatus.setText("Hostel Telemetry Feed · Channel 244357" + (entryId > 0 ? " · #" + entryId : "")
-                    + (!hwStatus.isEmpty() ? " · " + hwStatus : "") + " · Source: ThingSpeak");
+                    + " · " + statusDetail + " · Source: ThingSpeak");
         }
 
         // Render primary water-quality metrics

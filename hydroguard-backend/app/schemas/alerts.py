@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Alert(BaseModel):
@@ -20,8 +20,7 @@ class Alert(BaseModel):
     status: Literal["ACTIVE", "ACKNOWLEDGED", "RESOLVED"]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AlertListResponse(BaseModel):

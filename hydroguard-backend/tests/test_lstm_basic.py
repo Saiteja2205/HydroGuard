@@ -1,4 +1,4 @@
-﻿"""Basic LSTM model tests without pandas dependency."""
+"""Basic LSTM model tests without pandas dependency."""
 
 import sys
 import tempfile

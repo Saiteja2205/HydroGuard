@@ -1,4 +1,4 @@
-﻿"""Unit tests for TimeMixer water quality forecasting model.
+"""Unit tests for TimeMixer water quality forecasting model.
 
 Tests use synthetic data and random tensors for shape verification.
 No accuracy claims are made - this is architecture verification only.

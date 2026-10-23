@@ -104,6 +104,30 @@ class ThingSpeakLatestReading(BaseModel):
         default=None,
         description="Associated sensor node identifier (e.g. thingspeak-244357).",
     )
+    data_source: Optional[str] = Field(
+        default="THINGSPEAK",
+        description="Data provenance source.",
+    )
+    is_cached: Optional[bool] = Field(
+        default=False,
+        description="True if reading is served from local cache because upstream ThingSpeak was unreachable.",
+    )
+    is_stale: Optional[bool] = Field(
+        default=None,
+        description="True if the newest observation is outside the freshness threshold.",
+    )
+    age_seconds: Optional[int] = Field(
+        default=None,
+        description="Age of the observation in seconds relative to current time.",
+    )
+    hardware_status: Optional[str] = Field(
+        default=None,
+        description="Hardware status description, e.g. 'Last reported reading — sensor offline'.",
+    )
+    upstream_status: Optional[str] = Field(
+        default=None,
+        description="Status of upstream ThingSpeak API, e.g. 'reachable' or 'unreachable'.",
+    )
 
 
 
@@ -299,3 +323,15 @@ class ThingSpeakHistoryResponse(BaseModel):
     count: int
     source: str = "THINGSPEAK"
     readings: list[ThingSpeakHistoryReading]
+    is_cached: Optional[bool] = Field(
+        default=False,
+        description="True if historical readings are served from local cache.",
+    )
+    hardware_status: Optional[str] = Field(
+        default=None,
+        description="Hardware status description.",
+    )
+    upstream_status: Optional[str] = Field(
+        default=None,
+        description="Status of upstream ThingSpeak API.",
+    )

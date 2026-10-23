@@ -1,4 +1,4 @@
-﻿"""Unit tests for LSTM water quality forecasting model.
+"""Unit tests for LSTM water quality forecasting model.
 
 Tests use synthetic DEMO/TEST data. These are not real sensor measurements
 and must not be reported as a real dataset or model accuracy.
