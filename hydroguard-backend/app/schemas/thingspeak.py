@@ -153,6 +153,14 @@ class WindowProvenance(BaseModel):
         default_factory=dict,
         description="Per-RGB-channel count of absent cells.",
     )
+    source_rows_fetched: int = Field(
+        default=0,
+        description="Total raw feeds fetched from ThingSpeak before filtering or padding.",
+    )
+    observed_by_parameter: dict[str, int] = Field(
+        default_factory=dict,
+        description="Per-parameter count of genuinely observed valid sensor values.",
+    )
 
 
 class ForecastProvenance(BaseModel):

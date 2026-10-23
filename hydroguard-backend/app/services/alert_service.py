@@ -10,6 +10,7 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from app.db.repositories import AlertRepository, NodeRepository, SensorReadingRepository, ThresholdRepository
+from ml.data.sensor_validation import is_physically_valid_for_alerts, validate_parameter, SensorQualityFlag
 
 
 def _coerce_numeric(val: Any) -> Optional[float]:
@@ -31,30 +32,13 @@ def _coerce_numeric(val: Any) -> Optional[float]:
 def is_physically_valid(param: str, val: Any) -> bool:
     """Validate that a sensor observation represents a physically plausible aqueous reading.
 
+    Delegates to ml.data.sensor_validation.is_physically_valid_for_alerts.
     Rejects:
     - Non-numeric, non-finite values (NaN, infinity, None, booleans)
-    - Open-circuit / 0V ADC sensor dropouts (e.g. pH <= 0.05, temperature <= 0.5)
-    - Unphysical or out-of-range sensor values (e.g. pH < 0.5 or > 14.0, negative TDS, negative turbidity)
+    - Open-circuit / 0V ADC sensor dropouts (e.g. pH <= 0.05, TDS == 0.0, temperature <= 0.5, DS18B20 -127/85)
+    - Unphysical or out-of-range sensor values (e.g. pH < 0.0 or > 14.0, negative TDS, negative turbidity)
     """
-    f = _coerce_numeric(val)
-    if f is None:
-        return False
-    p = param.strip().lower()
-    if p in ("ph",):
-        # Aqueous water: 0.5 <= pH <= 14.0. Values <= 0.05 are open-circuit 0V probe dropouts.
-        return 0.5 <= f <= 14.0
-    elif p in ("tds",):
-        # TDS in ppm: non-negative, plausible range up to 5000 ppm
-        return 0.0 <= f <= 5000.0
-    elif p in ("turbidity",):
-        # Turbidity in NTU: non-negative, plausible range up to 3000 NTU
-        return 0.0 <= f <= 3000.0
-    elif p in ("temperature", "temp"):
-        # Water temperature in Celsius: 0.5 <= temp <= 75.0 (0.0 or <= 0.5 is probe disconnect/dropout)
-        return 0.5 <= f <= 75.0
-    elif p in ("optical_colour_index", "oci"):
-        return 0.0 <= f <= 10.0
-    return True
+    return is_physically_valid_for_alerts(param, val)
 
 
 class AlertService:

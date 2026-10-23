@@ -565,6 +565,25 @@ def generate_thingspeak_forecast(
             detail=f"Insufficient history: channel has {window.observed_rows} observation(s), but at least {min_obs} are required.",
         )
 
+    # Defensible minimum coverage across ALL 4 required parameters
+    # A window where 1 or more required parameters have fewer than min_obs usable
+    # observations must not be passed to ML models for forecasting.
+    REQUIRED_PARAMETERS = ("pH", "TDS", "turbidity", "temperature")
+    insufficient_params = {
+        param: window.observed_by_parameter.get(param, 0)
+        for param in REQUIRED_PARAMETERS
+        if window.observed_by_parameter.get(param, 0) < min_obs
+    }
+    if insufficient_params:
+        details = ", ".join(
+            f"'{param}': {count} valid reading(s) available; at least {min_obs} required"
+            for param, count in insufficient_params.items()
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=f"Insufficient valid observations for parameter(s): {details}.",
+        )
+
     import numpy as np
 
     inference = get_inference_service()
@@ -738,6 +757,8 @@ def generate_thingspeak_forecast(
                 missing_by_parameter=dict(window.missing_by_parameter),
                 unobserved_parameters=list(window.unobserved_parameters),
                 rgb_missing_by_channel=rgb_missing,
+                source_rows_fetched=window.source_rows_fetched,
+                observed_by_parameter=dict(window.observed_by_parameter),
             ),
             fetched_at=fetched_at,
         ),

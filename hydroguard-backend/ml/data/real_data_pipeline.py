@@ -116,9 +116,15 @@ def validate_and_clean_observations(df: pd.DataFrame) -> tuple[pd.DataFrame, dic
         vals = pd.to_numeric(cleaned[param], errors="coerce")
         min_v, max_v = VALID_RANGES[param]
 
-        # In water quality probes, an exact 0.0 reading during bench test often indicates
-        # probe disconnection / sensor dropout (e.g. pH=0.0 or Temp=0.0 while probe is unimmersed).
-        is_zero_dropout = (vals == 0.0) & (param in ("pH", "temperature"))
+        # In water quality probes, an exact 0.0 reading during bench test indicates
+        # probe disconnection / sensor dropout (e.g. pH=0.0, TDS=0.0, or Temp=0.0 while probe is unimmersed).
+        is_zero_dropout = (
+            ((vals == 0.0) & (param in ("pH", "temperature", "TDS")))
+            | ((vals <= 0.05) & (param == "pH"))
+            | ((vals <= 0.5) & (param == "temperature"))
+            | ((vals == -127.0) & (param == "temperature"))
+            | ((vals == 85.0) & (param == "temperature"))
+        )
         is_out_of_range = (vals < min_v) | (vals > max_v)
         is_invalid = is_zero_dropout | is_out_of_range | vals.isna()
 
