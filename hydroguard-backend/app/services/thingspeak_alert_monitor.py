@@ -22,8 +22,13 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db_context
 from app.db.repositories import (
     NodeRepository,
+    RawTelemetryRepository,
     SensorReadingRepository,
     ThingSpeakMonitorRepository,
+)
+from ml.data.sensor_validation import (
+    classify_observation,
+    validate_parameter,
 )
 from app.services.alert_service import AlertService
 from app.services.push_notification_service import PushNotificationService
@@ -342,63 +347,109 @@ class ThingSpeakAlertMonitor:
                     feed_entry_id = _parse_entry_id(feed.get("entry_id"))
                     feed_ts = _parse_timestamp(feed.get("created_at"))
 
-                    # Extract the 4 water-quality parameters
-                    # (pH, TDS, turbidity, temperature only; no RGB or optical colour index)
-                    reading_data: dict[str, Any] = {}
-                    for field_name, param_name in config.field_map.items():
-                        coerced = _coerce_value(feed.get(field_name), param_name)
-                        if coerced is not None:
-                            reading_data[param_name.lower()] = coerced
+                    # Extract raw string values faithfully as received from ThingSpeak feed
+                    param_to_field = {param.lower(): field for field, param in config.field_map.items()}
+                    rgb_to_field = {colour.lower(): field for field, colour in config.rgb_field_map.items()}
 
-                    reading_data["source"] = "THINGSPEAK"
-                    reading_data["timestamp"] = (
-                        feed_ts if feed_ts is not None else datetime.now(timezone.utc)
-                    )
+                    def _extract_raw_str(fld: Optional[str]) -> Optional[str]:
+                        if fld is not None and fld in feed and feed[fld] is not None:
+                            return str(feed[fld]).strip()
+                        return None
 
-                    # Extract RGB channels (display-only telemetry)
-                    rgb_data: dict[str, Optional[int]] = {}
-                    for field_name, colour in config.rgb_field_map.items():
-                        raw_rgb = feed.get(field_name)
-                        if raw_rgb is not None:
-                            try:
-                                rgb_data[colour] = int(float(str(raw_rgb).strip()))
-                            except (ValueError, TypeError):
-                                rgb_data[colour] = None
+                    raw_ph_str = _extract_raw_str(param_to_field.get("ph"))
+                    raw_tds_str = _extract_raw_str(param_to_field.get("tds"))
+                    raw_turb_str = _extract_raw_str(param_to_field.get("turbidity"))
+                    raw_temp_str = _extract_raw_str(param_to_field.get("temperature"))
 
-                    # Only evaluate alerts if at least one valid water-quality parameter exists
-                    has_valid_parameters = any(
-                        param in reading_data for param in ("ph", "tds", "turbidity", "temperature")
-                    )
+                    raw_red_str = _extract_raw_str(rgb_to_field.get("red"))
+                    raw_green_str = _extract_raw_str(rgb_to_field.get("green"))
+                    raw_blue_str = _extract_raw_str(rgb_to_field.get("blue"))
 
-                    # Persist valid reading to database (preventing duplicates by node_id and timestamp)
-                    if (
-                        feed_ts is not None
-                        and reading_data.get("ph") is not None
-                        and reading_data.get("tds") is not None
-                        and reading_data.get("turbidity") is not None
-                    ):
+                    # Run parameter-specific validation
+                    val_ph = validate_parameter("pH", raw_ph_str)
+                    val_tds = validate_parameter("TDS", raw_tds_str)
+                    val_turb = validate_parameter("turbidity", raw_turb_str)
+                    val_temp = validate_parameter("temperature", raw_temp_str)
+
+                    param_results = {
+                        "ph": val_ph,
+                        "tds": val_tds,
+                        "turbidity": val_turb,
+                        "temperature": val_temp,
+                    }
+                    validation_results_dict = {k: v.to_dict() for k, v in param_results.items()}
+                    overall_status, rejection_reason, is_normalizable = classify_observation(param_results)
+
+                    # 1. Durably record raw telemetry observation first
+                    try:
+                        raw_obs, _ = RawTelemetryRepository.create_or_get(
+                            db=db,
+                            channel_id=channel_id,
+                            entry_id=feed_entry_id,
+                            source_timestamp=feed_ts,
+                            source="THINGSPEAK",
+                            raw_payload=dict(feed),
+                            raw_ph=raw_ph_str,
+                            raw_tds=raw_tds_str,
+                            raw_turbidity=raw_turb_str,
+                            raw_temperature=raw_temp_str,
+                            raw_red=raw_red_str,
+                            raw_green=raw_green_str,
+                            raw_blue=raw_blue_str,
+                            overall_status=overall_status,
+                            validation_results=validation_results_dict,
+                            validation_version="2.0.0",
+                            rejection_reason=rejection_reason,
+                            is_persisted_normalized=False,
+                            processing_status="INGESTED",
+                        )
+                    except Exception as raw_exc:
+                        logger.error(
+                            "Failed to persist raw observation for channel %s (entry_id=%s): %s",
+                            channel_id,
+                            feed_entry_id,
+                            raw_exc,
+                        )
+                        # Halt batch processing so checkpoint does not advance past unrecorded observation
+                        break
+
+                    # 2. Persist normalized SensorReading only when validation rules permit it
+                    normalized_success = True
+                    if is_normalizable and feed_ts is not None:
                         existing_reading = SensorReadingRepository.get_by_node_and_timestamp(
                             db, thingspeak_node_id, feed_ts
                         )
                         if not existing_reading:
                             try:
-                                SensorReadingRepository.create(
+                                def _parse_rgb(val: Optional[str]) -> Optional[int]:
+                                    if val is None:
+                                        return None
+                                    try:
+                                        return int(float(val))
+                                    except (ValueError, TypeError):
+                                        return None
+
+                                new_reading = SensorReadingRepository.create(
                                     db=db,
                                     node_id=thingspeak_node_id,
                                     timestamp=feed_ts,
-                                    ph=float(reading_data["ph"]),
-                                    tds=float(reading_data["tds"]),
-                                    turbidity=float(reading_data["turbidity"]),
+                                    ph=float(val_ph.coerced_value),
+                                    tds=float(val_tds.coerced_value),
+                                    turbidity=float(val_turb.coerced_value),
                                     temperature=(
-                                        float(reading_data["temperature"])
-                                        if reading_data.get("temperature") is not None
+                                        float(val_temp.coerced_value)
+                                        if val_temp.is_valid_for_model and val_temp.coerced_value is not None
                                         else None
                                     ),
-                                    red=rgb_data.get("red"),
-                                    green=rgb_data.get("green"),
-                                    blue=rgb_data.get("blue"),
+                                    red=_parse_rgb(raw_red_str),
+                                    green=_parse_rgb(raw_green_str),
+                                    blue=_parse_rgb(raw_blue_str),
                                     source="THINGSPEAK",
                                 )
+                                raw_obs.is_persisted_normalized = True
+                                raw_obs.normalized_reading_id = new_reading.id
+                                raw_obs.processing_status = "PROCESSED_NORMALIZED"
+                                db.commit()
                                 logger.info(
                                     "Persisted ThingSpeak reading for %s (entry_id=%s, ts=%s).",
                                     thingspeak_node_id,
@@ -411,12 +462,47 @@ class ThingSpeakAlertMonitor:
                                     thingspeak_node_id,
                                     persist_exc,
                                 )
+                                raw_obs.processing_status = "NORMALIZATION_FAILED"
+                                raw_obs.error_message = str(persist_exc)
+                                db.commit()
+                                normalized_success = False
+                        else:
+                            raw_obs.is_persisted_normalized = True
+                            raw_obs.normalized_reading_id = existing_reading.id
+                            raw_obs.processing_status = "PROCESSED_NORMALIZED"
+                            db.commit()
+                    else:
+                        # Ineligible for normalized persistence (e.g. dropout, out-of-bounds, missing required field)
+                        raw_obs.is_persisted_normalized = False
+                        raw_obs.processing_status = "SKIPPED_INELIGIBLE"
+                        db.commit()
 
+                    # If eligible normalized write failed unexpectedly, halt so retry can occur without skipping
+                    if not normalized_success:
+                        logger.warning(
+                            "Halting batch at entry_id=%s due to normalized persistence failure; checkpoint will not advance.",
+                            feed_entry_id,
+                        )
+                        break
+
+                    # 3. Alert evaluation & auto-resolution (only with values valid for alerts)
                     alerts: list[Alert] = []
-                    if has_valid_parameters:
-                        # 1. Evaluate threshold violations
+                    reading_for_alerts: dict[str, Any] = {"timestamp": feed_ts}
+                    if val_ph.is_valid_for_alerts and val_ph.coerced_value is not None:
+                        reading_for_alerts["ph"] = val_ph.coerced_value
+                    if val_tds.is_valid_for_alerts and val_tds.coerced_value is not None:
+                        reading_for_alerts["tds"] = val_tds.coerced_value
+                    if val_turb.is_valid_for_alerts and val_turb.coerced_value is not None:
+                        reading_for_alerts["turbidity"] = val_turb.coerced_value
+                    if val_temp.is_valid_for_alerts and val_temp.coerced_value is not None:
+                        reading_for_alerts["temperature"] = val_temp.coerced_value
+
+                    has_alert_parameters = any(
+                        k in reading_for_alerts for k in ("ph", "tds", "turbidity", "temperature")
+                    )
+                    if has_alert_parameters:
                         alerts = AlertService.evaluate_reading_for_alerts(
-                            db, thingspeak_node_id, reading_data
+                            db, thingspeak_node_id, reading_for_alerts
                         )
                         if alerts:
                             logger.info(
@@ -426,9 +512,8 @@ class ThingSpeakAlertMonitor:
                                 feed_entry_id,
                             )
 
-                        # 2. Check and auto-resolve alerts when parameters return to normal
                         resolved = AlertService.check_and_resolve_alerts(
-                            db, thingspeak_node_id, reading_data
+                            db, thingspeak_node_id, reading_for_alerts
                         )
                         if resolved > 0:
                             logger.info(
@@ -438,7 +523,7 @@ class ThingSpeakAlertMonitor:
                                 feed_entry_id,
                             )
 
-                    # Advance checkpoint to this feed
+                    # 4. Advance checkpoint to this feed
                     last_entry_id = feed_entry_id if feed_entry_id is not None else last_entry_id
                     last_feed_timestamp = feed_ts if feed_ts is not None else last_feed_timestamp
 
@@ -451,7 +536,7 @@ class ThingSpeakAlertMonitor:
                     db.commit()
                     processed_count += 1
 
-                    # Dispatch push notifications for newly committed alerts
+                    # 5. Dispatch push notifications for newly committed alerts
                     if alerts:
                         for new_alert in alerts:
                             try:

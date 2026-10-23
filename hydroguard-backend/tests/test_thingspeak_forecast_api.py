@@ -400,19 +400,20 @@ class TestAlertIntegration:
             assert alerts[0].id == alert_id
 
     def test_invalid_readings_no_alert(self, client, stub_feeds, monkeypatch):
-        """Invalid/missing readings do not create alerts."""
+        """Invalid/missing readings across window return 422 and do not create alerts."""
         from app.db.database import get_db_context, init_db
         from app.db.models import Alert
 
         monkeypatch.setenv("HYDROGUARD_THINGSPEAK_CHANNEL_ID", "55555")
-        # pH = empty (invalid)
+        # pH = empty (unobserved parameter across window -> 422)
         stub_feeds.feeds = _feeds(30)
         for feed in stub_feeds.feeds:
             feed["field1"] = ""
 
         init_db()
         response = client.get(ENDPOINT)
-        assert response.status_code == 200
+        assert response.status_code == 422
+        assert "Insufficient valid observations for parameter(s): 'pH'" in response.json()["detail"]
 
         with get_db_context() as db:
             alerts = db.query(Alert).filter(Alert.node_id == "thingspeak-55555").all()

@@ -44,6 +44,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 import httpx
 
+from ml.data.sensor_validation import coerce_model_parameter
 from ml.data.validator import PARAMETERS, VALID_RANGES
 
 # ThingSpeak assigns fields to a channel in order. The HydroGuard channel logs
@@ -154,6 +155,8 @@ class ThingSpeakWindow:
     rgb_values: tuple[tuple[int | None, int | None, int | None, int | None], ...] = ()
     latest_entry_id: Optional[int] = None
     latest_status_flag: Optional[int] = None
+    source_rows_fetched: int = 0
+    observed_by_parameter: Mapping[str, int] = field(default_factory=dict)
 
 
     @property
@@ -277,43 +280,12 @@ def _parse_timestamp(raw: Any) -> datetime | None:
 def _coerce_value(raw: Any, parameter: str) -> float | None:
     """Convert a ThingSpeak field to a float, or None if unusable.
 
-    An empty/absent field is missing. A non-numeric value is missing. An
-    out-of-range value is missing too: passing a physically impossible reading
-    to the models would be worse than carrying forward an earlier real one, and
-    this mirrors the validator's treatment of training data.
+    Applies parameter-specific physical validation and sensor dropout detection.
+    Rejects dropouts (e.g. pH <= 0.05, TDS == 0.0, Temp <= 0.5 or -127/85) and
+    physical impossibilities so clean causal forward-filling occurs instead of
+    feeding invalid sensor measurements into downstream models.
     """
-    if raw is None:
-        return None
-    if isinstance(raw, str):
-        text = raw.strip()
-        if not text:
-            return None
-        try:
-            value = float(text)
-        except ValueError:
-            return None
-    elif isinstance(raw, (int, float)):
-        value = float(raw)
-    else:
-        return None
-
-    if value != value:  # NaN
-        return None
-
-    # Distinguish physical aqueous observations from open-circuit / 0V ADC sensor dropouts
-    if parameter == 'pH' and value <= 0.05:
-        # Sensor dropout: 0V analog ADC reading / disconnected pH probe
-        return None
-    if parameter in ('temperature', 'temp') and value <= 0.5:
-        # Sensor dropout: 0V analog ADC reading / disconnected temp probe
-        return None
-
-    bounds = VALID_RANGES.get(parameter)
-    if bounds is not None:
-        lower, upper = bounds
-        if value < lower or value > upper:
-            return None
-    return value
+    return coerce_model_parameter(parameter, raw)
 
 
 def parse_feeds(
@@ -381,11 +353,20 @@ def parse_feeds(
             else:
                 rgb_columns[colour].append(None)
 
-    observed_rows = len(ordered)
+    source_rows_fetched = len(ordered)
+    observed_by_parameter = {
+        param: sum(1 for value in values if value is not None)
+        for param, values in columns.items()
+    }
     missing_by_parameter = {
         param: sum(1 for value in values if value is None)
         for param, values in columns.items()
     }
+    # Observed rows count feeds that contain at least one usable observed sensor parameter
+    observed_rows = sum(
+        1 for r in range(len(ordered))
+        if any(columns[param][r] is not None for param in ML_PARAMETERS)
+    )
 
     forward_filled = 0  # cells carrying an earlier observed value (causal)
     leading_filled = 0  # head cells repeating the first observed value
@@ -496,6 +477,8 @@ def parse_feeds(
         rgb_values=rgb_values,
         latest_entry_id=latest_entry_id,
         latest_status_flag=latest_status_flag,
+        source_rows_fetched=source_rows_fetched,
+        observed_by_parameter=observed_by_parameter,
     )
 
 

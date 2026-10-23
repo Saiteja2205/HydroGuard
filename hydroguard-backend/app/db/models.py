@@ -420,3 +420,63 @@ class AlertNotificationLog(Base):
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
+
+
+class RawTelemetryObservation(Base):
+    """Stores raw, unprocessed telemetry observations for auditing, compliance, and debugging.
+
+    Preserves exact source data (including dropouts, zero values, negative/implausible
+    readings, and unparsed fields) prior to normalization, filtering, or alert processing.
+    """
+
+    __tablename__ = "raw_telemetry_observations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(50), nullable=False, default="THINGSPEAK", index=True)
+    channel_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    entry_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    source_timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+
+    # Raw source payload as received (exact dict without modification)
+    raw_payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    # Faithfully preserved raw string values as received from feed
+    raw_ph: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    raw_tds: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    raw_turbidity: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    raw_temperature: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    raw_red: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    raw_green: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    raw_blue: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
+    # Detailed validation outcomes and classification
+    overall_status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING", index=True)
+    validation_results: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    validation_version: Mapped[str] = mapped_column(String(32), nullable=False, default="2.0.0")
+    rejection_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # Normalized persistence tracking
+    is_persisted_normalized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    normalized_reading_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("sensor_readings.id", ondelete="SET NULL"), nullable=True
+    )
+    processing_status: Mapped[str] = mapped_column(String(32), nullable=False, default="INGESTED")
+    error_message: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("channel_id", "entry_id", name="uq_raw_telemetry_channel_entry"),
+        Index("idx_raw_telemetry_channel_entry", "channel_id", "entry_id"),
+        Index("idx_raw_telemetry_source_timestamp", "source_timestamp"),
+        Index("idx_raw_telemetry_overall_status", "overall_status"),
+        Index("idx_raw_telemetry_ingested_at", "ingested_at"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<RawTelemetryObservation(channel_id='{self.channel_id}', "
+            f"entry_id={self.entry_id}, status='{self.overall_status}', "
+            f"normalized={self.is_persisted_normalized})>"
+        )

@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Generator
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 # Database path (SQLite for local development)
@@ -23,11 +23,34 @@ DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 # SQLAlchemy setup
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 
+connect_args = {"check_same_thread": False}
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    connect_args["timeout"] = 15.0
+
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},  # Required for SQLite
+    connect_args=connect_args,
     echo=False,  # Set to True for SQL query logging during development
 )
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_connection, connection_record) -> None:
+    """Configure per-connection SQLite pragmas for concurrency and durability.
+
+    - busy_timeout=5000: Waits up to 5000ms on lock contention before raising OperationalError.
+    - synchronous=NORMAL: Durability with minimal fsync overhead in WAL mode.
+    Note: PRAGMA journal_mode=WAL is a persistent file property and is configured
+    during initialization (init_db) rather than on every connection.
+    """
+    if engine.dialect.name == "sqlite":
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA busy_timeout=5000;")
+            cursor.execute("PRAGMA synchronous=NORMAL;")
+        finally:
+            cursor.close()
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -43,6 +66,9 @@ def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -59,15 +85,23 @@ def get_db_context() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
 
 def init_db() -> None:
-    """Initialize database tables.
+    """Initialize database tables and persistence settings.
 
-    Creates all tables if they don't exist.
+    Creates all tables if they don't exist and configures WAL journal mode for SQLite.
     """
+    if engine.dialect.name == "sqlite":
+        with engine.connect() as connection:
+            connection.execute(text("PRAGMA journal_mode=WAL;"))
+            connection.commit()
+
     # Import models here to ensure they are registered with Base
     from app.db.models import (
         Alert,
@@ -76,6 +110,7 @@ def init_db() -> None:
         Forecast,
         ModelError,
         Node,
+        RawTelemetryObservation,
         SensorReading,
         ThingSpeakMonitorCheckpoint,
     )

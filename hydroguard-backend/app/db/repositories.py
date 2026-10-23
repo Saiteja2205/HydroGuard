@@ -19,6 +19,7 @@ from app.db.models import (
     Node,
     SensorCalibration,
     SensorReading,
+    RawTelemetryObservation,
     ThresholdConfig,
     ThingSpeakMonitorCheckpoint,
 )
@@ -889,3 +890,146 @@ class AlertNotificationRepository:
             .all()
         )
 
+
+class RawTelemetryRepository:
+    """Repository for raw telemetry audit records."""
+
+    @staticmethod
+    def get_by_id(db: Session, record_id: int) -> Optional[RawTelemetryObservation]:
+        """Retrieve a raw observation by primary key."""
+        return db.query(RawTelemetryObservation).filter(RawTelemetryObservation.id == record_id).first()
+
+    @staticmethod
+    def get_by_channel_and_entry(
+        db: Session, channel_id: str, entry_id: int
+    ) -> Optional[RawTelemetryObservation]:
+        """Retrieve a raw observation by channel ID and ThingSpeak entry ID."""
+        return (
+            db.query(RawTelemetryObservation)
+            .filter(
+                RawTelemetryObservation.channel_id == str(channel_id),
+                RawTelemetryObservation.entry_id == int(entry_id),
+            )
+            .first()
+        )
+
+    @staticmethod
+    def create(
+        db: Session,
+        channel_id: str,
+        entry_id: Optional[int],
+        source_timestamp: Optional[datetime],
+        raw_payload: Optional[dict] = None,
+        raw_ph: Optional[str] = None,
+        raw_tds: Optional[str] = None,
+        raw_turbidity: Optional[str] = None,
+        raw_temperature: Optional[str] = None,
+        raw_red: Optional[str] = None,
+        raw_green: Optional[str] = None,
+        raw_blue: Optional[str] = None,
+        overall_status: str = "PENDING",
+        validation_results: Optional[dict] = None,
+        validation_version: str = "2.0.0",
+        rejection_reason: Optional[str] = None,
+        is_persisted_normalized: bool = False,
+        normalized_reading_id: Optional[int] = None,
+        processing_status: str = "INGESTED",
+        error_message: Optional[str] = None,
+        source: str = "THINGSPEAK",
+    ) -> RawTelemetryObservation:
+        """Create a new raw telemetry observation."""
+        record = RawTelemetryObservation(
+            source=source,
+            channel_id=str(channel_id),
+            entry_id=entry_id,
+            source_timestamp=source_timestamp,
+            ingested_at=datetime.now(timezone.utc),
+            raw_payload=raw_payload,
+            raw_ph=raw_ph,
+            raw_tds=raw_tds,
+            raw_turbidity=raw_turbidity,
+            raw_temperature=raw_temperature,
+            raw_red=raw_red,
+            raw_green=raw_green,
+            raw_blue=raw_blue,
+            overall_status=overall_status,
+            validation_results=validation_results,
+            validation_version=validation_version,
+            rejection_reason=rejection_reason,
+            is_persisted_normalized=is_persisted_normalized,
+            normalized_reading_id=normalized_reading_id,
+            processing_status=processing_status,
+            error_message=error_message,
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return record
+
+    @staticmethod
+    def create_or_get(
+        db: Session,
+        channel_id: str,
+        entry_id: Optional[int],
+        source_timestamp: Optional[datetime],
+        **kwargs,
+    ) -> tuple[RawTelemetryObservation, bool]:
+        """Retrieve existing raw observation or create a new one safely.
+
+        Uses an inner savepoint (begin_nested) so if a unique constraint race condition
+        occurs on (channel_id, entry_id), only the sub-transaction is rolled back, leaving
+        the outer transaction and session valid.
+
+        Returns:
+            (record, created): tuple of RawTelemetryObservation and boolean indicating
+            whether a new row was inserted (True) or an existing row was returned (False).
+        """
+        if entry_id is not None:
+            existing = RawTelemetryRepository.get_by_channel_and_entry(db, channel_id, entry_id)
+            if existing is not None:
+                return existing, False
+
+        try:
+            with db.begin_nested():
+                record = RawTelemetryObservation(
+                    channel_id=str(channel_id),
+                    entry_id=entry_id,
+                    source_timestamp=source_timestamp,
+                    ingested_at=datetime.now(timezone.utc),
+                    **kwargs,
+                )
+                db.add(record)
+                db.flush()
+            db.commit()
+            db.refresh(record)
+            return record, True
+        except Exception:
+            # Rollback savepoint on collision or error, then check if existing record was created concurrently
+            if entry_id is not None:
+                existing = RawTelemetryRepository.get_by_channel_and_entry(db, channel_id, entry_id)
+                if existing is not None:
+                    return existing, False
+            raise
+
+    @staticmethod
+    def list_by_channel(
+        db: Session, channel_id: str, limit: int = 100
+    ) -> list[RawTelemetryObservation]:
+        """List raw telemetry observations for a channel, ordered newest ingestion first."""
+        return (
+            db.query(RawTelemetryObservation)
+            .filter(RawTelemetryObservation.channel_id == str(channel_id))
+            .order_by(desc(RawTelemetryObservation.ingested_at))
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def get_count_by_channel(db: Session, channel_id: str) -> int:
+        """Count total raw telemetry observations recorded for a channel."""
+        return (
+            db.query(func.count(RawTelemetryObservation.id))
+            .filter(RawTelemetryObservation.channel_id == str(channel_id))
+            .scalar()
+            or 0
+        )
