@@ -12,5 +12,6 @@ torch>=2.7.0
 sqlalchemy==2.1.3
 alembic
 firebase-admin
+argon2-cffi
 pytest
 httpx
