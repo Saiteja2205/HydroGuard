@@ -1,25 +1,33 @@
 # HydroGuard backend — Render blueprint.
 #
-# This describes a single CPU-only web service. Render reads this file on
-# "New > Blueprint" and provisions the service, disk and environment together.
+# This describes a CPU-only web service and a managed PostgreSQL database.
+# Render reads this file on "New > Blueprint" and provisions the web service,
+# PostgreSQL instance, and internal networking together.
 #
-# IMPORTANT — read the "Sync: false" entries below before deploying. Anything
+# IMPORTANT — read the "sync: false" entries below before deploying. Anything
 # marked `sync: false` is a secret Render will NOT set for you: you must enter
-# it in the dashboard. The app fails closed when they are missing, by design —
-# it will not fall back to a dev token, a default password, or a placeholder.
-# No secret value is written in this file, and none should ever be committed.
+# it in the Render dashboard. The app fails closed when required secrets are
+# missing, by design — it will not fall back to a dev token, default password,
+# or placeholder. No secret values are written in this file.
+
+databases:
+  - name: hydroguard-postgres
+    databaseName: hydroguard
+    user: hydroguard
+    plan: free # Note: Free tier PostgreSQL expires after 30 days. For permanent production, upgrade to starter ($7/mo).
+    ipAllowList: [] # internal network access only (no public exposure)
 
 services:
   - type: web
     name: hydroguard-backend
     runtime: docker
-    # Build from the backend subdirectory so app/, ml/ and
+    # Build from the backend subdirectory so app/, ml/, alembic/, and
     # artifacts/checkpoints/ are all in the build context.
     dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: free
 
-    # Render injects $PORT; the Dockerfile's CMD already reads it.
+    # Render injects $PORT; the Dockerfile's CMD reads it.
     healthCheckPath: /api/v1/health
 
     # Free-tier instances spin down when idle, so the first request after a
@@ -28,12 +36,16 @@ services:
     # tens of seconds).
     autoDeploy: true
 
-    disk:
-      name: hydroguard-data
-      mountPath: /srv/hydroguard/data
-      sizeGB: 1
-
     envVars:
+      # ---- Database / Persistence ---------------------------------------
+      # Render injects the private internal connection string from the database
+      # provisioned above. The backend normalizes postgres:// to postgresql+psycopg://
+      # and applies connection pooling and pre-ping automatically.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hydroguard-postgres
+          property: connectionString
+
       # ---- Runtime mode -------------------------------------------------
       # production locks CORS to an empty origin list and disables the
       # development identity bridge. Do not set development here: it enables
@@ -45,18 +57,18 @@ services:
       # ---- Firebase (required; app fails closed without it) --------------
       # GOOGLE_APPLICATION_CREDENTIALS must point at a service-account JSON
       # file. Render supplies this as a secret file mounted into the container;
-      # set the path below to wherever you mount it.
+      # set the path below to wherever you mount it (e.g. /etc/secrets/firebase.json).
       - key: HYDROGUARD_FIREBASE_PROJECT_ID
         value: hydroguard-4a606
       - key: GOOGLE_APPLICATION_CREDENTIALS
-        sync: false   # path to the mounted service-account JSON, e.g. /etc/hydroguard/firebase.json
+        sync: false   # path to the mounted secret file, e.g. /etc/secrets/firebase-service-account.json
 
       # ---- Student registration allowlist --------------------------------
       # Comma-separated, no spaces. A domain that is absent here will NOT
       # auto-provision a student, and an unset value rejects every
       # registration rather than opening it.
       - key: HYDROGUARD_ALLOWED_STUDENT_DOMAINS
-        sync: false   # e.g. your-college.edu.in
+        sync: false   # e.g. vrsec.ac.in,your-college.edu.in
 
       # ---- Sensor ingestion (optional) -----------------------------------
       # Leave unconfigured to keep POST /readings disabled (it fails closed).
@@ -67,19 +79,14 @@ services:
       # Without a channel id this endpoint returns 503 and says exactly which
       # variable to set. The read API key is only needed for a private channel.
       - key: HYDROGUARD_THINGSPEAK_CHANNEL_ID
-        sync: false   # numeric channel id, e.g. 123456
+        sync: false   # numeric channel id, e.g. 244357
       - key: HYDROGUARD_THINGSPEAK_READ_API_KEY
         sync: false   # optional; only for private channels
+
       # Optional overrides, each with a safe default in code:
       #   HYDROGUARD_THINGSPEAK_BASE_URL          (default https://api.thingspeak.com)
       #   HYDROGUARD_THINGSPEAK_RESULTS           (default 30, floored at the 30-row model window)
       #   HYDROGUARD_THINGSPEAK_TIMEOUT_SECONDS   (default 10)
-
-      # ---- Persistence ----------------------------------------------------
-      # Defaults to ./data/hydroguard.db, which the Dockerfile places on the
-      # persistent disk above. Override only if you point at an external DB.
-      # - key: HYDROGUARD_DATABASE_PATH
-      #   value: /srv/hydroguard/data/hydroguard.db
 
       # ---- Logging --------------------------------------------------------
       - key: HYDROGUARD_LOG_LEVEL

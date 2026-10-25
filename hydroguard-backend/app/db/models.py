@@ -228,7 +228,7 @@ class ModelError(Base):
     )
     forecast_date: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     actual_timestamp: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    evaluated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    evaluated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=lambda: datetime.now(timezone.utc))
     horizon_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
     data_source: Mapped[str] = mapped_column(String(50), nullable=False, default="HISTORICAL_DATA")
     model_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -384,7 +384,7 @@ class DeviceToken(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_uid: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
-    token: Mapped[str] = mapped_column(String(512), unique=True, nullable=False)
+    token: Mapped[str] = mapped_column(String(512), nullable=False)
     device_type: Mapped[str] = mapped_column(String(32), nullable=False, default="android")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(

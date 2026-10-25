@@ -50,6 +50,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 COPY app ./app
 COPY ml ./ml
 COPY artifacts ./artifacts
+COPY alembic ./alembic
+COPY alembic.ini ./
 
 # SQLite lives here by default. Mount a persistent disk at /srv/hydroguard/data
 # (see render.yaml) or every redeploy starts from an empty database.

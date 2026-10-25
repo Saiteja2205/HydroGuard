@@ -1,37 +1,96 @@
 """Database connection and session management for HydroGuard.
 
-Uses SQLAlchemy with SQLite for local development.
-Designed to be easily migrated to PostgreSQL for cloud deployment.
+Supports both SQLite (for local development and offline testing) and
+PostgreSQL (for production cloud deployment, e.g. on Render).
 """
 
 from contextlib import contextmanager
+import logging
 import os
 from pathlib import Path
 from typing import Generator
 
 from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy.engine import Engine
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
-# Database path (SQLite for local development)
-# Use absolute path to ensure consistency across different execution contexts
+logger = logging.getLogger("hydroguard.database")
+
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DB_DIR = BACKEND_ROOT / "data"
 DB_DIR.mkdir(exist_ok=True)
-DB_PATH = Path(os.getenv("HYDROGUARD_DATABASE_PATH", str(DB_DIR / "hydroguard.db")))
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
+def resolve_database_url() -> str:
+    """Resolve and normalize database URL from environment variables.
+
+    Priority:
+    1. HYDROGUARD_DATABASE_URL
+    2. DATABASE_URL (standard environment variable on Render / Railway / Heroku)
+    3. SQLite file specified by HYDROGUARD_DATABASE_PATH
+    4. Default local SQLite file at hydroguard-backend/data/hydroguard.db
+    """
+    raw_url = os.getenv("HYDROGUARD_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if raw_url and raw_url.strip():
+        url = raw_url.strip()
+        # Render / Heroku compatibility: postgres:// or postgresql:// without driver -> postgresql+psycopg://
+        if url.startswith("postgres://"):
+            url = "postgresql+psycopg://" + url[len("postgres://"):]
+        elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
+            url = "postgresql+psycopg://" + url[len("postgresql://"):]
+        return url
+
+    # Default to SQLite file
+    db_path = Path(os.getenv("HYDROGUARD_DATABASE_PATH", str(DB_DIR / "hydroguard.db")))
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    return f"sqlite:///{db_path}"
+
+
+def get_masked_database_url(url: str | None = None) -> str:
+    """Return database URL with sensitive credentials masked for safe logging."""
+    target_url = url or SQLALCHEMY_DATABASE_URL
+    try:
+        return make_url(target_url).render_as_string(hide_password=True)
+    except Exception:
+        # Fallback if make_url cannot parse the string
+        if "@" in target_url:
+            prefix = target_url.split("://")[0] + "://" if "://" in target_url else ""
+            host_part = target_url.split("@")[-1]
+            return f"{prefix}***@{host_part}"
+        return target_url
+
+
+def create_app_engine(url: str) -> Engine:
+    """Create a configured SQLAlchemy engine appropriate for the URL dialect."""
+    if url.startswith("sqlite"):
+        connect_args = {"check_same_thread": False, "timeout": 15.0}
+        return create_engine(
+            url,
+            connect_args=connect_args,
+            echo=False,
+        )
+
+    # PostgreSQL / other production RDBMS
+    pool_size = int(os.getenv("HYDROGUARD_DB_POOL_SIZE", "5"))
+    max_overflow = int(os.getenv("HYDROGUARD_DB_MAX_OVERFLOW", "10"))
+    pool_recycle = int(os.getenv("HYDROGUARD_DB_POOL_RECYCLE", "1800"))
+    pool_timeout = float(os.getenv("HYDROGUARD_DB_POOL_TIMEOUT", "30.0"))
+
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_recycle=pool_recycle,
+        pool_timeout=pool_timeout,
+        echo=False,
+    )
+
 
 # SQLAlchemy setup
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
-
-connect_args = {"check_same_thread": False}
-if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
-    connect_args["timeout"] = 15.0
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args=connect_args,
-    echo=False,  # Set to True for SQL query logging during development
-)
+SQLALCHEMY_DATABASE_URL = resolve_database_url()
+engine = create_app_engine(SQLALCHEMY_DATABASE_URL)
 
 
 @event.listens_for(engine, "connect")

@@ -96,7 +96,7 @@ class HydroGuardUser(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     firebase_uid: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)

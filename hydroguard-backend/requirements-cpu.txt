@@ -1,0 +1,14 @@
+# HydroGuard backend dependencies for CPU-only container builds.
+# PyTorch is installed beforehand via https://download.pytorch.org/whl/cpu.
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+pydantic==2.13.5
+numpy
+pandas
+scikit-learn
+sqlalchemy==2.1.3
+alembic
+psycopg[binary]>=3.2
+firebase-admin
+argon2-cffi
+httpx
