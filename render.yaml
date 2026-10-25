@@ -1,31 +1,37 @@
-# HydroGuard backend — Render blueprint.
+# HydroGuard — Render Blueprint Specification.
 #
-# This describes a CPU-only web service and a managed PostgreSQL database.
-# Render reads this file on "New > Blueprint" and provisions the web service,
-# PostgreSQL instance, and internal networking together.
+# Canonical Source of Truth for Render Infrastructure as Code.
+# Provisions a managed PostgreSQL database and a CPU-only Docker web service.
+# Render automatically detects this file at the repository root on "New > Blueprint".
 #
-# IMPORTANT — read the "sync: false" entries below before deploying. Anything
-# marked `sync: false` is a secret Render will NOT set for you: you must enter
-# it in the Render dashboard. The app fails closed when required secrets are
-# missing, by design — it will not fall back to a dev token, default password,
-# or placeholder. No secret values are written in this file.
+# IMPORTANT — Secrets marked `sync: false` must be populated in the Render
+# dashboard. The application fails closed at boot if required secrets are missing.
+# No secrets, tokens, or private credentials are stored in this file.
 
 databases:
   - name: hydroguard-postgres
     databaseName: hydroguard
     user: hydroguard
-    plan: free # Note: Free tier PostgreSQL expires after 30 days. For permanent production, upgrade to starter ($7/mo).
+    region: oregon
+    # Production Persistence & Backup Policy Note:
+    # Render's `plan: free` PostgreSQL expires and is permanently deleted after 30 days
+    # without automated backup or recovery capabilities.
+    # For durable production persistence with automated continuous point-in-time
+    # recovery (PITR) and retention, change to `plan: starter` ($7/mo; 0.5 CPU, 1 GB RAM, 10 GB SSD).
+    plan: free # Change to `starter` for durable production deployment
     ipAllowList: [] # internal network access only (no public exposure)
+    # Note: To run initial migration from a local workstation, temporarily whitelist
+    # your local public IP in Render Dashboard > Access Control, migrate, then remove.
 
 services:
   - type: web
     name: hydroguard-backend
     runtime: docker
-    # Build from the backend subdirectory so app/, ml/, alembic/, and
-    # artifacts/checkpoints/ are all in the build context.
+    region: oregon
+    rootDir: hydroguard-backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: free
+    plan: free # Change to `starter` ($7/mo) to eliminate cold starts and enable preDeployCommand
 
     # Render injects $PORT; the Dockerfile's CMD reads it.
     healthCheckPath: /api/v1/health
@@ -35,6 +41,15 @@ services:
     # forecast, not at boot, so the cold start is a few seconds rather than
     # tens of seconds).
     autoDeploy: true
+
+    # Pre-Deploy Migration Note:
+    # Render's `preDeployCommand` (e.g. `alembic upgrade head`) is only supported
+    # on paid compute plans (`plan: starter` or higher). Render rejects `preDeployCommand`
+    # on `plan: free`. Initial schema creation is safely handled at boot by
+    # `Base.metadata.create_all()` in `app.main:lifespan`, and schema migrations
+    # are applied via CLI (`alembic upgrade head`) or the migration utility.
+    # If upgrading this web service to `plan: starter`, uncomment:
+    # preDeployCommand: alembic upgrade head
 
     envVars:
       # ---- Database / Persistence ---------------------------------------

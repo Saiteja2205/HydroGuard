@@ -30,6 +30,10 @@ htmlcov/
 .env.*
 !.env.example
 .dev-auth.env
+*firebase*.json
+*serviceAccount*.json
+*service-account*.json
+*.json.key
 
 # --------------------------------
 # FastAPI / Backend

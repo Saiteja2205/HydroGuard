@@ -137,3 +137,26 @@ def test_migration_execution_preserves_records_and_relationships(verified_source
 
     finally:
         target_path.unlink(missing_ok=True)
+
+
+def test_migration_normalizes_postgres_target_url(verified_source_backup: Path):
+    """Ensure run_migration normalizes postgres:// URLs to postgresql+psycopg://."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("scripts.migrate_sqlite_to_postgres.create_app_engine") as mock_engine:
+        mock_engine.return_value.dialect.name = "postgresql"
+        mock_conn = MagicMock()
+        mock_engine.return_value.connect.return_value.__enter__.return_value = mock_conn
+        mock_engine.return_value.begin.return_value.__enter__.return_value = mock_conn
+        mock_conn.execute.return_value.scalar.return_value = 0
+
+        try:
+            run_migration(
+                source_sqlite=verified_source_backup,
+                target_url="postgres://user:pass@host:5432/testdb",
+                dry_run=True,
+                on_existing="refuse",
+            )
+        except Exception:
+            pass
+        mock_engine.assert_called_with("postgresql+psycopg://user:pass@host:5432/testdb")

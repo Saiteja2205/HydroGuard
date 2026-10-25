@@ -244,6 +244,12 @@ def run_migration(
     Returns:
         Structured migration report dict.
     """
+    # Normalize Render / legacy postgres:// URLs to Psycopg 3 dialect
+    if target_url.startswith("postgres://"):
+        target_url = "postgresql+psycopg://" + target_url[len("postgres://"):]
+    elif target_url.startswith("postgresql://") and not target_url.startswith("postgresql+"):
+        target_url = "postgresql+psycopg://" + target_url[len("postgresql://"):]
+
     masked_url = get_masked_database_url(target_url)
     logger.info("Starting SQLite-to-target migration.")
     logger.info("Source: %s", source_sqlite)

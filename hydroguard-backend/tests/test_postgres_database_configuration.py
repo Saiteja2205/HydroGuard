@@ -2,7 +2,7 @@
 
 import os
 import pytest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from sqlalchemy import text
 from sqlalchemy.engine.url import make_url
@@ -102,3 +102,61 @@ def test_session_lifecycle_and_rollback_on_exception():
     except RuntimeError:
         with pytest.raises(RuntimeError):
             gen.throw(RuntimeError("Endpoint exception"))
+
+
+def test_upgrade_legacy_sqlite_schema_skips_when_not_sqlite():
+    """Verify _upgrade_legacy_sqlite_schema immediately returns on PostgreSQL without executing ALTERs."""
+    from unittest.mock import MagicMock
+    from app.db.database import _upgrade_legacy_sqlite_schema
+    import app.db.database as db_mod
+
+    mock_engine = MagicMock()
+    mock_engine.dialect.name = "postgresql"
+
+    with patch.object(db_mod, "engine", mock_engine):
+        _upgrade_legacy_sqlite_schema()
+        # Verify no connection or begins were opened since dialect is postgresql
+        assert mock_engine.begin.call_count == 0
+
+
+def test_production_environment_prevents_development_seeding():
+    """Verify production environment does not execute development dataset seeding."""
+    from app.main import lifespan, app
+    import app.main as main_mod
+
+    with patch.dict(os.environ, {"HYDROGUARD_ENVIRONMENT": "production"}):
+        with patch.object(main_mod, "development_environment", "production"):
+            with patch("app.db.seed.seed_development_dataset") as mock_seed:
+                with patch("app.db.database.init_db"):
+                    with patch("app.main._report_firebase_configuration"):
+                        with patch("ml.services.thingspeak_service.load_config_from_env") as mock_ts:
+                            mock_ts.return_value.configured = False
+                            with patch("app.services.thingspeak_alert_monitor.get_alert_monitor") as mock_mon:
+                                mock_mon.return_value.start = AsyncMock()
+                                mock_mon.return_value.stop = AsyncMock()
+                                # Lifespan context
+                                async def run_context():
+                                    async with lifespan(app):
+                                        pass
+                                import asyncio
+                                asyncio.run(run_context())
+                                assert mock_seed.call_count == 0, "Seed dataset should never be called in production"
+
+
+def test_remote_database_url_leaves_local_sqlite_untouched():
+    """Verify pointing DATABASE_URL to PostgreSQL does not mutate or rewrite local SQLite file."""
+    from pathlib import Path
+    backend_root = Path(__file__).resolve().parents[1]
+    sqlite_file = backend_root / "data" / "hydroguard.db"
+
+    initial_mtime = sqlite_file.stat().st_mtime if sqlite_file.exists() else None
+    initial_size = sqlite_file.stat().st_size if sqlite_file.exists() else None
+
+    with patch.dict(os.environ, {"DATABASE_URL": "postgresql://render_user:pass@host/prod_db"}, clear=False):
+        os.environ.pop("HYDROGUARD_DATABASE_URL", None)
+        resolved = resolve_database_url()
+        assert resolved.startswith("postgresql+psycopg://")
+
+    if sqlite_file.exists():
+        assert sqlite_file.stat().st_mtime == initial_mtime
+        assert sqlite_file.stat().st_size == initial_size
