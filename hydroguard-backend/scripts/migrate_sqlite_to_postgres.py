@@ -154,6 +154,35 @@ def verify_source_integrity(source_path: Path) -> List[Tuple[Any, ...]]:
         conn.close()
 
 
+def reset_postgres_sequences(
+    conn,
+    inspector,
+    tables: List[str],
+) -> Dict[str, Optional[int]]:
+    """Reset PostgreSQL autoincrement sequences to match MAX(id) in each table.
+
+    Safely checks pg_get_serial_sequence first to avoid errors on tables with
+    non-serial or non-integer primary keys (e.g. UUID string PKs).
+    """
+    reset_counts: Dict[str, Optional[int]] = {}
+    for table in tables:
+        if not inspector.has_table(table):
+            continue
+        pk_cols = [c["name"] for c in inspector.get_columns(table) if c.get("primary_key")]
+        if len(pk_cols) == 1 and pk_cols[0] == "id":
+            seq_name = conn.execute(
+                text(f"SELECT pg_get_serial_sequence('\"{table}\"', 'id')")
+            ).scalar()
+            if seq_name:
+                res = conn.execute(text(
+                    f"SELECT setval('{seq_name}', "
+                    f"COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM \"{table}\";"
+                )).scalar()
+                reset_counts[table] = res
+                logger.info("Reset sequence '%s' for '%s.id' to %s.", seq_name, table, res)
+    return reset_counts
+
+
 def reconcile_missing_entities(
     src_cur: sqlite3.Cursor,
     source_tables: Set[str],
@@ -171,9 +200,17 @@ def reconcile_missing_entities(
 
     # 1. Discover all node_ids across tables that reference nodes
     existing_nodes: Set[str] = set()
+    existing_node_pks: Set[int] = set()
     if "nodes" in source_tables:
-        src_cur.execute("SELECT node_id FROM nodes")
-        existing_nodes = {row[0] for row in src_cur.fetchall()}
+        src_cur.execute("SELECT node_id, id FROM nodes")
+        for row in src_cur.fetchall():
+            if row[0] is not None:
+                existing_nodes.add(row[0])
+            if row[1] is not None:
+                try:
+                    existing_node_pks.add(int(row[1]))
+                except (ValueError, TypeError):
+                    pass
 
     referenced_nodes: Set[str] = set()
     for tbl in ("sensor_readings", "forecasts", "ensemble_weights", "alerts", "model_errors", "sensor_calibrations"):
@@ -185,8 +222,11 @@ def reconcile_missing_entities(
     if missing_nodes:
         logger.info("Found %d referenced node_ids missing from 'nodes' table.", len(missing_nodes))
         now_dt = datetime.now(timezone.utc)
+        # Determine safe starting primary key ID: strictly greater than all preserved source IDs
+        next_node_pk = max(existing_node_pks, default=0) + 1
         for m_node in sorted(missing_nodes):
             reconciliation["nodes"].append({
+                "id": next_node_pk,
                 "node_id": m_node,
                 "name": f"Preserved Historical Node ({m_node})",
                 "location": "Historical / Fixture Archive",
@@ -194,6 +234,7 @@ def reconcile_missing_entities(
                 "created_at": now_dt,
                 "updated_at": now_dt,
             })
+            next_node_pk += 1
 
     # 2. Check alert_notification_logs -> alerts
     if "alert_notification_logs" in source_tables and "alerts" in source_tables:
@@ -204,7 +245,25 @@ def reconcile_missing_entities(
         missing_alerts = notif_alert_ids - existing_alert_ids
         if missing_alerts:
             logger.info("Found %d alert_ids in alert_notification_logs missing from 'alerts'.", len(missing_alerts))
-            fallback_node = list(existing_nodes)[0] if existing_nodes else "node_overhead_a"
+            # Safe fallback node selection
+            all_valid_nodes = sorted(existing_nodes | missing_nodes)
+            if "node_overhead_a" in all_valid_nodes:
+                fallback_node = "node_overhead_a"
+            elif all_valid_nodes:
+                fallback_node = all_valid_nodes[0]
+            else:
+                fallback_node = "node_overhead_a"
+                if not any(n["node_id"] == fallback_node for n in reconciliation["nodes"]):
+                    next_node_pk = max(existing_node_pks, default=0) + len(reconciliation["nodes"]) + 1
+                    reconciliation["nodes"].append({
+                        "id": next_node_pk,
+                        "node_id": fallback_node,
+                        "name": f"Preserved Historical Node ({fallback_node})",
+                        "location": "Historical / Fixture Archive",
+                        "status": "archived",
+                        "created_at": datetime.now(timezone.utc),
+                        "updated_at": datetime.now(timezone.utc),
+                    })
             now_dt = datetime.now(timezone.utc)
             for m_alert in sorted(missing_alerts):
                 reconciliation["alerts"].append({
@@ -388,6 +447,27 @@ def run_migration(
                 # Insert reconciled parent stubs AFTER original rows to avoid ID collisions
                 stubs = reconciled_parents.get(table, [])
                 if stubs:
+                    # Allocate safe primary keys for any synthesized record where 'id' is
+                    # omitted or collides with existing records in source or target
+                    pk_cols = [c["name"] for c in inspector.get_columns(table) if c.get("primary_key")]
+                    if len(pk_cols) == 1 and pk_cols[0] == "id":
+                        res = conn.execute(text(f'SELECT id FROM "{table}" WHERE id IS NOT NULL'))
+                        existing_target_ids = {r[0] for r in res.fetchall()}
+                        allocated_ids = set(existing_target_ids)
+                        current_max_id = max(existing_target_ids, default=0)
+
+                        for stub in stubs:
+                            s_id = stub.get("id")
+                            if s_id is None or s_id in allocated_ids:
+                                current_max_id += 1
+                                while current_max_id in allocated_ids:
+                                    current_max_id += 1
+                                stub["id"] = current_max_id
+                            else:
+                                if isinstance(s_id, int) and s_id > current_max_id:
+                                    current_max_id = s_id
+                            allocated_ids.add(stub["id"])
+
                     logger.info("Inserting %d synthesized parent stubs into '%s' to satisfy relational integrity.", len(stubs), table)
                     conn.execute(sa_table.insert(), stubs)
                     table_report["reconciled_rows"] = len(stubs)
@@ -404,17 +484,6 @@ def run_migration(
                     raise ValueError(
                         f"Count mismatch in table '{table}': expected={expected_cnt}, target={post_cnt}"
                     )
-
-                # Reset PostgreSQL Sequence for autoincrement primary key if applicable
-                if target_dialect == "postgresql":
-                    pk_cols = [c["name"] for c in inspector.get_columns(table) if c.get("primary_key")]
-                    if len(pk_cols) == 1 and pk_cols[0] == "id":
-                        seq_sql = text(
-                            f"SELECT setval(pg_get_serial_sequence('\"{table}\"', 'id'), "
-                            f"COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM \"{table}\";"
-                        )
-                        conn.execute(seq_sql)
-                        logger.info("Reset sequence for '%s.id'.", table)
 
                 table_report["status"] = "VERIFIED_OK"
                 report["tables"][table] = table_report
@@ -463,6 +532,13 @@ def run_migration(
                     raise ValueError(f"Foreign key violation: {orphans} orphaned alert_notification_logs detected.")
 
             logger.info("All key relationships validated successfully.")
+
+            # Reset PostgreSQL sequences only when NOT in dry-run mode.
+            # In PostgreSQL, sequence setval operations are not rolled back by transaction rollback.
+            # Skipping sequence resets during dry-run guarantees that the target database remains 100% untouched.
+            if target_dialect == "postgresql" and not dry_run:
+                logger.info("Resetting PostgreSQL sequences to MAX(id) for all migrated tables...")
+                reset_postgres_sequences(conn, inspector, MIGRATION_TABLE_ORDER)
 
             if dry_run:
                 logger.info("Dry-run requested. Rolling back transaction.")
