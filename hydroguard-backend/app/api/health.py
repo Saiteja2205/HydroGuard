@@ -55,9 +55,10 @@ router = APIRouter(tags=["health"])
 SERVICE_NAME = "HydroGuard ML API"
 SERVICE_VERSION = "1.0.0"
 
-# Physical-sensor/cloud integration is not yet configured. Only REAL_SENSOR
-# rows are treated as a heartbeat, so simulated data can never make the API
-# claim that hardware is attached.
+# Physical-sensor/cloud integration provenance sources.
+# Only genuine hardware sources (REAL_SENSOR direct ingestion, THINGSPEAK cloud,
+# or ESP32) count toward physical sensor heartbeat.
+LIVE_PROVENANCE_SOURCES = ("REAL_SENSOR", "THINGSPEAK", "ESP32")
 LIVE_PROVENANCE = "REAL_SENSOR"
 
 
@@ -163,7 +164,7 @@ def _latest_observation(db: Session) -> tuple[datetime, str] | None:
 def _latest_live_observation(db: Session) -> datetime | None:
     row = db.execute(
         select(SensorReading.timestamp)
-        .where(SensorReading.source == LIVE_PROVENANCE)
+        .where(SensorReading.source.in_(LIVE_PROVENANCE_SOURCES))
         .order_by(SensorReading.timestamp.desc())
         .limit(1)
     ).first()
@@ -228,6 +229,7 @@ def get_health(db: Session = Depends(get_db)) -> HealthResponse:
     database = _database_health(DB_TIMEOUT_SECONDS)
     sensor_ingestion = _sensor_ingestion_health(db, now)
     data_freshness = _data_freshness_health(db, now)
+    models = _model_health()
 
     return HealthResponse(
         status="ok",
@@ -238,9 +240,9 @@ def get_health(db: Session = Depends(get_db)) -> HealthResponse:
         # because simulated or historical rows exist.
         sensors_connected=sensor_ingestion.state == "recent",
         models_loaded=ModelsLoadedStatus(
-            lstm=False,
-            patchtst=False,
-            timemixer=False,
+            lstm=models.lstm,
+            patchtst=models.patchtst,
+            timemixer=models.timemixer,
         ),
         # Kept verbatim for response compatibility; provenance for the newest
         # stored row is reported precisely by data_freshness.source above.
@@ -248,7 +250,7 @@ def get_health(db: Session = Depends(get_db)) -> HealthResponse:
         checked_at=serialize_utc_timestamp(now),
         environment=os.getenv("HYDROGUARD_ENVIRONMENT", "production").strip().lower(),
         database=database,
-        models=_model_health(),
+        models=models,
         sensor_ingestion=sensor_ingestion,
         data_freshness=data_freshness,
     )

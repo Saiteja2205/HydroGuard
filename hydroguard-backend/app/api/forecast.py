@@ -737,6 +737,10 @@ def generate_thingspeak_forecast(
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Forecast checkpoints are unavailable: {exc}")
 
+    global forecast_service
+    if forecast_service is None:
+        forecast_service = inference
+
     # --- Alert integration ---
     # Use ThingSpeak channel_id as node_id for alert tracking
     thingspeak_node_id = f"thingspeak-{window.channel_id}"

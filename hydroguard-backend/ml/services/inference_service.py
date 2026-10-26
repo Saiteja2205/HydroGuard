@@ -149,6 +149,18 @@ class InferenceService:
     def is_loaded(self) -> bool:
         return self._loaded
 
+    @property
+    def lstm_model(self) -> Any:
+        return self._models.get("LSTM")
+
+    @property
+    def patchtst_model(self) -> Any:
+        return self._models.get("PatchTST")
+
+    @property
+    def timemixer_model(self) -> Any:
+        return self._models.get("TimeMixer")
+
     def status(self) -> dict[str, bool]:
         """Per-model load state, for a health check that must not load anything."""
         return {MODEL_RESPONSE_KEYS[name]: name in self._models for name in MODEL_FILENAMES}
