@@ -2,10 +2,13 @@
 
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 import math
 import os
 from pathlib import Path as FilePath
 from typing import Any, Mapping, Optional, Sequence
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
