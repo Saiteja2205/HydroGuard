@@ -91,6 +91,7 @@ import com.aistudio.hydroguard.wxqpzx.data.repository.DevelopmentAuthPolicy;
 import com.aistudio.hydroguard.wxqpzx.data.repository.HydroRepository;
 
 import com.aistudio.hydroguard.wxqpzx.data.service.AlertNotifier;
+import com.aistudio.hydroguard.wxqpzx.data.service.OpticalRgbService;
 
 import com.aistudio.hydroguard.wxqpzx.ui.AlertCountListener;
 
@@ -187,6 +188,42 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
         email = getIntent().getStringExtra(EXTRA_EMAIL);
 
         displayName = getIntent().getStringExtra(EXTRA_NAME);
+
+        com.google.firebase.auth.FirebaseUser currentUser = null;
+        try {
+            currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+        } catch (Exception ignored) { }
+
+        if (currentUser != null) {
+            // Real Firebase authenticated session: clear any development demo identity
+            DevelopmentAuthPolicy.clear(this);
+            if (currentUser.getEmail() != null && !currentUser.getEmail().trim().isEmpty()) {
+                email = currentUser.getEmail().trim().toLowerCase(java.util.Locale.ROOT);
+            }
+            if (displayName == null || displayName.trim().isEmpty()) {
+                displayName = currentUser.getDisplayName();
+            }
+        } else if (BuildConfig.DEBUG && getIntent() != null && getIntent().hasExtra("demo_role")) {
+            // Standalone demo role requested explicitly without Firebase session
+            String debugRole = getIntent().getStringExtra("demo_role");
+            if ("STUDENT".equalsIgnoreCase(debugRole)) {
+                String devEmail = "demo.student@hydroguard.local";
+                DevelopmentAuthPolicy.set(this, devEmail, "STUDENT");
+                role = "STUDENT";
+                email = devEmail;
+                if (displayName == null || displayName.trim().isEmpty()) {
+                    displayName = "Demo Student";
+                }
+            } else if ("ADMIN".equalsIgnoreCase(debugRole)) {
+                String devEmail = "demo.admin@hydroguard.local";
+                DevelopmentAuthPolicy.set(this, devEmail, "ADMIN");
+                role = "ADMIN";
+                email = devEmail;
+                if (displayName == null || displayName.trim().isEmpty()) {
+                    displayName = "Demo Administrator";
+                }
+            }
+        }
 
         viewModel = new ViewModelProvider(this).get(HydroViewModel.class);
 
@@ -1408,7 +1445,7 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
         tankNameView.setText(HostelConfig.tankName());
 
-        channelView.setText("Hostel Telemetry · Channel 244357");
+        channelView.setText("Hostel Water Telemetry · Live Sensor");
 
 
 
@@ -1438,15 +1475,66 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
                         double temp = values.optDouble("temperature", Double.NaN);
 
-
-
-                        phView.setText(Double.isNaN(ph) ? "--" : format(ph));
+                        phView.setText("Unavailable");
 
                         tdsView.setText(Double.isNaN(tds) ? "--" : format(tds));
 
                         turbidityView.setText(Double.isNaN(turbidity) ? "--" : format(turbidity));
 
                         tempView.setText(Double.isNaN(temp) ? "--" : format(temp));
+
+                        // Water Colour Analysis on Home Card
+                        View homeSwatchView = waterCard.findViewById(R.id.home_rgb_swatch_view);
+                        View homeSwatchCard = waterCard.findViewById(R.id.home_rgb_swatch_card);
+                        TextView homeRedView = waterCard.findViewById(R.id.home_rgb_red_value);
+                        TextView homeGreenView = waterCard.findViewById(R.id.home_rgb_green_value);
+                        TextView homeBlueView = waterCard.findViewById(R.id.home_rgb_blue_value);
+                        View homeRgbContainer = waterCard.findViewById(R.id.home_rgb_channels_container);
+                        TextView homeRgbUnavail = waterCard.findViewById(R.id.home_rgb_unavailable_view);
+                        TextView homeRgbTs = waterCard.findViewById(R.id.home_rgb_timestamp);
+                        TextView homeRgbBadge = waterCard.findViewById(R.id.home_rgb_status_badge);
+
+                        JSONObject rgbObj = response.optJSONObject("rgb");
+                        if (rgbObj == null && values != null) {
+                            rgbObj = values.optJSONObject("rgb");
+                        }
+                        if (rgbObj != null && OpticalRgbService.hasValidRgb(rgbObj)) {
+                            int[] rgb = OpticalRgbService.extractRgb(rgbObj);
+                            int r = rgb[0];
+                            int g = rgb[1];
+                            int b = rgb[2];
+                            if (homeRedView != null) homeRedView.setText(String.valueOf(r));
+                            if (homeGreenView != null) homeGreenView.setText(String.valueOf(g));
+                            if (homeBlueView != null) homeBlueView.setText(String.valueOf(b));
+                            if (homeRgbContainer != null) homeRgbContainer.setVisibility(View.VISIBLE);
+                            if (homeRgbUnavail != null) homeRgbUnavail.setVisibility(View.GONE);
+
+                            int displayColor = OpticalRgbService.toDisplayColor(r, g, b);
+                            if (homeSwatchView != null) homeSwatchView.setBackgroundColor(displayColor);
+                            if (homeSwatchCard instanceof com.google.android.material.card.MaterialCardView) {
+                                ((com.google.android.material.card.MaterialCardView) homeSwatchCard).setCardBackgroundColor(displayColor);
+                            }
+                            if (homeRgbTs != null) {
+                                homeRgbTs.setText("Observed: " + (timestamp.isEmpty() ? "Recent observation" : Timestamps.readable(timestamp)));
+                            }
+                            if (homeRgbBadge != null) {
+                                homeRgbBadge.setText(badgeView.getText());
+                            }
+                        } else {
+                            if (homeRgbContainer != null) homeRgbContainer.setVisibility(View.GONE);
+                            if (homeRgbUnavail != null) {
+                                homeRgbUnavail.setVisibility(View.VISIBLE);
+                                homeRgbUnavail.setText("No colour data available");
+                            }
+                            int neutralColor = getColor(R.color.hydroguard_subsurface);
+                            if (homeSwatchView != null) homeSwatchView.setBackgroundColor(neutralColor);
+                            if (homeSwatchCard instanceof com.google.android.material.card.MaterialCardView) {
+                                ((com.google.android.material.card.MaterialCardView) homeSwatchCard).setCardBackgroundColor(neutralColor);
+                            }
+                            if (homeRgbTs != null) {
+                                homeRgbTs.setText("Observed: No reading available");
+                            }
+                        }
 
 
 
@@ -1498,7 +1586,7 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
                         if (entryId > 0) sb.append(" · Feed #").append(entryId);
 
-                        sb.append(" · Source: ThingSpeak");
+                        sb.append(" · Source: HydroGuard Sensor");
 
                         footerView.setText(sb.toString());
 
@@ -2646,7 +2734,17 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
             }
 
-            @Override public void onFailure(ApiFailure failure) { if (activeScreen == screen) summary.setText(failure.getMessage()); }
+            @Override public void onFailure(ApiFailure failure) {
+                if (activeScreen == screen) {
+                    if (failure.isAuthError()) {
+                        summary.setText("Session expired. Sign in to view issue overview.");
+                    } else if (failure.isForbidden()) {
+                        summary.setText("Administrator privileges required to view issue overview.");
+                    } else {
+                        summary.setText(failure.getMessage());
+                    }
+                }
+            }
 
         });
 
@@ -2928,6 +3026,11 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
         TextView status = screen.findViewById(R.id.admin_accounts_status);
 
+        View signOutBtn = screen.findViewById(R.id.btn_admin_sign_out);
+        if (signOutBtn != null) {
+            signOutBtn.setOnClickListener(v -> signOut());
+        }
+
         screen.findViewById(R.id.invite_admin).setOnClickListener(view -> {
 
             EditText field = screen.findViewById(R.id.admin_invite_email);
@@ -2954,7 +3057,19 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
                 }
 
-                @Override public void onFailure(ApiFailure failure) { if (activeScreen == screen) status.setText(failure.getMessage()); }
+                @Override public void onFailure(ApiFailure failure) {
+                if (activeScreen != screen) return;
+                if (failure.isAuthError()) {
+                    status.setText("Sign-in session required or expired. Please sign in again.");
+                    addCard(container, "Authentication required. Your sign-in token could not be verified by the server.");
+                } else if (failure.isForbidden()) {
+                    status.setText("Administrator privileges required. Your account does not have faculty permissions.");
+                    addCard(container, "Access denied. Only authorized administrators can view faculty accounts.");
+                } else {
+                    status.setText(failure.getMessage());
+                    addCard(container, failure.getMessage());
+                }
+            }
 
             });
 
@@ -3028,7 +3143,19 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
             }
 
-            @Override public void onFailure(ApiFailure failure) { if (activeScreen == screen) status.setText(failure.getMessage()); }
+            @Override public void onFailure(ApiFailure failure) {
+                if (activeScreen != screen) return;
+                if (failure.isAuthError()) {
+                    status.setText("Sign-in session required or expired. Please sign in again.");
+                    addCard(container, "Authentication required. Your sign-in token could not be verified by the server.");
+                } else if (failure.isForbidden()) {
+                    status.setText("Administrator privileges required. Your account does not have faculty permissions.");
+                    addCard(container, "Access denied. Only authorized administrators can view faculty accounts.");
+                } else {
+                    status.setText(failure.getMessage());
+                    addCard(container, failure.getMessage());
+                }
+            }
 
         });
 
@@ -3044,7 +3171,19 @@ public class DashboardActivity extends ComponentActivity implements AlertCountLi
 
             @Override public void onSuccess(String json) { if (activeScreen == screen) { status.setText("Faculty access updated."); loadAdminAccounts(screen, container, status); } }
 
-            @Override public void onFailure(ApiFailure failure) { if (activeScreen == screen) status.setText(failure.getMessage()); }
+            @Override public void onFailure(ApiFailure failure) {
+                if (activeScreen != screen) return;
+                if (failure.isAuthError()) {
+                    status.setText("Sign-in session required or expired. Please sign in again.");
+                    addCard(container, "Authentication required. Your sign-in token could not be verified by the server.");
+                } else if (failure.isForbidden()) {
+                    status.setText("Administrator privileges required. Your account does not have faculty permissions.");
+                    addCard(container, "Access denied. Only authorized administrators can view faculty accounts.");
+                } else {
+                    status.setText(failure.getMessage());
+                    addCard(container, failure.getMessage());
+                }
+            }
 
         });
 

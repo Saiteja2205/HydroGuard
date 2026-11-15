@@ -67,16 +67,18 @@ public final class RetrofitClient {
     }
 
     private static Response authenticateRequest(Interceptor.Chain chain) throws IOException {
-        Request.Builder request = chain.request().newBuilder();
+        Request original = chain.request();
+        Request.Builder request = original.newBuilder();
         Map<String, String> developmentHeaders = DevelopmentAuthPolicy.headers(
                 BuildConfig.DEBUG, BuildConfig.ALLOW_DEVELOPMENT_LOGIN, BuildConfig.DEVELOPMENT_API_TOKEN);
         if (!developmentHeaders.isEmpty()) {
             for (Map.Entry<String, String> header : developmentHeaders.entrySet()) {
                 request.header(header.getKey(), header.getValue());
             }
-        } else {
-            String token = firebaseToken(false);
-            if (token != null) request.header("Authorization", "Bearer " + token);
+        }
+        String token = firebaseToken(false);
+        if (token != null && !token.trim().isEmpty()) {
+            request.header("Authorization", "Bearer " + token);
         }
         return chain.proceed(request.build());
     }
@@ -104,9 +106,9 @@ public final class RetrofitClient {
     }
 
     private static Request refreshFirebaseToken(Route route, Response response) {
-        if (responseCount(response) >= 2 || !DevelopmentAuthPolicy.current().isEmpty()) return null;
+        if (responseCount(response) >= 2) return null;
         String token = firebaseToken(true);
-        if (token == null) return null;
+        if (token == null || token.trim().isEmpty()) return null;
         return response.request().newBuilder().header("Authorization", "Bearer " + token).build();
     }
 

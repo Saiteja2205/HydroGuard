@@ -32,9 +32,26 @@ public class OpticalRgbServiceTest {
     }
 
     @Test
-    public void toDisplayColorClampsOutOfRangeChannels() {
-        // -10 clamps to 0, 150 clamps to 100
-        int color = OpticalRgbService.toDisplayColor(-10, 150, 50);
+    public void toDisplayColorHandlesStandard8BitRgb() {
+        // Red: 120, Green: 145, Blue: 110
+        int color = OpticalRgbService.toDisplayColor(120, 145, 110);
+        int expected = 0xFF000000 | (120 << 16) | (145 << 8) | 110;
+        assertEquals(expected, color);
+    }
+
+    @Test
+    public void toDisplayColorHandlesRaw16BitCounts() {
+        int color = OpticalRgbService.toDisplayColor(522, 640, 605);
+        int expectedR = Math.round((522 / 640f) * 255f);
+        int expectedG = 255;
+        int expectedB = Math.round((605 / 640f) * 255f);
+        int expected = 0xFF000000 | (expectedR << 16) | (expectedG << 8) | expectedB;
+        assertEquals(expected, color);
+    }
+
+    @Test
+    public void toDisplayColorClampsNegativeChannels() {
+        int color = OpticalRgbService.toDisplayColor(-10, 100, 50);
         int expected = 0xFF000000 | (0 << 16) | (255 << 8) | 128;
         assertEquals(expected, color);
     }
@@ -50,6 +67,19 @@ public class OpticalRgbServiceTest {
         assertEquals(42, rgb[0]);
         assertEquals(30, rgb[1]);
         assertEquals(31, rgb[2]);
+    }
+
+    @Test
+    public void hasValidRgbDetectsValid8BitStructure() throws JSONException {
+        // Red: 120, Green: 145, Blue: 110 from sensor or user model
+        JSONObject reading = new JSONObject("{\"rgb\": {\"red\": 120, \"green\": 145, \"blue\": 110}}");
+        assertTrue(OpticalRgbService.hasValidRgb(reading));
+
+        int[] rgb = OpticalRgbService.extractRgb(reading);
+        assertNotNull(rgb);
+        assertEquals(120, rgb[0]);
+        assertEquals(145, rgb[1]);
+        assertEquals(110, rgb[2]);
     }
 
     @Test
@@ -86,22 +116,22 @@ public class OpticalRgbServiceTest {
         JSONObject negative = new JSONObject("{\"rgb\": {\"red\": -5, \"green\": 30, \"blue\": 30}}");
         assertFalse(OpticalRgbService.hasValidRgb(negative));
 
-        JSONObject overMax = new JSONObject("{\"rgb\": {\"red\": 120, \"green\": 30, \"blue\": 30}}");
+        // Out of 16-bit range (> 65535)
+        JSONObject overMax = new JSONObject("{\"rgb\": {\"red\": 70000, \"green\": 30, \"blue\": 30}}");
         assertFalse(OpticalRgbService.hasValidRgb(overMax));
     }
 
     @Test
-    public void formatPercentHandlesValidAndInvalid() {
-        assertEquals("45%", OpticalRgbService.formatPercent(45));
-        assertEquals("0%", OpticalRgbService.formatPercent(0));
-        assertEquals("100%", OpticalRgbService.formatPercent(100));
-        assertEquals("--%", OpticalRgbService.formatPercent(-1));
-        assertEquals("--%", OpticalRgbService.formatPercent(105));
+    public void formatChannelValueHandlesValidAndInvalid() {
+        assertEquals("120", OpticalRgbService.formatChannelValue(120));
+        assertEquals("0", OpticalRgbService.formatChannelValue(0));
+        assertEquals("--", OpticalRgbService.formatChannelValue(-1));
+        assertEquals("--", OpticalRgbService.formatChannelValue(70000));
     }
 
     @Test
     public void formatSummaryCreatesReadableString() {
-        String summary = OpticalRgbService.formatSummary(40, 29, 30);
-        assertEquals("R: 40%  G: 29%  B: 30%", summary);
+        String summary = OpticalRgbService.formatSummary(120, 145, 110);
+        assertEquals("R: 120  G: 145  B: 110", summary);
     }
 }

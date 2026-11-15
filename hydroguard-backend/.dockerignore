@@ -93,5 +93,4 @@ Thumbs.db
 # Documentation and reports. Not needed at runtime.
 *.md
 docs/
-scripts/
 tests/

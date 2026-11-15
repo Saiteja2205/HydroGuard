@@ -52,6 +52,7 @@ COPY ml ./ml
 COPY artifacts ./artifacts
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY scripts ./scripts
 
 # SQLite lives here by default. Mount a persistent disk at /srv/hydroguard/data
 # (see render.yaml) or every redeploy starts from an empty database.

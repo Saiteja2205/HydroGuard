@@ -155,6 +155,11 @@ public final class WaterQualityIndexService {
             case "tds": return value <= 300f ? "Normal" : value <= 500f ? "Elevated" : "High";
             case "turbidity": return value <= 1.5f ? "Normal" : value <= 5f ? "Elevated" : "High";
             case "temperature": return value >= 15f && value <= 30f ? "Normal" : value < 15f ? "Low" : "High";
+            case "optical_colour_index":
+            case "opticalcolourindex":
+            case "colour_index":
+            case "color_index":
+                return value <= 0.5f ? "Normal" : value <= 1.0f ? "Elevated" : "High";
             default: return "Unknown";
         }
     }

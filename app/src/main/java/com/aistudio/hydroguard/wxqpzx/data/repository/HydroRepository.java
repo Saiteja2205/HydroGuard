@@ -107,11 +107,22 @@ public class HydroRepository {
         row.tds = (float) json.optDouble("tds", 0.0);
         row.turbidity = (float) json.optDouble("turbidity", 0.0);
         row.temperature = (float) json.optDouble("temperature", 0.0);
-        row.red = nullableInt(json, "red");
-        row.green = nullableInt(json, "green");
-        row.blue = nullableInt(json, "blue");
-        row.clear = nullableInt(json, "clear");
+        JSONObject rgbObj = json.optJSONObject("rgb");
+        if (rgbObj != null) {
+            row.red = nullableInt(rgbObj, "red");
+            row.green = nullableInt(rgbObj, "green");
+            row.blue = nullableInt(rgbObj, "blue");
+            row.clear = nullableInt(rgbObj, "clear");
+        } else {
+            row.red = nullableInt(json, "red");
+            row.green = nullableInt(json, "green");
+            row.blue = nullableInt(json, "blue");
+            row.clear = nullableInt(json, "clear");
+        }
         row.opticalColourIndex = nullableFloat(json, "optical_colour_index");
+        if (row.opticalColourIndex == null) {
+            row.opticalColourIndex = nullableFloat(json, "opticalColourIndex");
+        }
         row.calibrationId = nullableInt(json, "calibration_id");
         row.source = json.optString("source", "UNKNOWN");
         return row;
@@ -130,7 +141,16 @@ public class HydroRepository {
             json.put("green", row.green == null ? JSONObject.NULL : row.green);
             json.put("blue", row.blue == null ? JSONObject.NULL : row.blue);
             json.put("clear", row.clear == null ? JSONObject.NULL : row.clear);
+            if (row.red != null || row.green != null || row.blue != null) {
+                JSONObject rgb = new JSONObject();
+                rgb.put("red", row.red == null ? JSONObject.NULL : row.red);
+                rgb.put("green", row.green == null ? JSONObject.NULL : row.green);
+                rgb.put("blue", row.blue == null ? JSONObject.NULL : row.blue);
+                if (row.clear != null) rgb.put("clear", row.clear);
+                json.put("rgb", rgb);
+            }
             json.put("optical_colour_index", row.opticalColourIndex == null ? JSONObject.NULL : row.opticalColourIndex);
+            json.put("opticalColourIndex", row.opticalColourIndex == null ? JSONObject.NULL : row.opticalColourIndex);
             json.put("calibration_id", row.calibrationId == null ? JSONObject.NULL : row.calibrationId);
             json.put("source", row.source);
         } catch (JSONException ignored) { }

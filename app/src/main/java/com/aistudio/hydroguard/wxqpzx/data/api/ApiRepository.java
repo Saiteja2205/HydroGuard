@@ -481,12 +481,22 @@ public class ApiRepository {
     }
 
     static ApiFailure classifyResponse(int status, String endpoint, String body) {
+        if (status >= 400) {
+            try {
+                android.util.Log.e("HydroGuardApi", "HTTP " + status + " on " + endpoint + " body: " + body);
+            } catch (Throwable ignored) {
+                // Ignore in local JVM unit tests where android.util.Log is not stubbed
+            }
+        }
         String detail = parseDetail(body);
         ApiFailure.Kind kind = ApiFailure.Kind.API_ERROR;
         String message;
-        if (status == 401 || status == 403) {
+        if (status == 401) {
             kind = ApiFailure.Kind.AUTHENTICATION;
             message = detail.isEmpty() ? "HydroGuard did not accept this session. Sign in again or check development authentication settings." : detail;
+        } else if (status == 403) {
+            kind = ApiFailure.Kind.AUTHENTICATION;
+            message = detail.isEmpty() ? "Access denied. Administrator privileges are required to perform this action." : detail;
         } else if (status == 422 && endpoint.contains("forecast")) {
             kind = ApiFailure.Kind.INSUFFICIENT_DATA;
             message = detail.isEmpty() ? "At least 30 complete readings from one source are needed for forecasting." : detail;

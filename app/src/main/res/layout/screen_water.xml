@@ -51,7 +51,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Live water quality"
+                    android:text="Water Quality Monitoring"
                     android:textColor="@color/hydroguard_text" />
 
                 <com.google.android.material.button.MaterialButton
@@ -107,6 +107,264 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- ============================ Water Colour Analysis ============================ -->
+            <TextView
+                style="@style/TextAppearance.HydroGuard.Subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/section_gap"
+                android:text="Water Colour Analysis"
+                android:textColor="@color/hydroguard_text" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_optical_rgb"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@color/hydroguard_surface"
+                app:cardCornerRadius="@dimen/corner_card"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/hydroguard_divider"
+                app:strokeWidth="@dimen/border_hairline">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Header: Title + Subtitle on Left, Status Badge on Right -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/rgb_card_title"
+                                style="@style/TextAppearance.HydroGuard.BodyStrong"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Water Colour Analysis"
+                                android:textColor="@color/hydroguard_text"
+                                android:textSize="15sp" />
+
+                            <TextView
+                                android:id="@+id/rgb_card_subtitle"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="TCS34725 optical sensor channel measurements"
+                                android:textColor="@color/hydroguard_muted" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/rgb_source_badge"
+                            style="@style/Widget.HydroGuard.Pill"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:backgroundTint="@color/hydroguard_provenance_thingspeak_bg"
+                            android:text="LIVE"
+                            android:textColor="@color/hydroguard_provenance_thingspeak" />
+                    </LinearLayout>
+
+                    <!-- Prominent Horizontal Colour Preview Bar / Swab -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/rgb_swatch_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:layout_marginTop="14dp"
+                        android:layout_marginBottom="12dp"
+                        app:cardBackgroundColor="@color/hydroguard_subsurface"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="@color/hydroguard_divider"
+                        app:strokeWidth="1dp">
+
+                        <View
+                            android:id="@+id/rgb_swatch_view"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent" />
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Unavailable view -->
+                    <TextView
+                        android:id="@+id/rgb_unavailable_view"
+                        style="@style/TextAppearance.HydroGuard.Body"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="No colour data available"
+                        android:textColor="@color/hydroguard_muted"
+                        android:visibility="gone" />
+
+                    <!-- 3 Aligned Numerical Metrics (R, G, B) -->
+                    <LinearLayout
+                        android:id="@+id/rgb_channels_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:baselineAligned="false"
+                        android:orientation="horizontal">
+
+                        <!-- Red Channel -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:background="@drawable/hydroguard_tile"
+                            android:orientation="vertical"
+                            android:padding="10dp">
+
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+                                <View
+                                    android:layout_width="8dp"
+                                    android:layout_height="8dp"
+                                    android:background="@drawable/hydroguard_pill"
+                                    android:backgroundTint="#EF4444" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="6dp"
+                                    android:fontFamily="@font/hydroguard_sans"
+                                    android:text="Red"
+                                    android:textColor="@color/hydroguard_muted"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/rgb_red_value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:fontFamily="@font/hydroguard_mono"
+                                android:singleLine="true"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text"
+                                android:textFontWeight="600"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+
+                        <!-- Green Channel -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/hydroguard_tile"
+                            android:orientation="vertical"
+                            android:padding="10dp">
+
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+                                <View
+                                    android:layout_width="8dp"
+                                    android:layout_height="8dp"
+                                    android:background="@drawable/hydroguard_pill"
+                                    android:backgroundTint="#10B981" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="6dp"
+                                    android:fontFamily="@font/hydroguard_sans"
+                                    android:text="Green"
+                                    android:textColor="@color/hydroguard_muted"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/rgb_green_value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:fontFamily="@font/hydroguard_mono"
+                                android:singleLine="true"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text"
+                                android:textFontWeight="600"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+
+                        <!-- Blue Channel -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/hydroguard_tile"
+                            android:orientation="vertical"
+                            android:padding="10dp">
+
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+                                <View
+                                    android:layout_width="8dp"
+                                    android:layout_height="8dp"
+                                    android:background="@drawable/hydroguard_pill"
+                                    android:backgroundTint="#3B82F6" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="6dp"
+                                    android:fontFamily="@font/hydroguard_sans"
+                                    android:text="Blue"
+                                    android:textColor="@color/hydroguard_muted"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/rgb_blue_value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:fontFamily="@font/hydroguard_mono"
+                                android:singleLine="true"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text"
+                                android:textFontWeight="600"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Timestamp and Freshness -->
+                    <TextView
+                        android:id="@+id/rgb_observed_timestamp"
+                        style="@style/TextAppearance.HydroGuard.Micro"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="Observed: --"
+                        android:textColor="@color/hydroguard_text"
+                        android:textFontWeight="500" />
+
+                    <!-- Footer Note -->
+                    <TextView
+                        android:id="@+id/rgb_footer_note"
+                        style="@style/TextAppearance.HydroGuard.Micro"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Raw optical sensor measurements · Colour preview generated from RGB"
+                        android:textColor="@color/hydroguard_muted" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Telemetry grid: WaterScreen lays these out two per row. -->
             <LinearLayout
                 android:id="@+id/metric_cards"
@@ -114,6 +372,217 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/card_gap"
                 android:orientation="vertical" />
+
+            <!-- ============================ History ============================ -->
+
+            <TextView
+                style="@style/TextAppearance.HydroGuard.Subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/section_gap"
+                android:text="Reading history"
+                android:textColor="@color/hydroguard_text" />
+
+            <!-- Parameter caption. The count is written by WaterScreen from
+                 METRICS.length, so it can never claim more series than the app
+                 actually offers. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/TextAppearance.HydroGuard.Label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Parameter"
+                    android:textColor="@color/hydroguard_muted" />
+
+                <TextView
+                    android:id="@+id/history_parameter_count"
+                    style="@style/TextAppearance.HydroGuard.Micro"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:textColor="@color/hydroguard_blue" />
+            </LinearLayout>
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/history_parameter_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                app:chipStyle="@style/Widget.HydroGuard.Chip"
+                app:selectionRequired="true"
+                app:singleSelection="true" />
+
+            <TextView
+                android:id="@+id/history_source_label"
+                style="@style/TextAppearance.HydroGuard.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="History data source"
+                android:textColor="@color/hydroguard_muted" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/history_source_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                app:cardBackgroundColor="@color/hydroguard_subsurface"
+                app:cardCornerRadius="@dimen/corner_card"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp">
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/history_source_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="4dp"
+                    app:checkedButton="@id/source_thingspeak"
+                    app:selectionRequired="true"
+                    app:singleSelection="true">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/source_thingspeak"
+                        style="@style/Widget.HydroGuard.Segment"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Live telemetry"
+                        android:checkable="true" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/source_database"
+                        style="@style/Widget.HydroGuard.Segment"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Saved node DB"
+                        android:checkable="true" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Time horizon: a segmented controller, not a second chip row. The
+                 buttons are declared here (with the initial check in XML) so the
+                 first selection is set without firing a second history load. -->
+            <TextView
+                style="@style/TextAppearance.HydroGuard.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Time range"
+                android:textColor="@color/hydroguard_muted" />
+
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                app:cardBackgroundColor="@color/hydroguard_subsurface"
+                app:cardCornerRadius="@dimen/corner_card"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp">
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/history_range_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="4dp"
+                    app:checkedButton="@id/range_7d"
+                    app:selectionRequired="true"
+                    app:singleSelection="true">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/range_24h"
+                        style="@style/Widget.HydroGuard.Segment"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="24 hours"
+                        android:checkable="true" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/range_7d"
+                        style="@style/Widget.HydroGuard.Segment"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="7 days"
+                        android:checkable="true" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/range_30d"
+                        style="@style/Widget.HydroGuard.Segment"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="30 days"
+                        android:checkable="true" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/range_all"
+                        style="@style/Widget.HydroGuard.Segment"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="All"
+                        android:checkable="true" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/card_gap"
+                app:cardBackgroundColor="@color/hydroguard_surface"
+                app:cardCornerRadius="@dimen/corner_card"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/hydroguard_divider"
+                app:strokeWidth="@dimen/border_hairline">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/card_padding_compact">
+
+                    <!-- Names the series and the horizon, which the status line
+                         below it does not. -->
+                    <TextView
+                        android:id="@+id/history_chart_title"
+                        style="@style/TextAppearance.HydroGuard.BodyStrong"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/hydroguard_text" />
+
+                    <TextView
+                        android:id="@+id/history_chart_status"
+                        style="@style/TextAppearance.HydroGuard.Micro"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textColor="@color/hydroguard_muted" />
+
+                    <com.github.mikephil.charting.charts.LineChart
+                        android:id="@+id/history_chart"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/chart_height"
+                        android:layout_marginTop="8dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ============================ Warnings & Sensor Diagnostics ============================ -->
+
+            <TextView
+                style="@style/TextAppearance.HydroGuard.Subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/section_gap"
+                android:text="Sensor diagnostics and safety alerts"
+                android:textColor="@color/hydroguard_text" />
 
             <!-- ============================ Water Safety Alert Card (Compact) ============================ -->
             <com.google.android.material.card.MaterialCardView
@@ -418,441 +887,9 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- ============================ Optical colour (RGB) ============================ -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/card_optical_rgb"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/card_gap"
-                app:cardBackgroundColor="@color/hydroguard_surface"
-                app:cardCornerRadius="@dimen/corner_card"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/hydroguard_divider"
-                app:strokeWidth="@dimen/border_hairline">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <!-- Header: Title + Subtitle on Left, Compact Swatch on Right -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:id="@+id/rgb_card_title"
-                                style="@style/TextAppearance.HydroGuard.BodyStrong"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Optical colour (RGB)"
-                                android:textColor="@color/hydroguard_text"
-                                android:textSize="15sp" />
-
-                            <TextView
-                                android:id="@+id/rgb_card_subtitle"
-                                style="@style/TextAppearance.HydroGuard.Micro"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="Relative optical channel intensities"
-                                android:textColor="@color/hydroguard_muted" />
-                        </LinearLayout>
-
-                        <!-- Compact Swatch -->
-                        <com.google.android.material.card.MaterialCardView
-                            android:id="@+id/rgb_swatch_card"
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:layout_marginStart="12dp"
-                            app:cardBackgroundColor="@color/hydroguard_subsurface"
-                            app:cardCornerRadius="8dp"
-                            app:cardElevation="0dp"
-                            app:strokeColor="@color/hydroguard_divider"
-                            app:strokeWidth="1dp">
-
-                            <View
-                                android:id="@+id/rgb_swatch_view"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent" />
-                        </com.google.android.material.card.MaterialCardView>
-                    </LinearLayout>
-
-                    <!-- Divider line -->
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginBottom="12dp"
-                        android:background="@color/hydroguard_divider" />
-
-                    <!-- 3 Aligned Mini-Metrics (R, G, B) -->
-                    <LinearLayout
-                        android:id="@+id/rgb_channels_container"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:baselineAligned="false"
-                        android:orientation="horizontal">
-
-                        <!-- Red Channel -->
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:background="@drawable/hydroguard_tile"
-                            android:orientation="vertical"
-                            android:padding="10dp">
-
-                            <LinearLayout
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <View
-                                    android:layout_width="8dp"
-                                    android:layout_height="8dp"
-                                    android:background="@drawable/hydroguard_pill"
-                                    android:backgroundTint="#EF4444" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="6dp"
-                                    android:fontFamily="@font/hydroguard_sans"
-                                    android:text="Red"
-                                    android:textColor="@color/hydroguard_muted"
-                                    android:textSize="12sp" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/rgb_red_value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:fontFamily="@font/hydroguard_mono"
-                                android:singleLine="true"
-                                android:text="--%"
-                                android:textColor="@color/hydroguard_text"
-                                android:textFontWeight="600"
-                                android:textSize="16sp" />
-                        </LinearLayout>
-
-                        <!-- Green Channel -->
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/hydroguard_tile"
-                            android:orientation="vertical"
-                            android:padding="10dp">
-
-                            <LinearLayout
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <View
-                                    android:layout_width="8dp"
-                                    android:layout_height="8dp"
-                                    android:background="@drawable/hydroguard_pill"
-                                    android:backgroundTint="#10B981" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="6dp"
-                                    android:fontFamily="@font/hydroguard_sans"
-                                    android:text="Green"
-                                    android:textColor="@color/hydroguard_muted"
-                                    android:textSize="12sp" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/rgb_green_value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:fontFamily="@font/hydroguard_mono"
-                                android:singleLine="true"
-                                android:text="--%"
-                                android:textColor="@color/hydroguard_text"
-                                android:textFontWeight="600"
-                                android:textSize="16sp" />
-                        </LinearLayout>
-
-                        <!-- Blue Channel -->
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/hydroguard_tile"
-                            android:orientation="vertical"
-                            android:padding="10dp">
-
-                            <LinearLayout
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <View
-                                    android:layout_width="8dp"
-                                    android:layout_height="8dp"
-                                    android:background="@drawable/hydroguard_pill"
-                                    android:backgroundTint="#3B82F6" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="6dp"
-                                    android:fontFamily="@font/hydroguard_sans"
-                                    android:text="Blue"
-                                    android:textColor="@color/hydroguard_muted"
-                                    android:textSize="12sp" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/rgb_blue_value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:fontFamily="@font/hydroguard_mono"
-                                android:singleLine="true"
-                                android:text="--%"
-                                android:textColor="@color/hydroguard_text"
-                                android:textFontWeight="600"
-                                android:textSize="16sp" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <!-- Concise Explanation / Qualification Footer -->
-                    <TextView
-                        android:id="@+id/rgb_footer_note"
-                        style="@style/TextAppearance.HydroGuard.Micro"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:text="Relative optical intensity, normalised to 0–100% · Not a validated water-quality measurement"
-                        android:textColor="@color/hydroguard_muted"
-                        android:textFontWeight="400" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+            
 
                     </LinearLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- ============================ History ============================ -->
-
-            <TextView
-                style="@style/TextAppearance.HydroGuard.Subtitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/section_gap"
-                android:text="Reading history"
-                android:textColor="@color/hydroguard_text" />
-
-            <!-- Parameter caption. The count is written by WaterScreen from
-                 METRICS.length, so it can never claim more series than the app
-                 actually offers. -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    style="@style/TextAppearance.HydroGuard.Label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Parameter"
-                    android:textColor="@color/hydroguard_muted" />
-
-                <TextView
-                    android:id="@+id/history_parameter_count"
-                    style="@style/TextAppearance.HydroGuard.Micro"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:textColor="@color/hydroguard_blue" />
-            </LinearLayout>
-
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/history_parameter_group"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                app:chipStyle="@style/Widget.HydroGuard.Chip"
-                app:selectionRequired="true"
-                app:singleSelection="true" />
-
-            <TextView
-                android:id="@+id/history_source_label"
-                style="@style/TextAppearance.HydroGuard.Label"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="History data source"
-                android:textColor="@color/hydroguard_muted" />
-
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/history_source_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                app:cardBackgroundColor="@color/hydroguard_subsurface"
-                app:cardCornerRadius="@dimen/corner_card"
-                app:cardElevation="0dp"
-                app:strokeWidth="0dp">
-
-                <com.google.android.material.button.MaterialButtonToggleGroup
-                    android:id="@+id/history_source_group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="4dp"
-                    app:checkedButton="@id/source_thingspeak"
-                    app:selectionRequired="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/source_thingspeak"
-                        style="@style/Widget.HydroGuard.Segment"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Live telemetry"
-                        android:checkable="true" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/source_database"
-                        style="@style/Widget.HydroGuard.Segment"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Saved node DB"
-                        android:checkable="true" />
-                </com.google.android.material.button.MaterialButtonToggleGroup>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Time horizon: a segmented controller, not a second chip row. The
-                 buttons are declared here (with the initial check in XML) so the
-                 first selection is set without firing a second history load. -->
-            <TextView
-                style="@style/TextAppearance.HydroGuard.Label"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="Time range"
-                android:textColor="@color/hydroguard_muted" />
-
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                app:cardBackgroundColor="@color/hydroguard_subsurface"
-                app:cardCornerRadius="@dimen/corner_card"
-                app:cardElevation="0dp"
-                app:strokeWidth="0dp">
-
-                <com.google.android.material.button.MaterialButtonToggleGroup
-                    android:id="@+id/history_range_group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="4dp"
-                    app:checkedButton="@id/range_7d"
-                    app:selectionRequired="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/range_24h"
-                        style="@style/Widget.HydroGuard.Segment"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="24 hours"
-                        android:checkable="true" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/range_7d"
-                        style="@style/Widget.HydroGuard.Segment"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="7 days"
-                        android:checkable="true" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/range_30d"
-                        style="@style/Widget.HydroGuard.Segment"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="30 days"
-                        android:checkable="true" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/range_all"
-                        style="@style/Widget.HydroGuard.Segment"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="All"
-                        android:checkable="true" />
-                </com.google.android.material.button.MaterialButtonToggleGroup>
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/card_gap"
-                app:cardBackgroundColor="@color/hydroguard_surface"
-                app:cardCornerRadius="@dimen/corner_card"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/hydroguard_divider"
-                app:strokeWidth="@dimen/border_hairline">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/card_padding_compact">
-
-                    <!-- Names the series and the horizon, which the status line
-                         below it does not. -->
-                    <TextView
-                        android:id="@+id/history_chart_title"
-                        style="@style/TextAppearance.HydroGuard.BodyStrong"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/hydroguard_text" />
-
-                    <TextView
-                        android:id="@+id/history_chart_status"
-                        style="@style/TextAppearance.HydroGuard.Micro"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:textColor="@color/hydroguard_muted" />
-
-                    <com.github.mikephil.charting.charts.LineChart
-                        android:id="@+id/history_chart"
-                        android:layout_width="match_parent"
-                        android:layout_height="@dimen/chart_height"
-                        android:layout_marginTop="8dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -863,7 +900,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/section_gap"
-                android:text="Experimental next-step prediction"
+                android:text="Tomorrow's Water Quality Forecast"
                 android:textColor="@color/hydroguard_text" />
 
             <com.google.android.material.button.MaterialButton
@@ -872,13 +909,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Generate next-step prediction" />
+                android:text="Generate Tomorrow's Forecast" />
 
-            <!-- Forecast notice card. forecast_status keeps its id and every one
-                 of its existing loading / error / result strings; only its frame
-                 changes. The provenance badge stays hidden until a forecast has
-                 actually returned, so a failure never wears a label it did not earn. -->
+            <!-- Forecast Metadata Card -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_forecast_metadata"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/card_gap"
@@ -886,6 +921,7 @@
                 app:cardCornerRadius="@dimen/corner_card"
                 app:cardElevation="0dp"
                 app:strokeWidth="0dp">
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -903,20 +939,31 @@
                             android:layout_height="18dp"
                             android:contentDescription="@null"
                             android:src="@drawable/ic_hydroguard_pulse"
-                            android:tint="@color/hydroguard_blue" />
+                            app:tint="@color/hydroguard_blue" />
 
                         <TextView
                             style="@style/TextAppearance.HydroGuard.BodyStrong"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
-                            android:text="Forecast details"
+                            android:text="Forecast Metadata"
                             android:textColor="@color/hydroguard_text" />
 
                         <Space
                             android:layout_width="0dp"
                             android:layout_height="1dp"
                             android:layout_weight="1" />
+
+                        <TextView
+                            android:id="@+id/forecast_horizon_badge"
+                            style="@style/Widget.HydroGuard.Pill"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:backgroundTint="@color/hydroguard_surface"
+                            android:text="24h Horizon"
+                            android:textColor="@color/hydroguard_blue"
+                            android:visibility="gone" />
 
                         <TextView
                             android:id="@+id/forecast_source_badge"
@@ -929,6 +976,25 @@
                     </LinearLayout>
 
                     <TextView
+                        android:id="@+id/forecast_target_date"
+                        style="@style/TextAppearance.HydroGuard.BodyStrong"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Forecast date: Pending generation"
+                        android:textColor="@color/hydroguard_text"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/forecast_last_observation"
+                        style="@style/TextAppearance.HydroGuard.Micro"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Last observation: --"
+                        android:textColor="@color/hydroguard_muted" />
+
+                    <TextView
                         android:id="@+id/forecast_status"
                         style="@style/TextAppearance.HydroGuard.Body"
                         android:layout_width="match_parent"
@@ -939,135 +1005,1236 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Primary Readable Forecast Cards Container -->
+            <LinearLayout
+                android:id="@+id/forecast_parameter_cards_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <!-- pH Level Forecast Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/forecast_card_ph"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/card_gap"
+                    app:cardBackgroundColor="@color/hydroguard_surface"
+                    app:cardCornerRadius="@dimen/corner_card"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/hydroguard_divider"
+                    app:strokeWidth="@dimen/border_hairline">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.BodyStrong"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="pH Level"
+                                android:textColor="@color/hydroguard_text"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Permissible: 6.5 – 8.5"
+                                android:textColor="@color/hydroguard_muted" />
+                        </LinearLayout>
+
+                        <!-- Big Prominent Predicted Tomorrow -->
+                        <TextView
+                            android:id="@+id/forecast_ph_predicted"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Predicted tomorrow: --"
+                            android:textColor="@color/hydroguard_blue"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <!-- Model Comparison Sub-block -->
+                        <TextView
+                            style="@style/TextAppearance.HydroGuard.Micro"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Model comparison:"
+                            android:textColor="@color/hydroguard_muted"
+                            android:textFontWeight="600" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/forecast_ph_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="LSTM: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_ph_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="PatchTST: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_ph_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="TimeMixer: --"
+                                android:textColor="@color/hydroguard_text" />
+                        </LinearLayout>
+
+                        <!-- Adaptive Ensemble Pill -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/hydroguard_pill"
+                            android:backgroundTint="@color/hydroguard_subsurface"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="10dp"
+                            android:paddingTop="4dp"
+                            android:paddingEnd="10dp"
+                            android:paddingBottom="4dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Adaptive Ensemble: "
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/forecast_ph_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- TDS Forecast Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/forecast_card_tds"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/card_gap"
+                    app:cardBackgroundColor="@color/hydroguard_surface"
+                    app:cardCornerRadius="@dimen/corner_card"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/hydroguard_divider"
+                    app:strokeWidth="@dimen/border_hairline">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.BodyStrong"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="TDS Level"
+                                android:textColor="@color/hydroguard_text"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Permissible: up to 500 ppm"
+                                android:textColor="@color/hydroguard_muted" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/forecast_tds_predicted"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Predicted tomorrow: -- ppm"
+                            android:textColor="@color/hydroguard_blue"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            style="@style/TextAppearance.HydroGuard.Micro"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Model comparison:"
+                            android:textColor="@color/hydroguard_muted"
+                            android:textFontWeight="600" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/forecast_tds_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="LSTM: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_tds_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="PatchTST: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_tds_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="TimeMixer: --"
+                                android:textColor="@color/hydroguard_text" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/hydroguard_pill"
+                            android:backgroundTint="@color/hydroguard_subsurface"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="10dp"
+                            android:paddingTop="4dp"
+                            android:paddingEnd="10dp"
+                            android:paddingBottom="4dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Adaptive Ensemble: "
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/forecast_tds_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Turbidity Forecast Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/forecast_card_turbidity"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/card_gap"
+                    app:cardBackgroundColor="@color/hydroguard_surface"
+                    app:cardCornerRadius="@dimen/corner_card"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/hydroguard_divider"
+                    app:strokeWidth="@dimen/border_hairline">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.BodyStrong"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Turbidity"
+                                android:textColor="@color/hydroguard_text"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Permissible: up to 5.0 NTU"
+                                android:textColor="@color/hydroguard_muted" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/forecast_turbidity_predicted"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Predicted tomorrow: -- NTU"
+                            android:textColor="@color/hydroguard_blue"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            style="@style/TextAppearance.HydroGuard.Micro"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Model comparison:"
+                            android:textColor="@color/hydroguard_muted"
+                            android:textFontWeight="600" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/forecast_turbidity_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="LSTM: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_turbidity_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="PatchTST: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_turbidity_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="TimeMixer: --"
+                                android:textColor="@color/hydroguard_text" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/hydroguard_pill"
+                            android:backgroundTint="@color/hydroguard_subsurface"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="10dp"
+                            android:paddingTop="4dp"
+                            android:paddingEnd="10dp"
+                            android:paddingBottom="4dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Adaptive Ensemble: "
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/forecast_turbidity_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Temperature Forecast Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/forecast_card_temperature"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/card_gap"
+                    app:cardBackgroundColor="@color/hydroguard_surface"
+                    app:cardCornerRadius="@dimen/corner_card"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/hydroguard_divider"
+                    app:strokeWidth="@dimen/border_hairline">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.BodyStrong"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Temperature"
+                                android:textColor="@color/hydroguard_text"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Permissible: 20.0 – 30.0 °C"
+                                android:textColor="@color/hydroguard_muted" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/forecast_temperature_predicted"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Predicted tomorrow: -- °C"
+                            android:textColor="@color/hydroguard_blue"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            style="@style/TextAppearance.HydroGuard.Micro"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Model comparison:"
+                            android:textColor="@color/hydroguard_muted"
+                            android:textFontWeight="600" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/forecast_temperature_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="LSTM: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_temperature_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="PatchTST: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_temperature_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="TimeMixer: --"
+                                android:textColor="@color/hydroguard_text" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/hydroguard_pill"
+                            android:backgroundTint="@color/hydroguard_subsurface"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="10dp"
+                            android:paddingTop="4dp"
+                            android:paddingEnd="10dp"
+                            android:paddingBottom="4dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Adaptive Ensemble: "
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/forecast_temperature_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Optical Colour Index Forecast Card (Conditional) -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/forecast_card_colour"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/card_gap"
+                    android:visibility="gone"
+                    app:cardBackgroundColor="@color/hydroguard_surface"
+                    app:cardCornerRadius="@dimen/corner_card"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/hydroguard_divider"
+                    app:strokeWidth="@dimen/border_hairline">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.BodyStrong"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Optical Colour Index (Experimental)"
+                                android:textColor="@color/hydroguard_text"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Range: 0.0 – 1.0"
+                                android:textColor="@color/hydroguard_muted" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/forecast_colour_predicted"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Predicted tomorrow: --"
+                            android:textColor="@color/hydroguard_blue"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            style="@style/TextAppearance.HydroGuard.Micro"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Model comparison:"
+                            android:textColor="@color/hydroguard_muted"
+                            android:textFontWeight="600" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/forecast_colour_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="LSTM: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_colour_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="PatchTST: --"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/forecast_colour_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="TimeMixer: --"
+                                android:textColor="@color/hydroguard_text" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/hydroguard_pill"
+                            android:backgroundTint="@color/hydroguard_subsurface"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="10dp"
+                            android:paddingTop="4dp"
+                            android:paddingEnd="10dp"
+                            android:paddingBottom="4dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Adaptive Ensemble: "
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/forecast_colour_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Model Comparison Summary Table Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/forecast_table_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/card_gap"
+                    app:cardBackgroundColor="@color/hydroguard_surface"
+                    app:cardCornerRadius="@dimen/corner_card"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/hydroguard_divider"
+                    app:strokeWidth="@dimen/border_hairline">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <TextView
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Model Comparison Matrix"
+                            android:textColor="@color/hydroguard_text"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            style="@style/TextAppearance.HydroGuard.Micro"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Next-day predictions across architectures"
+                            android:textColor="@color/hydroguard_muted" />
+
+                        <!-- Table Header -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:background="@color/hydroguard_subsurface"
+                            android:orientation="horizontal"
+                            android:padding="8dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.2"
+                                android:text="Parameter"
+                                android:textColor="@color/hydroguard_muted"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="LSTM"
+                                android:textColor="@color/hydroguard_muted"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="PatchTST"
+                                android:textColor="@color/hydroguard_muted"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="TimeMix"
+                                android:textColor="@color/hydroguard_muted"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.1"
+                                android:gravity="end"
+                                android:text="Ensemble"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- pH Row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:padding="8dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.2"
+                                android:text="pH"
+                                android:textColor="@color/hydroguard_text"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/table_ph_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_ph_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_ph_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_ph_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Divider -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="@color/hydroguard_divider" />
+
+                        <!-- TDS Row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:padding="8dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.2"
+                                android:text="TDS (ppm)"
+                                android:textColor="@color/hydroguard_text"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/table_tds_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_tds_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_tds_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_tds_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Divider -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="@color/hydroguard_divider" />
+
+                        <!-- Turbidity Row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:padding="8dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.2"
+                                android:text="Turbidity"
+                                android:textColor="@color/hydroguard_text"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/table_turbidity_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_turbidity_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_turbidity_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_turbidity_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Divider -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="@color/hydroguard_divider" />
+
+                        <!-- Temp Row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:padding="8dp">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.2"
+                                android:text="Temp (°C)"
+                                android:textColor="@color/hydroguard_text"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/table_temp_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_temp_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_temp_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_temp_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Colour Index Row (Conditional) -->
+                        <LinearLayout
+                            android:id="@+id/table_colour_row"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:padding="8dp"
+                            android:visibility="gone">
+
+                            <TextView
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.2"
+                                android:text="Colour (Exp)"
+                                android:textColor="@color/hydroguard_text"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/table_colour_lstm"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_colour_patchtst"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_colour_timemixer"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_text" />
+
+                            <TextView
+                                android:id="@+id/table_colour_ensemble"
+                                style="@style/TextAppearance.HydroGuard.Micro"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.1"
+                                android:gravity="end"
+                                android:text="--"
+                                android:textColor="@color/hydroguard_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Secondary Section: Historical Data and Forecast Trends (Collapsible) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/forecast_chart_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/card_gap"
-                android:visibility="gone"
                 app:cardBackgroundColor="@color/hydroguard_surface"
                 app:cardCornerRadius="@dimen/corner_card"
                 app:cardElevation="0dp"
                 app:strokeColor="@color/hydroguard_divider"
                 app:strokeWidth="@dimen/border_hairline">
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="@dimen/card_padding_compact">
+                    android:orientation="vertical">
 
-                    <!-- The card title leads, then the legend sits directly above the
-                         chart it explains - the reference's order. -->
-                    <TextView
-                        android:id="@+id/forecast_chart_title"
-                        style="@style/TextAppearance.HydroGuard.BodyStrong"
+                    <!-- Expandable Header Row -->
+                    <LinearLayout
+                        android:id="@+id/btn_toggle_forecast_chart"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="8dp"
-                        android:textColor="@color/hydroguard_text" />
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:padding="14dp">
 
-                    <!-- Provenance legend. This is the one thing the chart cannot
-                         say on its own: which line is measured and which is modelled.
-                         Every badge text comes from a real field of a real response
-                         (the reading's source, the forecast's data_source, the
-                         configured threshold), so no confidence figure, model version
-                         or bound is ever displayed that the server did not send. -->
-                    <com.google.android.material.card.MaterialCardView
-                        android:id="@+id/forecast_legend"
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_hydroguard_pulse"
+                            app:tint="@color/hydroguard_blue" />
+
+                        <TextView
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:text="Historical Data and Forecast Trends"
+                            android:textColor="@color/hydroguard_text" />
+
+                        <TextView
+                            android:id="@+id/forecast_chart_toggle_icon"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="▾"
+                            android:textColor="@color/hydroguard_muted"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <!-- Collapsible Chart Content -->
+                    <LinearLayout
+                        android:id="@+id/forecast_chart_collapsible_content"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="8dp"
-                        app:cardBackgroundColor="@color/hydroguard_background"
-                        app:cardCornerRadius="@dimen/corner_control"
-                        app:cardElevation="0dp"
-                        app:strokeWidth="0dp">
-                        <LinearLayout
+                        android:orientation="vertical"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:paddingBottom="14dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/forecast_chart_title"
+                            style="@style/TextAppearance.HydroGuard.BodyStrong"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="10dp">
+                            android:layout_marginBottom="8dp"
+                            android:textColor="@color/hydroguard_text" />
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/forecast_legend"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            app:cardBackgroundColor="@color/hydroguard_background"
+                            app:cardCornerRadius="@dimen/corner_control"
+                            app:cardElevation="0dp"
+                            app:strokeWidth="0dp">
 
                             <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
+                                android:orientation="vertical"
+                                android:padding="10dp">
 
-                                <TextView
-                                    style="@style/TextAppearance.HydroGuard.Micro"
-                                    android:layout_width="0dp"
+                                <LinearLayout
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="Observed readings"
-                                    android:textColor="@color/hydroguard_text" />
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal">
 
-                                <TextView
-                                    android:id="@+id/legend_observed_badge"
-                                    style="@style/Widget.HydroGuard.Pill"
-                                    android:layout_width="wrap_content"
+                                    <TextView
+                                        style="@style/TextAppearance.HydroGuard.Micro"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="Observed readings"
+                                        android:textColor="@color/hydroguard_text" />
+
+                                    <TextView
+                                        android:id="@+id/legend_observed_badge"
+                                        style="@style/Widget.HydroGuard.Pill"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:backgroundTint="@color/hydroguard_provenance_unknown_bg"
+                                        android:textColor="@color/hydroguard_provenance_unknown"
+                                        android:visibility="gone" />
+                                </LinearLayout>
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:backgroundTint="@color/hydroguard_provenance_unknown_bg"
-                                    android:textColor="@color/hydroguard_provenance_unknown"
-                                    android:visibility="gone" />
+                                    android:layout_marginTop="6dp"
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal">
+
+                                    <TextView
+                                        style="@style/TextAppearance.HydroGuard.Micro"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="Predicted ensemble"
+                                        android:textColor="@color/hydroguard_text" />
+
+                                    <TextView
+                                        android:id="@+id/legend_forecast_badge"
+                                        style="@style/Widget.HydroGuard.Pill"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:backgroundTint="@color/hydroguard_provenance_forecast_bg"
+                                        android:text="ENSEMBLE"
+                                        android:textColor="@color/hydroguard_provenance_forecast" />
+                                </LinearLayout>
+
+                                <LinearLayout
+                                    android:id="@+id/legend_threshold_row"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="6dp"
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal"
+                                    android:visibility="gone">
+
+                                    <TextView
+                                        android:id="@+id/legend_threshold_label"
+                                        style="@style/TextAppearance.HydroGuard.Micro"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:textColor="@color/hydroguard_text" />
+
+                                    <TextView
+                                        android:id="@+id/legend_threshold_badge"
+                                        style="@style/Widget.HydroGuard.Pill"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:backgroundTint="@color/hydroguard_critical_surface"
+                                        android:textColor="@color/hydroguard_critical_text" />
+                                </LinearLayout>
                             </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
 
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="6dp"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <TextView
-                                    style="@style/TextAppearance.HydroGuard.Micro"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="Predicted value"
-                                    android:textColor="@color/hydroguard_text" />
-
-                                <TextView
-                                    android:id="@+id/legend_forecast_badge"
-                                    style="@style/Widget.HydroGuard.Pill"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:backgroundTint="@color/hydroguard_provenance_forecast_bg"
-                                    android:text="FORECAST"
-                                    android:textColor="@color/hydroguard_provenance_forecast" />
-                            </LinearLayout>
-
-                            <LinearLayout
-                                android:id="@+id/legend_threshold_row"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="6dp"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal"
-                                android:visibility="gone">
-
-                                <TextView
-                                    android:id="@+id/legend_threshold_label"
-                                    style="@style/TextAppearance.HydroGuard.Micro"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:textColor="@color/hydroguard_text" />
-
-                                <TextView
-                                    android:id="@+id/legend_threshold_badge"
-                                    style="@style/Widget.HydroGuard.Pill"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:backgroundTint="@color/hydroguard_critical_surface"
-                                    android:textColor="@color/hydroguard_critical_text" />
-                            </LinearLayout>
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
-
-                    <com.github.mikephil.charting.charts.LineChart
-                        android:id="@+id/forecast_chart"
-                        android:layout_width="match_parent"
-                        android:layout_height="@dimen/chart_height" />
+                        <com.github.mikephil.charting.charts.LineChart
+                            android:id="@+id/forecast_chart"
+                            android:layout_width="match_parent"
+                            android:layout_height="@dimen/chart_height" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

@@ -9,12 +9,18 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+from fastapi import HTTPException
 import firebase_admin
 from firebase_admin import auth as firebase_auth
 
 from app.core.auth import _firebase_app
 from app.db.auth_models import HydroGuardUser
-from app.db.database import SessionLocal, init_db
+from app.db.database import (
+    SQLALCHEMY_DATABASE_URL,
+    SessionLocal,
+    get_masked_database_url,
+    init_db,
+)
 from app.services.auth_service import bootstrap_first_admin
 
 
@@ -43,14 +49,22 @@ def main() -> int:
             print("Firebase user not found. Have the account sign in once, then retry.", file=sys.stderr)
             return 1
 
+        print(f"Target database: {get_masked_database_url(SQLALCHEMY_DATABASE_URL)}")
         init_db()
         with SessionLocal() as db:
             account: HydroGuardUser = bootstrap_first_admin(db, firebase_user)
 
         print(f"First HydroGuard administrator provisioned. Firebase UID: {account.firebase_uid}")
         return 0
+    except RuntimeError as exc:
+        print(f"First administrator provisioning failed: {exc}", file=sys.stderr)
+        return 1
+    except HTTPException as exc:
+        print(f"First administrator provisioning failed: {exc.detail}", file=sys.stderr)
+        return 1
     except Exception as exc:
-        print(f"First administrator provisioning failed ({type(exc).__name__}).", file=sys.stderr)
+        masked_exc = get_masked_database_url(str(exc)) if "@" in str(exc) else str(exc)
+        print(f"First administrator provisioning failed ({type(exc).__name__}): {masked_exc}", file=sys.stderr)
         return 1
     finally:
         if app is not None:

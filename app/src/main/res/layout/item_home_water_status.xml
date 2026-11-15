@@ -2,7 +2,7 @@
 <!--
   Home dashboard water status overview card.
   Replaces the unformatted multi-line text block with a clean, structured
-  2x2 glanceable metric grid, tank header, provenance/freshness badge,
+  2-column glanceable metric grid (5 parameters), tank header, provenance/freshness badge,
   and observation timestamp footer.
 -->
 <com.google.android.material.card.MaterialCardView
@@ -55,7 +55,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:fontFamily="@font/hydroguard_sans"
-                    android:text="Hostel Telemetry · Channel 244357"
+                    android:text="Hostel Water Telemetry · Live Sensor"
                     android:textColor="@color/hydroguard_muted"
                     android:textSize="12sp" />
             </LinearLayout>
@@ -266,6 +266,173 @@
                     android:textSize="11sp" />
             </LinearLayout>
         </LinearLayout>
+
+        <!-- Water Colour Analysis Section -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="10dp"
+            android:background="@color/hydroguard_divider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/TextAppearance.HydroGuard.BodyStrong"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Water Colour Analysis"
+                android:textColor="@color/hydroguard_text"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/home_rgb_status_badge"
+                style="@style/Widget.HydroGuard.Pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:backgroundTint="@color/hydroguard_provenance_thingspeak_bg"
+                android:text="LIVE"
+                android:textColor="@color/hydroguard_provenance_thingspeak" />
+        </LinearLayout>
+
+        <!-- Prominent Colour Swatch Bar -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/home_rgb_swatch_card"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            app:cardBackgroundColor="@color/hydroguard_subsurface"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/hydroguard_divider"
+            app:strokeWidth="1dp">
+
+            <View
+                android:id="@+id/home_rgb_swatch_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Missing view -->
+        <TextView
+            android:id="@+id/home_rgb_unavailable_view"
+            style="@style/TextAppearance.HydroGuard.Micro"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No colour data available"
+            android:textColor="@color/hydroguard_muted"
+            android:visibility="gone" />
+
+        <!-- 3 Aligned Metrics (R, G, B) -->
+        <LinearLayout
+            android:id="@+id/home_rgb_channels_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/hydroguard_tile"
+                android:orientation="vertical"
+                android:padding="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Red"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/home_rgb_red_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/hydroguard_mono"
+                    android:text="--"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/hydroguard_tile"
+                android:orientation="vertical"
+                android:padding="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Green"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/home_rgb_green_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/hydroguard_mono"
+                    android:text="--"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/hydroguard_tile"
+                android:orientation="vertical"
+                android:padding="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/hydroguard_sans"
+                    android:text="Blue"
+                    android:textColor="@color/hydroguard_muted"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/home_rgb_blue_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="@font/hydroguard_mono"
+                    android:text="--"
+                    android:textColor="@color/hydroguard_text"
+                    android:textFontWeight="600"
+                    android:textSize="14sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/home_rgb_timestamp"
+            style="@style/TextAppearance.HydroGuard.Micro"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Observed: --"
+            android:textColor="@color/hydroguard_muted"
+            android:textSize="11sp" />
 
         <!-- Footer / Observation timestamp -->
         <TextView

@@ -162,3 +162,26 @@ app.include_router(admin_users_router, prefix="/api/v1")
 app.include_router(research_export_router, prefix="/api/v1")
 app.include_router(thresholds_router, prefix="/api/v1")
 app.include_router(devices_router, prefix="/api/v1")
+
+
+from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+import traceback
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=getattr(exc, "headers", None),
+        )
+    tb = traceback.format_exc()
+    logger.error("Unhandled exception on %s %s: %s\n%s", request.method, request.url, exc, tb)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"{type(exc).__name__}: {str(exc)}", "traceback": tb.splitlines()[-10:]},
+    )
+

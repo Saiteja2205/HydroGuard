@@ -43,5 +43,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_admin_sign_out"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="24dp"
+            android:text="Sign out"
+            android:textAllCaps="false"
+            android:textColor="@color/hydroguard_navy" />
     </LinearLayout>
 </ScrollView>

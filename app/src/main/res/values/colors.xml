@@ -58,6 +58,8 @@
     <!-- Telemetry provenance: never let a forecast or a simulated stream read as live. -->
     <color name="hydroguard_provenance_live">#047857</color>
     <color name="hydroguard_provenance_live_bg">#ECFDF5</color>
+    <color name="hydroguard_provenance_thingspeak">#0369A1</color>
+    <color name="hydroguard_provenance_thingspeak_bg">#E0F2FE</color>
     <color name="hydroguard_provenance_forecast">#4F46E5</color>
     <color name="hydroguard_provenance_forecast_bg">#EEF2FF</color>
     <color name="hydroguard_provenance_simulated">#D97706</color>

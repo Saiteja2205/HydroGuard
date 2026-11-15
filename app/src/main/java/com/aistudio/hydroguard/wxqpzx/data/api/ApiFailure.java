@@ -13,4 +13,12 @@ public class ApiFailure extends Exception {
         this.endpoint = endpoint;
         this.statusCode = statusCode;
     }
+
+    public boolean isAuthError() {
+        return statusCode != null && statusCode == 401;
+    }
+
+    public boolean isForbidden() {
+        return statusCode != null && statusCode == 403;
+    }
 }

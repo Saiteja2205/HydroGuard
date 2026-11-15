@@ -3,7 +3,7 @@ from typing import ClassVar, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
-DataSource = Literal["REAL_SENSOR", "SIMULATED_DEVELOPMENT", "HISTORICAL_DATA", "DEMO", "SIMULATED"]
+DataSource = Literal["REAL_SENSOR", "SIMULATED_DEVELOPMENT", "HISTORICAL_DATA", "DEMO", "SIMULATED", "SIMULATED_DEMO", "SIMULATED_RESEARCH", "THINGSPEAK_HARDWARE"]
 PRODUCT_PARAMETERS = ("pH", "TDS", "turbidity", "temperature", "optical_colour_index")
 
 
@@ -16,6 +16,9 @@ def normalize_data_source(value: str) -> str:
         "historical_or_simulated": "DEMO",
         "simulated": "SIMULATED",
         "simulated_development": "SIMULATED_DEVELOPMENT",
+        "simulated_demo": "SIMULATED_DEMO",
+        "simulated_research": "SIMULATED_RESEARCH",
+        "thingspeak_hardware": "THINGSPEAK_HARDWARE",
     }.get(str(value).strip().lower(), str(value).strip().upper())
 
 

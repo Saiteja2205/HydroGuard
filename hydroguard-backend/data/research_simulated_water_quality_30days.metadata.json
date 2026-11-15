@@ -1,0 +1,39 @@
+{
+  "dataset_name": "HydroGuard 30-day ICETICS 2027 research simulated water-quality dataset",
+  "source": "SIMULATED_RESEARCH",
+  "data_provenance": "SIMULATED_RESEARCH",
+  "dataset_type": "RESEARCH_SIMULATION",
+  "real_sensor_data": false,
+  "random_seed": 12345,
+  "observation_count": 30,
+  "start_timestamp": "2026-09-01T12:00:00Z",
+  "end_timestamp": "2026-09-30T12:00:00Z",
+  "cadence": "daily (24-hour interval at 12:00 UTC)",
+  "parameters": [
+    "pH",
+    "TDS",
+    "turbidity",
+    "temperature",
+    "optical_colour_index"
+  ],
+  "optical_sensor_channels": [
+    "red",
+    "green",
+    "blue",
+    "clear"
+  ],
+  "optical_colour_index_method": "Derived from TCS34725 RGB and Clear channels using standard luma formulation: OCI = 1.0 - (0.2126*R + 0.7152*G + 0.0722*B)/Clear. Simulated research metric for multi-modal evaluation.",
+  "modeling_assumptions": [
+    "Temperature undergoes seasonal decay (-2.2\u00b0C across September) with diurnal oscillation.",
+    "pH exhibits weak negative coupling with temperature based on dissociation equilibrium.",
+    "TDS exhibits gradual mineral build-up punctuated by a precipitation runoff dilution event.",
+    "Turbidity exhibits low baseline (1.05 NTU) with runoff event (peak 4.10 NTU on Day 22).",
+    "Clear channel flux is attenuated by particulate scattering inversely proportional to turbidity."
+  ],
+  "condition_counts": {
+    "GOOD": 26,
+    "NORMAL": 3,
+    "DEGRADED": 1
+  },
+  "csv_sha256": "f7fe00ee623c19f3655b5380e169ca6c71874a8fb506974d506d92bee666c5ec"
+}

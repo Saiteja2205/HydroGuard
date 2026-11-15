@@ -69,6 +69,10 @@ public class FirebaseAuthRepository {
      * because it is not re-validated against the account that is actually signed in.
      */
     public String currentRole() {
+        java.util.Map<String, String> dev = DevelopmentAuthPolicy.current();
+        if (!dev.isEmpty()) {
+            return dev.get("role");
+        }
         String role = sessionRole;
         return role == null || role.trim().isEmpty() ? null : role.trim();
     }

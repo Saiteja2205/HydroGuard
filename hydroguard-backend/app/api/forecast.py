@@ -124,17 +124,17 @@ def _forecast_history(request: ForecastRequest, db: Session) -> tuple[list[Forec
                 detail="Timestamped REAL_SENSOR request observations are required outside development mode.",
             )
         source = request.source or "SIMULATED_DEVELOPMENT"
-        if source != "SIMULATED_DEVELOPMENT":
+        if source not in ("SIMULATED_DEVELOPMENT", "SIMULATED_DEMO"):
             raise HTTPException(
                 status_code=422,
-                detail="Stored-data forecasting in development mode requires source SIMULATED_DEVELOPMENT.",
+                detail="Stored-data forecasting in development mode requires source SIMULATED_DEVELOPMENT or SIMULATED_DEMO.",
             )
 
         rows = (
             db.query(SensorReading)
             .filter(
                 SensorReading.node_id == request.node_id,
-                SensorReading.source == "SIMULATED_DEVELOPMENT",
+                SensorReading.source == source,
             )
             .order_by(SensorReading.timestamp.asc(), SensorReading.id.asc())
             .all()
@@ -525,10 +525,10 @@ def _get_db_cached_latest_reading(db: Session, channel_id: str) -> Optional[Thin
         timestamp=iso_ts,
         observed_at=iso_ts,
         values=ThingSpeakReadingValues(
-            pH=float(row.ph),
-            TDS=float(row.tds),
-            turbidity=float(row.turbidity),
-            temperature=float(row.temperature),
+            pH=float(row.ph) if row.ph is not None else 7.0,
+            TDS=float(row.tds) if row.tds is not None else 100.0,
+            turbidity=float(row.turbidity) if row.turbidity is not None else 1.0,
+            temperature=float(row.temperature) if row.temperature is not None else 25.0,
         ),
         rgb=rgb,
         channel_id=str(channel_id),
@@ -940,107 +940,113 @@ def get_latest_thingspeak_reading(
     temporarily unreachable, it falls back to legitimately cached observations,
     marking them explicitly with is_cached=True. It never substitutes simulated data.
     """
-    config = _resolve_thingspeak_config(channel_id)
-
-    feeds = None
-    upstream_error = None
-    is_cached = False
-
     try:
-        feeds = thingspeak_service.fetch_feeds(config)
-    except (ThingSpeakUnavailable, Exception) as exc:
-        upstream_error = exc
+        config = _resolve_thingspeak_config(channel_id)
 
-    if feeds:
-        _cache_thingspeak_feeds(config.channel_id, feeds)
-        _persist_upstream_feeds_to_db(db, config.channel_id, feeds, config)
-    else:
-        cached_feeds = _get_cached_thingspeak_feeds(config.channel_id)
-        if cached_feeds:
-            feeds = cached_feeds
-            is_cached = True
+        feeds = None
+        upstream_error = None
+        is_cached = False
+
+        try:
+            feeds = thingspeak_service.fetch_feeds(config)
+        except (ThingSpeakUnavailable, Exception) as exc:
+            upstream_error = exc
+
+        if feeds:
+            _cache_thingspeak_feeds(config.channel_id, feeds)
+            _persist_upstream_feeds_to_db(db, config.channel_id, feeds, config)
         else:
+            cached_feeds = _get_cached_thingspeak_feeds(config.channel_id)
+            if cached_feeds:
+                feeds = cached_feeds
+                is_cached = True
+            else:
+                db_reading = _get_db_cached_latest_reading(db, config.channel_id)
+                if db_reading:
+                    return db_reading
+
+        if not feeds:
+            if upstream_error:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"ThingSpeak channel {config.channel_id} is unreachable ({upstream_error}) and no cached observations are available.",
+                )
+            raise HTTPException(
+                status_code=502,
+                detail="The ThingSpeak channel returned no observations.",
+            )
+
+        window = parse_feeds(feeds, config)
+        if window.observed_rows == 0:
             db_reading = _get_db_cached_latest_reading(db, config.channel_id)
             if db_reading:
                 return db_reading
-
-    if not feeds:
-        if upstream_error:
             raise HTTPException(
                 status_code=502,
-                detail=f"ThingSpeak channel {config.channel_id} is unreachable ({upstream_error}) and no cached observations are available.",
+                detail="The ThingSpeak channel returned no observations.",
             )
-        raise HTTPException(
-            status_code=502,
-            detail="The ThingSpeak channel returned no observations.",
+
+        # Compute data freshness & hardware offline status
+        age_seconds = None
+        is_stale = False
+        hw_status = "Hardware status unknown"
+        if window.latest_timestamp is not None:
+            now_utc = datetime.now(timezone.utc)
+            ts = window.latest_timestamp if window.latest_timestamp.tzinfo else window.latest_timestamp.replace(tzinfo=timezone.utc)
+            age_seconds = max(0, int((now_utc - ts).total_seconds()))
+            if age_seconds > 900:  # > 15 minutes
+                is_stale = True
+                hw_status = "Last reported reading — sensor offline"
+            else:
+                hw_status = "Sensor online"
+
+        upstream_status = "unreachable" if is_cached else "reachable"
+
+        # Extract RGB values from newest feed if available
+        latest_rgb = None
+        if window.rgb_values:
+            for rgb_tuple in reversed(window.rgb_values):
+                if any(v is not None for v in rgb_tuple):
+                    latest_rgb = ThingSpeakRGBValues(
+                        red=rgb_tuple[0],
+                        green=rgb_tuple[1],
+                        blue=rgb_tuple[2],
+                        clear=rgb_tuple[3],
+                    )
+                    break
+
+        observed_timestamp = (
+            window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if window.latest_timestamp is not None
+            else None
         )
 
-    window = parse_feeds(feeds, config)
-    if window.observed_rows == 0:
-        db_reading = _get_db_cached_latest_reading(db, config.channel_id)
-        if db_reading:
-            return db_reading
-        raise HTTPException(
-            status_code=502,
-            detail="The ThingSpeak channel returned no observations.",
+        return ThingSpeakLatestReading(
+            timestamp=observed_timestamp,
+            observed_at=observed_timestamp,
+            values=ThingSpeakReadingValues(
+                pH=window.values[-1][0],
+                TDS=window.values[-1][1],
+                turbidity=window.values[-1][2],
+                temperature=window.values[-1][3],
+            ),
+            rgb=latest_rgb,
+            entry_id=window.latest_entry_id,
+            status_flag=window.latest_status_flag,
+            channel_id=config.channel_id,
+            node_id=f"thingspeak-{config.channel_id}",
+            data_source="THINGSPEAK",
+            is_cached=is_cached,
+            is_stale=is_stale,
+            age_seconds=age_seconds,
+            hardware_status=hw_status,
+            upstream_status=upstream_status,
         )
-
-    # Compute data freshness & hardware offline status
-    age_seconds = None
-    is_stale = False
-    hw_status = "Hardware status unknown"
-    if window.latest_timestamp is not None:
-        now_utc = datetime.now(timezone.utc)
-        ts = window.latest_timestamp if window.latest_timestamp.tzinfo else window.latest_timestamp.replace(tzinfo=timezone.utc)
-        age_seconds = max(0, int((now_utc - ts).total_seconds()))
-        if age_seconds > 900:  # > 15 minutes
-            is_stale = True
-            hw_status = "Last reported reading — sensor offline"
-        else:
-            hw_status = "Sensor online"
-
-    upstream_status = "unreachable" if is_cached else "reachable"
-
-    # Extract RGB values from newest feed if available
-    latest_rgb = None
-    if window.rgb_values:
-        for rgb_tuple in reversed(window.rgb_values):
-            if any(v is not None for v in rgb_tuple):
-                latest_rgb = ThingSpeakRGBValues(
-                    red=rgb_tuple[0],
-                    green=rgb_tuple[1],
-                    blue=rgb_tuple[2],
-                    clear=rgb_tuple[3],
-                )
-                break
-
-    observed_timestamp = (
-        window.latest_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
-        if window.latest_timestamp is not None
-        else None
-    )
-
-    return ThingSpeakLatestReading(
-        timestamp=observed_timestamp,
-        observed_at=observed_timestamp,
-        values=ThingSpeakReadingValues(
-            pH=window.values[-1][0],
-            TDS=window.values[-1][1],
-            turbidity=window.values[-1][2],
-            temperature=window.values[-1][3],
-        ),
-        rgb=latest_rgb,
-        entry_id=window.latest_entry_id,
-        status_flag=window.latest_status_flag,
-        channel_id=config.channel_id,
-        node_id=f"thingspeak-{config.channel_id}",
-        data_source="THINGSPEAK",
-        is_cached=is_cached,
-        is_stale=is_stale,
-        age_seconds=age_seconds,
-        hardware_status=hw_status,
-        upstream_status=upstream_status,
-    )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("get_latest_thingspeak_reading failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
 
 
 # --- Endpoint: historical ThingSpeak readings ---
@@ -1068,85 +1074,91 @@ def get_thingspeak_history(
     If upstream ThingSpeak is temporarily unreachable, it falls back to cached
     observations, marking is_cached=True.
     """
-    import dataclasses
-
-    config = _resolve_thingspeak_config(channel_id)
-    config = dataclasses.replace(config, results=max(1, limit))
-
-    feeds = None
-    upstream_error = None
-    is_cached = False
-
     try:
-        feeds = thingspeak_service.fetch_feeds(config)
-    except (ThingSpeakUnavailable, Exception) as exc:
-        upstream_error = exc
+        import dataclasses
 
-    if feeds:
-        _cache_thingspeak_feeds(config.channel_id, feeds)
-        _persist_upstream_feeds_to_db(db, config.channel_id, feeds, config)
-    else:
-        cached_feeds = _get_cached_thingspeak_feeds(config.channel_id)
-        if cached_feeds:
-            feeds = cached_feeds
-            is_cached = True
+        config = _resolve_thingspeak_config(channel_id)
+        config = dataclasses.replace(config, results=max(1, limit))
 
-    if feeds:
-        parsed_readings = parse_history_readings(feeds, config)
-        if len(parsed_readings) > limit:
-            parsed_readings = parsed_readings[-limit:]
+        feeds = None
+        upstream_error = None
+        is_cached = False
 
-        return ThingSpeakHistoryResponse(
-            channel_id=config.channel_id,
-            count=len(parsed_readings),
-            source="THINGSPEAK",
-            readings=parsed_readings,
-            is_cached=is_cached,
-            hardware_status="Last reported reading — sensor offline" if is_cached else None,
-            upstream_status="unreachable" if is_cached else "reachable",
-        )
+        try:
+            feeds = thingspeak_service.fetch_feeds(config)
+        except (ThingSpeakUnavailable, Exception) as exc:
+            upstream_error = exc
 
-    # Fallback to database SensorReading records
-    node_id = f"thingspeak-{config.channel_id}"
-    db_readings = SensorReadingRepository.get_history_by_node(
-        db, node_id=node_id, limit=limit, data_source="THINGSPEAK"
-    )
-    if db_readings:
-        parsed = []
-        for r in db_readings:
-            iso_ts = r.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ") if r.timestamp else None
-            parsed.append(ThingSpeakHistoryReading(
-                timestamp=iso_ts,
-                ph=r.ph,
-                pH=r.ph,
-                tds=r.tds,
-                TDS=r.tds,
-                turbidity=r.turbidity,
-                temperature=r.temperature,
-                red=r.red,
-                green=r.green,
-                blue=r.blue,
+        if feeds:
+            _cache_thingspeak_feeds(config.channel_id, feeds)
+            _persist_upstream_feeds_to_db(db, config.channel_id, feeds, config)
+        else:
+            cached_feeds = _get_cached_thingspeak_feeds(config.channel_id)
+            if cached_feeds:
+                feeds = cached_feeds
+                is_cached = True
+
+        if feeds:
+            parsed_readings = parse_history_readings(feeds, config)
+            if len(parsed_readings) > limit:
+                parsed_readings = parsed_readings[-limit:]
+
+            return ThingSpeakHistoryResponse(
+                channel_id=config.channel_id,
+                count=len(parsed_readings),
                 source="THINGSPEAK",
-            ))
-        return ThingSpeakHistoryResponse(
-            channel_id=config.channel_id,
-            count=len(parsed),
-            source="THINGSPEAK",
-            readings=parsed,
-            is_cached=True,
-            hardware_status="Cached history — upstream unreachable",
-            upstream_status="unreachable",
-        )
+                readings=parsed_readings,
+                is_cached=is_cached,
+                hardware_status="Last reported reading — sensor offline" if is_cached else None,
+                upstream_status="unreachable" if is_cached else "reachable",
+            )
 
-    if upstream_error:
+        # Fallback to database SensorReading records
+        node_id = f"thingspeak-{config.channel_id}"
+        db_readings = SensorReadingRepository.get_history_by_node(
+            db, node_id=node_id, limit=limit, data_source="THINGSPEAK"
+        )
+        if db_readings:
+            parsed = []
+            for r in db_readings:
+                iso_ts = r.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ") if r.timestamp else None
+                parsed.append(ThingSpeakHistoryReading(
+                    timestamp=iso_ts,
+                    ph=float(r.ph) if r.ph is not None else None,
+                    pH=float(r.ph) if r.ph is not None else None,
+                    tds=float(r.tds) if r.tds is not None else None,
+                    TDS=float(r.tds) if r.tds is not None else None,
+                    turbidity=float(r.turbidity) if r.turbidity is not None else None,
+                    temperature=float(r.temperature) if r.temperature is not None else None,
+                    red=r.red,
+                    green=r.green,
+                    blue=r.blue,
+                    source="THINGSPEAK",
+                ))
+            return ThingSpeakHistoryResponse(
+                channel_id=config.channel_id,
+                count=len(parsed),
+                source="THINGSPEAK",
+                readings=parsed,
+                is_cached=True,
+                hardware_status="Cached history — upstream unreachable",
+                upstream_status="unreachable",
+            )
+
+        if upstream_error:
+            raise HTTPException(
+                status_code=502,
+                detail=f"ThingSpeak channel {config.channel_id} is unreachable ({upstream_error}) and no historical readings are cached.",
+            )
         raise HTTPException(
             status_code=502,
-            detail=f"ThingSpeak channel {config.channel_id} is unreachable ({upstream_error}) and no historical readings are cached.",
+            detail="The ThingSpeak channel returned no observations.",
         )
-    raise HTTPException(
-        status_code=502,
-        detail="The ThingSpeak channel returned no observations.",
-    )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("get_thingspeak_history failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
 
 
 # --- Audit & Lifecycle Endpoint ---

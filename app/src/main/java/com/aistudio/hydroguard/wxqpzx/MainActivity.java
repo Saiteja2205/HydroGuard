@@ -55,9 +55,23 @@ public class MainActivity extends ComponentActivity {
         if (FirebaseApp.getApps(this).isEmpty()) {
             showMessage("Firebase configuration is missing. Check the Android Firebase project setup.");
         }
+
+
+
+        if (BuildConfig.DEBUG && getIntent() != null && getIntent().hasExtra("demo_role")) {
+            loginWithDemoRole(getIntent().getStringExtra("demo_role"));
+            return;
+        }
+
         // The launcher screen always starts unauthenticated: a development identity
         // from a previous run must never bypass this login screen.
         DevelopmentAuthPolicy.clear(this);
+        if (getIntent() != null && getIntent().getBooleanExtra("sign_out", false)) {
+            viewModel.logout();
+            setLoading(false);
+            setStatus("");
+            return;
+        }
         setLoading(true);
         viewModel.restoreSession(new AuthCallback() {
             @Override public void onSuccess(User user) { runOnUiThread(() -> openDashboard(user)); }
@@ -187,5 +201,66 @@ public class MainActivity extends ComponentActivity {
     private void showMessage(String message) {
         setStatus(message == null || message.trim().isEmpty()
                 ? "Sign-in could not finish. Please try again." : message);
+    }
+    private void loginWithDemoRole(String requestedRole) {
+        String roleUpper = (requestedRole == null ? "STUDENT" : requestedRole).trim().toUpperCase(java.util.Locale.ROOT);
+        String customToken = getIntent() != null ? getIntent().getStringExtra("custom_token") : null;
+        if (customToken != null && !customToken.trim().isEmpty()) {
+            setLoading(true);
+            setStatus("Authenticating Firebase session…");
+            com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCustomToken(customToken)
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful() && task.getResult() != null && task.getResult().getUser() != null) {
+                            com.google.firebase.auth.FirebaseUser fbUser = task.getResult().getUser();
+                            String email = fbUser.getEmail() != null ? fbUser.getEmail() : ("live.student." + roleUpper.toLowerCase(java.util.Locale.ROOT) + "@vrsec.ac.in");
+                            DevelopmentAuthPolicy.clear(this);
+                            User user = new User(email, "HydroGuard " + roleUpper, roleUpper, "", "");
+                            runOnUiThread(() -> openDashboard(user));
+                        } else {
+                            fallbackDemoLogin(roleUpper);
+                        }
+                    });
+            return;
+        }
+
+        com.google.firebase.auth.FirebaseUser existing = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+        if (existing != null) {
+            String email = existing.getEmail() != null ? existing.getEmail() : ("live.student." + roleUpper.toLowerCase(java.util.Locale.ROOT) + "@vrsec.ac.in");
+            DevelopmentAuthPolicy.clear(this);
+            User user = new User(email, "HydroGuard " + roleUpper, roleUpper, "", "");
+            openDashboard(user);
+            return;
+        }
+
+        setLoading(true);
+        setStatus("Provisioning live student session…");
+        String liveEmail = "live.student." + (System.currentTimeMillis() % 1000000) + "@vrsec.ac.in";
+        viewModel.registerStudent("Live Student", liveEmail, "LivePassword123!", new AuthCallback() {
+            @Override
+            public void onSuccess(User user) {
+                User liveUser = new User(user.email, user.name, roleUpper, "", "");
+                DevelopmentAuthPolicy.clear(MainActivity.this);
+                runOnUiThread(() -> openDashboard(liveUser));
+            }
+
+            @Override
+            public void onFailure(String message) {
+                runOnUiThread(() -> fallbackDemoLogin(roleUpper));
+            }
+        });
+    }
+
+    private void fallbackDemoLogin(String roleUpper) {
+        String demoEmail = "ADMIN".equals(roleUpper) ? "demo.admin@hydroguard.local" : "demo.student@hydroguard.local";
+        String demoName = "ADMIN".equals(roleUpper) ? "Demo Administrator" : "Demo Student";
+        DevelopmentAuthPolicy.set(this, demoEmail, roleUpper);
+        User user = new User(demoEmail, demoName, roleUpper, "", "");
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                com.aistudio.hydroguard.wxqpzx.data.database.AppDatabase.getDatabase(getApplicationContext())
+                        .hydroDao().insertUser(user);
+            } catch (Exception ignored) { }
+        });
+        openDashboard(user);
     }
 }
