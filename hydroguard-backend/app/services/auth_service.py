@@ -183,7 +183,8 @@ def bootstrap_first_admin(db: Session, firebase_user) -> HydroGuardUser:
 
     current_admin = (
         db.query(HydroGuardUser)
-        .filter_by(role="ADMIN", status="ACTIVE")
+        .filter(HydroGuardUser.role == "ADMIN", HydroGuardUser.status == "ACTIVE")
+        .filter(HydroGuardUser.email != DEMO_ADMIN_EMAIL)
         .order_by(HydroGuardUser.id.asc())
         .first()
     )

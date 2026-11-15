@@ -375,3 +375,146 @@ def test_existing_firebase_user_without_hydroguard_record_follows_domain_policy(
             identity("other-firebase-user", "person@unapproved.example"),
         )
     assert error.value.status_code == 403
+
+
+def test_bootstrap_first_admin_ignores_demo_admin_and_provisions_real_admin(db, synced_roles):
+    db.add(HydroGuardUser(
+        firebase_uid="hydroguard-demo-admin",
+        email="demo.admin@hydroguard.local",
+        role="ADMIN",
+        status="ACTIVE",
+        display_name="Demo Administrator",
+    ))
+    db.commit()
+
+    real_admin = SimpleNamespace(
+        uid="real-admin-uid",
+        email="mail4dssr@gmail.com",
+        email_verified=True,
+        display_name="Real Admin",
+        custom_claims=None,
+    )
+
+    account = auth_service.bootstrap_first_admin(db, real_admin)
+
+    assert account.role == "ADMIN"
+    assert account.status == "ACTIVE"
+    assert account.firebase_uid == "real-admin-uid"
+    assert account.email == "mail4dssr@gmail.com"
+    assert synced_roles == [("real-admin-uid", "ADMIN")]
+
+    intruder = SimpleNamespace(
+        uid="intruder-uid",
+        email="intruder@example.com",
+        email_verified=True,
+        display_name="Intruder",
+        custom_claims=None,
+    )
+    with pytest.raises(RuntimeError, match="already exists"):
+        auth_service.bootstrap_first_admin(db, intruder)
+
+
+def test_bootstrap_first_admin_rejects_unverified_email(db, synced_roles):
+    unverified = SimpleNamespace(
+        uid="unverified-uid",
+        email="admin@unverified.org",
+        email_verified=False,
+        display_name="Unverified Admin",
+        custom_claims=None,
+    )
+
+    with pytest.raises(RuntimeError, match="verified email address"):
+        auth_service.bootstrap_first_admin(db, unverified)
+
+    assert db.query(HydroGuardUser).count() == 0
+    assert synced_roles == []
+
+
+def test_bootstrap_first_admin_links_existing_unlinked_account(db, synced_roles):
+    db.add(HydroGuardUser(
+        firebase_uid=None,
+        email="mail4dssr@gmail.com",
+        role="STUDENT",
+        status="ACTIVE",
+        display_name="Pending Student",
+    ))
+    db.commit()
+
+    admin_identity = SimpleNamespace(
+        uid="firebase-uid-mail4dssr",
+        email="mail4dssr@gmail.com",
+        email_verified=True,
+        display_name="Target Admin",
+        custom_claims=None,
+    )
+
+    account = auth_service.bootstrap_first_admin(db, admin_identity)
+
+    assert account.email == "mail4dssr@gmail.com"
+    assert account.firebase_uid == "firebase-uid-mail4dssr"
+    assert account.role == "ADMIN"
+    assert account.status == "ACTIVE"
+    assert synced_roles == [("firebase-uid-mail4dssr", "ADMIN")]
+
+
+def test_bootstrap_first_admin_rejects_conflicting_email_or_uid(db):
+    db.add(HydroGuardUser(
+        firebase_uid="existing-uid",
+        email="mail4dssr@gmail.com",
+        role="STUDENT",
+        status="ACTIVE",
+    ))
+    db.commit()
+
+    conflicting_user = SimpleNamespace(
+        uid="different-uid",
+        email="mail4dssr@gmail.com",
+        email_verified=True,
+        display_name="Conflicting",
+        custom_claims=None,
+    )
+
+    with pytest.raises(RuntimeError, match="different Firebase UID"):
+        auth_service.bootstrap_first_admin(db, conflicting_user)
+
+    uid_conflict_user = SimpleNamespace(
+        uid="existing-uid",
+        email="different@example.com",
+        email_verified=True,
+        display_name="Conflicting",
+        custom_claims=None,
+    )
+
+    with pytest.raises(RuntimeError, match="different email"):
+        auth_service.bootstrap_first_admin(db, uid_conflict_user)
+
+
+def test_revoking_student_admin_demotes_to_active_student(db, monkeypatch):
+    monkeypatch.setenv("HYDROGUARD_ALLOWED_STUDENT_DOMAINS", "vrsec.ac.in")
+    updates = []
+    revoked = []
+    monkeypatch.setattr(admin_users, "sync_firebase_role_claim", lambda uid, role: updates.append((uid, role)))
+    monkeypatch.setattr(admin_users, "revoke_firebase_sessions", lambda uid: revoked.append(uid))
+
+    db.add_all([
+        HydroGuardUser(firebase_uid="admin-1", email="admin@faculty.example", role="ADMIN", status="ACTIVE"),
+        HydroGuardUser(firebase_uid="student-1", email="24eu04177@vrsec.ac.in", role="ADMIN", status="ACTIVE"),
+    ])
+    db.commit()
+
+    admin = {"uid": "admin-1", "role": "ADMIN"}
+    target = db.query(HydroGuardUser).filter_by(firebase_uid="student-1").one()
+
+    result = admin_users.update_admin_status(
+        target.id,
+        AdminUserStatusRequest(status="REVOKED"),
+        principal=admin,
+        db=db,
+    )
+    assert result.role == "STUDENT"
+    assert result.status == "ACTIVE"
+    assert updates == [("student-1", "STUDENT")]
+    assert revoked == ["student-1"]
+
+    principal = auth._database_principal(identity("student-1", "24eu04177@vrsec.ac.in"), db)
+    assert principal["role"] == "STUDENT"

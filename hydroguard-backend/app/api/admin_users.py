@@ -9,7 +9,11 @@ from app.core.auth import require_roles
 from app.db.auth_models import HydroGuardUser
 from app.db.database import get_db
 from app.schemas.auth import AdminInviteRequest, AdminUserResponse, AdminUserStatusRequest
-from app.services.auth_service import revoke_firebase_sessions, sync_firebase_role_claim
+from app.services.auth_service import (
+    is_approved_student_email,
+    revoke_firebase_sessions,
+    sync_firebase_role_claim,
+)
 
 router = APIRouter(prefix="/admin/users", tags=["admin-user-management"])
 
@@ -104,6 +108,17 @@ def update_admin_status(
         )
         if active_count <= 1:
             raise HTTPException(status_code=409, detail="The last active administrator cannot be suspended or revoked.")
+
+    if new_status == "REVOKED" and is_approved_student_email(account.email):
+        account.role = "STUDENT"
+        account.status = "ACTIVE"
+        account.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(account)
+        if account.firebase_uid:
+            sync_firebase_role_claim(account.firebase_uid, "STUDENT")
+            revoke_firebase_sessions(account.firebase_uid)
+        return _response(account)
 
     account.status = new_status
     account.updated_at = datetime.now(timezone.utc)

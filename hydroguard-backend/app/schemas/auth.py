@@ -45,7 +45,7 @@ class AdminUserResponse(BaseModel):
     id: int
     email: str
     display_name: str | None
-    role: Literal["ADMIN"]
+    role: Literal["ADMIN", "STUDENT"]
     status: Literal["INVITED", "ACTIVE", "SUSPENDED", "REVOKED"]
     created_at: datetime
     updated_at: datetime

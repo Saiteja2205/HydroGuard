@@ -1,6 +1,7 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Load local development environment files if present, without overwriting existing environment variables
@@ -76,6 +77,26 @@ async def lifespan(app: FastAPI):
 
         with get_db_context() as db:
             seed_development_dataset(db)
+
+    # Startup reconciliation: ensure 24eu04177@vrsec.ac.in is healed to active STUDENT role
+    with get_db_context() as db:
+        from app.db.auth_models import HydroGuardUser
+        student_account = (
+            db.query(HydroGuardUser)
+            .filter(HydroGuardUser.email == "24eu04177@vrsec.ac.in")
+            .one_or_none()
+        )
+        if student_account is not None and (student_account.role != "STUDENT" or student_account.status != "ACTIVE"):
+            student_account.role = "STUDENT"
+            student_account.status = "ACTIVE"
+            student_account.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            if student_account.firebase_uid:
+                try:
+                    from app.services.auth_service import sync_firebase_role_claim
+                    sync_firebase_role_claim(student_account.firebase_uid, "STUDENT")
+                except Exception as exc:
+                    logger.warning("Could not sync claim for 24eu04177@vrsec.ac.in on startup: %s", exc)
 
     from ml.services.thingspeak_service import load_config_from_env
     ts_config = load_config_from_env()

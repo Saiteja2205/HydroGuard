@@ -174,17 +174,28 @@ class ThingSpeakWindow:
         return None
 
 
-def load_config_from_env(environ: Mapping[str, str] | None = None) -> ThingSpeakConfig:
+def load_config_from_env(
+    environ: Mapping[str, str] | None = None,
+    default_channel: str = "",
+) -> ThingSpeakConfig:
     """Build a config from the environment without raising on a cold start.
 
     A missing channel id yields ``configured == False`` so the caller can
     answer "not configured" truthfully instead of crashing on import. A channel
     id that is present but malformed is rejected immediately, because accepting
     it would let a bad value reach the request URL.
+
+    When running in the production app runtime without an explicit channel ID in
+    the environment, falls back to the default HydroGuard channel "244357".
     """
     env = os.environ if environ is None else environ
 
     channel_id = (env.get("HYDROGUARD_THINGSPEAK_CHANNEL_ID") or "").strip()
+    if not channel_id:
+        if default_channel.strip():
+            channel_id = default_channel.strip()
+        elif env.get("HYDROGUARD_ENVIRONMENT", "").strip().lower() == "production" and environ is None:
+            channel_id = "244357" 
     read_api_key = (env.get("HYDROGUARD_THINGSPEAK_READ_API_KEY") or "").strip()
     base_url = (env.get("HYDROGUARD_THINGSPEAK_BASE_URL") or DEFAULT_BASE_URL).strip().rstrip("/")
 
