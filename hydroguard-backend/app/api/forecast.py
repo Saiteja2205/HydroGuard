@@ -713,13 +713,16 @@ def generate_thingspeak_forecast(
             detail=f"Insufficient history: channel has {window.observed_rows} observation(s), but at least {min_obs} are required.",
         )
 
-    # Defensible minimum coverage across ALL 4 required parameters
-    # A window where 1 or more required parameters have fewer than min_obs usable
-    # observations must not be passed to ML models for forecasting.
-    REQUIRED_PARAMETERS = ("pH", "TDS", "turbidity", "temperature")
+    # Check if pH probe is explicitly flagged as disconnected/unavailable via status bitmask (bit 1)
+    is_ph_disconnected = (window.latest_status_flag is not None and bool(window.latest_status_flag & 2))
+
+    # Defensible minimum coverage across required parameters
+    # When pH is explicitly flagged as disconnected, require coverage on TDS, turbidity, temperature
+    # and honestly output pH as None/Unavailable in the forecast block.
+    check_parameters = ("TDS", "turbidity", "temperature") if is_ph_disconnected else ("pH", "TDS", "turbidity", "temperature")
     insufficient_params = {
         param: window.observed_by_parameter.get(param, 0)
-        for param in REQUIRED_PARAMETERS
+        for param in check_parameters
         if window.observed_by_parameter.get(param, 0) < min_obs
     }
     if insufficient_params:

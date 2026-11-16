@@ -696,3 +696,30 @@ class TestForecastSemanticsAndTargetTimestamp:
         assert ens["pH"] >= 0.0
         assert ens["TDS"] >= 0.0
         assert ens["turbidity"] >= 0.0
+
+    def test_forecast_with_disconnected_ph_probe(self, client, stub_feeds, monkeypatch):
+        """When pH probe is disconnected (field1=-1.00, bit 1 set), remaining parameters are forecasted and pH is null."""
+        from app.db.database import init_db
+        monkeypatch.setenv("HYDROGUARD_THINGSPEAK_CHANNEL_ID", "55562")
+        stub_feeds.feeds = _feeds(30)
+        for feed in stub_feeds.feeds:
+            feed["field1"] = "-1.00"
+            feed["field2"] = "45.0"
+            feed["field3"] = "80.0"
+            feed["field4"] = "28.5"
+            feed["field8"] = "47"  # bit 1 set (pH invalid/disconnected)
+
+        init_db()
+        response = client.get("/api/v1/thingspeak/forecast")
+        assert response.status_code == 200
+        body = response.json()
+
+        assert body["status"] == "success"
+        assert body["latest_reading"]["is_ph_valid"] is False
+        assert body["latest_reading"]["values"]["pH"] is None
+        assert body["latest_reading"]["values"]["TDS"] == pytest.approx(45.0, abs=1e-3)
+        assert body["forecast"]["ensemble"]["pH"] is None
+        assert body["forecast"]["ensemble"]["TDS"] > 0
+        assert body["forecast"]["ensemble"]["turbidity"] > 0
+        assert body["forecast"]["ensemble"]["temperature"] > 0
+        assert body["prediction"]["pH"] is None
