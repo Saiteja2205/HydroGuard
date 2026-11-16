@@ -104,7 +104,17 @@ def validate_parameter(param: str, raw_val: Any) -> ParameterValidationResult:
 
     # 2. pH validation
     if p == "ph":
-        if coerced < 0.0 or coerced > 14.0:
+        if coerced < 0.0:
+            return ParameterValidationResult(
+                parameter=param,
+                raw_value=raw_val,
+                coerced_value=None,
+                flag=SensorQualityFlag.OUT_OF_BOUNDS,
+                is_valid_for_model=False,
+                is_valid_for_alerts=False,
+                reason=f"pH {coerced:.2f} is outside physical aqueous range [0.0, 14.0] (placeholder/invalid).",
+            )
+        if coerced > 14.0:
             return ParameterValidationResult(
                 parameter=param,
                 raw_value=raw_val,

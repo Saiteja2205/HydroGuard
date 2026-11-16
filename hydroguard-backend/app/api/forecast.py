@@ -524,11 +524,12 @@ def _get_db_cached_latest_reading(db: Session, channel_id: str) -> Optional[Thin
     if any(c is not None for c in (row.red, row.green, row.blue, row.clear)):
         rgb = ThingSpeakRGBValues(red=row.red, green=row.green, blue=row.blue, clear=row.clear)
 
+    ph_valid = (row.ph is not None and row.ph > 0)
     return ThingSpeakLatestReading(
         timestamp=iso_ts,
         observed_at=iso_ts,
         values=ThingSpeakReadingValues(
-            pH=float(row.ph) if row.ph is not None else 7.0,
+            pH=float(row.ph) if ph_valid else None,
             TDS=float(row.tds) if row.tds is not None else 100.0,
             turbidity=float(row.turbidity) if row.turbidity is not None else 1.0,
             temperature=float(row.temperature) if row.temperature is not None else 25.0,
@@ -539,6 +540,7 @@ def _get_db_cached_latest_reading(db: Session, channel_id: str) -> Optional[Thin
         data_source="THINGSPEAK",
         is_cached=True,
         is_stale=is_stale,
+        is_ph_valid=ph_valid,
         age_seconds=age_seconds,
         hardware_status=hw_status,
         upstream_status="unreachable",
@@ -593,7 +595,7 @@ def _persist_upstream_feeds_to_db(db: Session, channel_id: str, feeds: Sequence[
             turb_v = _get_f(param_to_field.get("turbidity"))
             temp_v = _get_f(param_to_field.get("temperature"))
 
-            if ph_v is not None and tds_v is not None and turb_v is not None and temp_v is not None:
+            if ph_v is not None and ph_v >= 0 and tds_v is not None and turb_v is not None and temp_v is not None:
                 new_row = SensorReading(
                     node_id=node_id,
                     timestamp=ts,
@@ -807,8 +809,14 @@ def generate_thingspeak_forecast(
                 1 for row in window.rgb_values if row[i] is None
             )
 
+    is_ph_valid = True
+    if window.latest_status_flag is not None and bool(window.latest_status_flag & 2):
+        is_ph_valid = False
+    elif "pH" in window.unobserved_parameters:
+        is_ph_valid = False
+
     latest_values = ThingSpeakReadingValues(
-        pH=window.values[-1][0],
+        pH=window.values[-1][0] if is_ph_valid else None,
         TDS=window.values[-1][1],
         turbidity=window.values[-1][2],
         temperature=window.values[-1][3],
@@ -842,25 +850,25 @@ def generate_thingspeak_forecast(
     # Forecast only the 4 water-quality parameters (pH, TDS, turbidity, temperature)
     forecast_block = ThingSpeakForecastBlock(
         lstm=ThingSpeakReadingValues(
-            pH=result.model_forecasts["lstm"]["pH"],
+            pH=result.model_forecasts["lstm"]["pH"] if is_ph_valid else None,
             TDS=result.model_forecasts["lstm"]["TDS"],
             turbidity=result.model_forecasts["lstm"]["turbidity"],
             temperature=result.model_forecasts["lstm"]["temperature"],
         ),
         patchtst=ThingSpeakReadingValues(
-            pH=result.model_forecasts["patchtst"]["pH"],
+            pH=result.model_forecasts["patchtst"]["pH"] if is_ph_valid else None,
             TDS=result.model_forecasts["patchtst"]["TDS"],
             turbidity=result.model_forecasts["patchtst"]["turbidity"],
             temperature=result.model_forecasts["patchtst"]["temperature"],
         ),
         timemixer=ThingSpeakReadingValues(
-            pH=result.model_forecasts["timemixer"]["pH"],
+            pH=result.model_forecasts["timemixer"]["pH"] if is_ph_valid else None,
             TDS=result.model_forecasts["timemixer"]["TDS"],
             turbidity=result.model_forecasts["timemixer"]["turbidity"],
             temperature=result.model_forecasts["timemixer"]["temperature"],
         ),
         ensemble=ThingSpeakReadingValues(
-            pH=result.ensemble["pH"],
+            pH=result.ensemble["pH"] if is_ph_valid else None,
             TDS=result.ensemble["TDS"],
             turbidity=result.ensemble["turbidity"],
             temperature=result.ensemble["temperature"],
@@ -883,6 +891,8 @@ def generate_thingspeak_forecast(
             rgb=latest_rgb,
             entry_id=window.latest_entry_id,
             status_flag=window.latest_status_flag,
+            status_bitmask=window.latest_status_flag,
+            is_ph_valid=is_ph_valid,
             channel_id=window.channel_id,
             node_id=f"thingspeak-{window.channel_id}",
         ),
@@ -1024,11 +1034,19 @@ def get_latest_thingspeak_reading(
             else None
         )
 
+        is_ph_valid = True
+        if window.latest_status_flag is not None and bool(window.latest_status_flag & 2):
+            is_ph_valid = False
+        elif "pH" in window.unobserved_parameters:
+            is_ph_valid = False
+
+        latest_ph = window.values[-1][0] if is_ph_valid else None
+
         return ThingSpeakLatestReading(
             timestamp=observed_timestamp,
             observed_at=observed_timestamp,
             values=ThingSpeakReadingValues(
-                pH=window.values[-1][0],
+                pH=latest_ph,
                 TDS=window.values[-1][1],
                 turbidity=window.values[-1][2],
                 temperature=window.values[-1][3],
@@ -1036,6 +1054,8 @@ def get_latest_thingspeak_reading(
             rgb=latest_rgb,
             entry_id=window.latest_entry_id,
             status_flag=window.latest_status_flag,
+            status_bitmask=window.latest_status_flag,
+            is_ph_valid=is_ph_valid,
             channel_id=config.channel_id,
             node_id=f"thingspeak-{config.channel_id}",
             data_source="THINGSPEAK",
@@ -1125,10 +1145,11 @@ def get_thingspeak_history(
             parsed = []
             for r in db_readings:
                 iso_ts = r.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ") if r.timestamp else None
+                ph_v = float(r.ph) if (r.ph is not None and float(r.ph) > 0) else None
                 parsed.append(ThingSpeakHistoryReading(
                     timestamp=iso_ts,
-                    ph=float(r.ph) if r.ph is not None else None,
-                    pH=float(r.ph) if r.ph is not None else None,
+                    ph=ph_v,
+                    pH=ph_v,
                     tds=float(r.tds) if r.tds is not None else None,
                     TDS=float(r.tds) if r.tds is not None else None,
                     turbidity=float(r.turbidity) if r.turbidity is not None else None,

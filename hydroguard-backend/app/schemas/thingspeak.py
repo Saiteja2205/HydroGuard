@@ -32,11 +32,12 @@ class ThingSpeakReadingValues(BaseModel):
 
     Note: optical_colour_index is optional because it is not directly measured
     by the hardware. When unavailable, it will be None and excluded from serialization.
+    pH is optional when the physical probe is disconnected/uncalibrated (-1.00 placeholder).
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    pH: float
+    pH: Optional[float] = None
     TDS: float
     turbidity: float
     temperature: float
@@ -95,6 +96,14 @@ class ThingSpeakLatestReading(BaseModel):
     status_flag: Optional[int] = Field(
         default=None,
         description="Hardware status flag from field8 (e.g. 0=normal, 1=abnormal).",
+    )
+    status_bitmask: Optional[int] = Field(
+        default=None,
+        description="Detailed hardware & water quality status bitmask from field8.",
+    )
+    is_ph_valid: bool = Field(
+        default=True,
+        description="False if pH probe is disconnected or unavailable.",
     )
     channel_id: Optional[str] = Field(
         default=None,

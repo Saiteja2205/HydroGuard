@@ -539,15 +539,23 @@ def parse_history_readings(
             else:
                 row[colour] = None
 
-        # Field 8 status flag
+        # Field 8 status bitmask and pH validity decoupling
         raw_status = feed.get("field8")
+        status_mask = None
         if raw_status is not None:
             try:
-                row["status_flag"] = int(float(str(raw_status).strip()))
+                status_mask = int(float(str(raw_status).strip()))
             except (ValueError, TypeError):
-                row["status_flag"] = None
-        else:
-            row["status_flag"] = None
+                status_mask = None
+        row["status_flag"] = status_mask
+        row["status_bitmask"] = status_mask
+        
+        # Explicit pH validity decoupling: bit 1 of status_mask indicates pH invalidity
+        is_ph_invalid = (status_mask is not None and bool(status_mask & 2)) or (row.get("pH") is None)
+        row["is_ph_valid"] = not is_ph_invalid
+        if is_ph_invalid:
+            row["ph"] = None
+            row["pH"] = None
 
         readings.append(row)
 
